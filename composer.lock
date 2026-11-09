@@ -77,12 +77,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/core",
-                "reference": "cd4cde6d17adac42e9b6f4e1f895bfa2069ea021"
+                "reference": "308ab0ae11a6cc1e934e21ca1436a0e5bcd79dc6"
             },
             "require": {
                 "ext-curl": "*",
                 "ext-pdo": "*",
                 "ext-pdo_pgsql": "*",
+                "illuminate/database": "^13.0",
                 "illuminate/support": "^13.0",
                 "php": "^8.4"
             },

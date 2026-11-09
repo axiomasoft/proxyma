@@ -12,11 +12,16 @@ final readonly class CatalogMutationActor
 
     public string $reason;
 
+    public ActorRef $actor;
+
     public function __construct(
-        string $actorId,
+        string|ActorRef $actorId,
         string $reason,
         public ?int $expectedRevision = null,
+        public ?string $idempotencyKey = null,
     ) {
+        $actor = $actorId instanceof ActorRef ? $actorId : new ActorRef('operator', trim($actorId));
+        $actorId = $actor->id;
         $actorId = trim($actorId);
         $reason = trim($reason);
 
@@ -32,6 +37,11 @@ final readonly class CatalogMutationActor
             throw new InvalidArgumentException('Expected revision must be non-negative.');
         }
 
+        if ($idempotencyKey !== null && preg_match('/^[\x21-\x7e]{1,128}$/D', $idempotencyKey) !== 1) {
+            throw new InvalidArgumentException('Idempotency key must contain 1..128 visible ASCII bytes.');
+        }
+
+        $this->actor = $actor;
         $this->actorId = $actorId;
         $this->reason = $reason;
     }

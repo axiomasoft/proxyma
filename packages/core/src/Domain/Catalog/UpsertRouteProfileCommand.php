@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Catalog;
 
 use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Policy\BudgetConstraint;
 use Proxyma\Domain\Policy\TenantKey;
 
 final readonly class UpsertRouteProfileCommand
@@ -19,5 +20,7 @@ final readonly class UpsertRouteProfileCommand
         public array $memberRouteIds,
         public string $strategyKey,
         public CatalogMutationActor $actor,
+        /** @var list<BudgetConstraint> */
+        public array $budgets = [],
     ) {}
 }
