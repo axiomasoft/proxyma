@@ -7,12 +7,18 @@ namespace Proxyma\Laravel;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Authorization\CatalogAccess;
+use Proxyma\Application\Bindings\BindingContext;
+use Proxyma\Application\Bindings\DatabaseBindingCommands;
+use Proxyma\Application\Bindings\DatabaseBindingQueries;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
+use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\SettingRegistryFactory;
 use Proxyma\Application\Policy\UpdatePolicy;
 use Proxyma\Contracts\Authorizer;
+use Proxyma\Contracts\BindingCommands;
+use Proxyma\Contracts\BindingQueries;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\PolicyCommands;
@@ -71,6 +77,16 @@ class ProxymaServiceProvider extends ServiceProvider
         });
         $this->app->alias(UpdatePolicy::class, PolicyCommands::class);
 
+        $this->app->singleton(DefinitionRegistry::class, static fn (Application $app): DefinitionRegistry => new DefinitionRegistry($app->make(SettingRegistry::class)));
+        $this->app->bind(DatabaseBindingCommands::class, static fn (Application $app): DatabaseBindingCommands => new DatabaseBindingCommands(
+            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
+            $app->make(CatalogAccess::class), $app->make(DefinitionRegistry::class), $app->make(SettingRegistry::class), $app->make(PolicyResolutionCache::class)));
+        $this->app->alias(DatabaseBindingCommands::class, BindingCommands::class);
+        $this->app->bind(DatabaseBindingQueries::class, static fn (Application $app): DatabaseBindingQueries => new DatabaseBindingQueries(
+            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
+            $app->make(BindingContext::class)));
+        $this->app->alias(DatabaseBindingQueries::class, BindingQueries::class);
+
         $this->app->bind(PolicyResolver::class, static function (Application $app): PolicyResolver {
             return new PolicyResolver(
                 db: $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
@@ -83,6 +99,7 @@ class ProxymaServiceProvider extends ServiceProvider
 
                     return is_array($cfg) ? $cfg : [];
                 },
+                definitions: $app->make(DefinitionRegistry::class),
             );
         });
         $this->app->alias(PolicyResolver::class, PolicyResolverContract::class);
@@ -96,6 +113,7 @@ class ProxymaServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->app->booted(fn () => $this->app->make(DefinitionRegistry::class)->freeze());
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
         if ($this->app->runningInConsole()) {

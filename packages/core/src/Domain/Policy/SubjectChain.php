@@ -33,7 +33,7 @@ final readonly class SubjectChain
             throw new InvalidArgumentException('Subject chain exceeds maximum depth of 16.');
         }
 
-        $seenTypes = [$normalizedLeaf->type => $normalizedLeaf->id];
+        $seen = [$normalizedLeaf->key() => true];
         $chain = [$normalizedLeaf];
 
         foreach ($rawAncestors as $ancestor) {
@@ -45,15 +45,10 @@ final readonly class SubjectChain
                 throw new InvalidArgumentException('Ancestors in SubjectChain must not contain nested parent chains.');
             }
 
-            if (isset($seenTypes[$ancestor->type])) {
-                if ($seenTypes[$ancestor->type] === $ancestor->id) {
-                    throw new InvalidArgumentException('Cycle detected in SubjectChain.');
-                }
-
-                throw new InvalidArgumentException("Ambiguous ancestor for subject type '{$ancestor->type}'.");
+            if (isset($seen[$ancestor->key()])) {
+                throw new InvalidArgumentException('Cycle detected in SubjectChain.');
             }
-
-            $seenTypes[$ancestor->type] = $ancestor->id;
+            $seen[$ancestor->key()] = true;
             $chain[] = $ancestor;
         }
 

@@ -9,6 +9,9 @@ use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
+use Proxyma\Application\Bindings\BindingContext;
+use Proxyma\Application\Extensions\DefinitionRegistry;
+use Proxyma\Application\Panels\PanelSubjects;
 use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteKind;
@@ -20,6 +23,7 @@ use Proxyma\Domain\Execution\ExecutionBlocked;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthEpochMap;
+use Proxyma\Domain\Panels\SubjectResolutionFailed;
 use Proxyma\Domain\Policy\BudgetConstraint;
 use Proxyma\Domain\Policy\EffectivePolicy;
 use Proxyma\Domain\Policy\EffectivePolicySnapshot;
@@ -77,6 +81,7 @@ final class PolicyResolver implements PolicyResolverContract
         private readonly array $panelDefaults = [],
         private readonly array $hardBounds = [],
         private readonly string $defaultPanelKey = 'default',
+        private readonly ?DefinitionRegistry $definitions = null,
     ) {
         $this->fallbackRegistry = $registry ?? new SettingRegistry(CoreSettings::descriptors());
     }
@@ -122,6 +127,7 @@ final class PolicyResolver implements PolicyResolverContract
         ?PolicyScope $editableScope = null,
         ?string $editableScopeId = null,
         bool $bypassCache = false,
+        string $panelAction = 'execute',
     ): EffectivePolicy {
         if ($trafficKey === '') {
             throw new InvalidSettingPatch;
@@ -138,6 +144,7 @@ final class PolicyResolver implements PolicyResolverContract
             targetId: $targetId,
             trafficKey: $trafficKey,
             panelKey: $resolvedPanelKey,
+            panelAction: $panelAction,
         );
 
         $layers = $loaded['layers'];
@@ -810,23 +817,27 @@ final class PolicyResolver implements PolicyResolverContract
             : $this->currentPanelKey();
 
         // Живая политика вычисляется напрямую из SQL (без кэша).
-        $livePolicy = $this->resolveEffective(
-            subjects: $subjects,
-            targetId: $pinned->targetId,
-            trafficKey: $trafficKey,
-            panelKey: $resolvedPanelKey,
-            bypassCache: true,
-        );
+        try {
+            $livePolicy = $this->resolveEffective(
+                subjects: $subjects,
+                targetId: $pinned->targetId,
+                trafficKey: $trafficKey,
+                panelKey: $resolvedPanelKey,
+                bypassCache: true,
+            );
 
-        // Пересекаем живую политику со слепком (устаревший слепок не восстанавливает запрещённый маршрут и не расширяет лимиты/бюджеты).
-        $intersectedPolicy = $this->resolveEffective(
-            subjects: $subjects,
-            targetId: $pinned->targetId,
-            trafficKey: $trafficKey,
-            pinned: $pinned,
-            panelKey: $resolvedPanelKey,
-            bypassCache: true,
-        );
+            // Пересекаем живую политику со слепком (устаревший слепок не восстанавливает запрещённый маршрут и не расширяет лимиты/бюджеты).
+            $intersectedPolicy = $this->resolveEffective(
+                subjects: $subjects,
+                targetId: $pinned->targetId,
+                trafficKey: $trafficKey,
+                pinned: $pinned,
+                panelKey: $resolvedPanelKey,
+                bypassCache: true,
+            );
+        } catch (SubjectResolutionFailed|AuthorizationDenied $failure) {
+            return new ExecutionBlocked(reason: BlockedReason::ConfigurationHold, safeDetails: ['detail' => 'panel_subject_or_binding_unavailable']);
+        }
 
         if (! $intersectedPolicy->isDestinationAllowed($target->destinationPolicyKey)) {
             return new ExecutionBlocked(
@@ -2353,7 +2364,23 @@ final class PolicyResolver implements PolicyResolverContract
         Uuid $targetId,
         string $trafficKey,
         string $panelKey,
+        string $panelAction = 'execute',
     ): array {
+        $panelSlot = null;
+        if ($this->definitions !== null && $this->definitions->hasPanel($panelKey)) {
+            if (($this->db?->transactionLevel() ?? 0) !== 0) {
+                throw new SubjectResolutionFailed('Resolve panel subjects before opening a SQL transaction.');
+            }
+            $panelSlot = $this->definitions->panel($panelKey)->slot($trafficKey);
+            (new PanelSubjects($this->definitions))->verify($panelKey, $subjects);
+            if ($this->access === null) {
+                throw new AuthorizationDenied;
+            }
+            if (! in_array($panelAction, ['view', 'execute'], true)) {
+                throw new AuthorizationDenied;
+            }
+            (new BindingContext($this->access, $this->definitions))->authorize($subjects->leaf, $panelKey, $trafficKey, $panelAction);
+        }
         $layers = [
             new PolicyLayer(
                 kind: PolicyLayerKind::PackageDefaults,
@@ -2375,6 +2402,12 @@ final class PolicyResolver implements PolicyResolverContract
         }
 
         $panelDefaults = $this->resolvedPanelDefaults($panelKey);
+        if ($panelSlot !== null) {
+            $panelDefaults = [];
+            foreach ($panelSlot->defaults->changes as $key => $change) {
+                $panelDefaults[$key] = $change;
+            }
+        }
 
         if ($this->db === null) {
             if ($panelDefaults !== []) {
@@ -2646,6 +2679,13 @@ final class PolicyResolver implements PolicyResolverContract
         // Загружаем привязки pxm_bindings для цепочки субъектов.
         $bindingRows = $db->table($tables['bindings'])
             ->where('tenant_key', $tenantStr)
+            ->where('panel_key', $panelKey)
+            ->where('slot_key', $trafficKey)
+            ->where(function ($query) use ($subjects): void {
+                foreach ($subjects->ordered as $subject) {
+                    $query->orWhere(fn ($pair) => $pair->where('subject_type', $subject->type)->where('subject_id', $subject->id));
+                }
+            })
             ->whereNull('retired_at')
             ->orderBy('revision')
             ->get();
@@ -2653,9 +2693,14 @@ final class PolicyResolver implements PolicyResolverContract
         $bindingsBySubjectPair = [];
 
         foreach ($bindingRows as $bRow) {
-            $pairKey = (string) $bRow->subject_type.':'.(string) $bRow->subject_id;
+            $pairKey = json_encode([(string) $bRow->subject_type, (string) $bRow->subject_id], JSON_THROW_ON_ERROR);
             $bindingsBySubjectPair[$pairKey][] = $bRow;
             $policyVersions['binding:'.(string) $bRow->id] = (int) $bRow->revision;
+        }
+
+        $leafPair = json_encode([$subjects->leaf->type, $subjects->leaf->id], JSON_THROW_ON_ERROR);
+        if ($panelSlot !== null && ! $panelSlot->inheritDefaults && ! isset($bindingsBySubjectPair[$leafPair])) {
+            throw new SubjectResolutionFailed('Explicit binding required for this slot.');
         }
 
         // Layer 7 (ordered_entity_ancestry) и Layer 8 (entity_binding)
@@ -2671,12 +2716,14 @@ final class PolicyResolver implements PolicyResolverContract
                 ? PolicyLayerKind::EntityBinding
                 : PolicyLayerKind::OrderedEntityAncestry;
 
-            $pairKey = $subject->type.':'.$subject->id;
+            $pairKey = rawurlencode($subject->type).':'.rawurlencode($subject->id);
             $entityScopeCandidates = array_values(array_unique([
                 $tenantStr.'|entity:'.$pairKey,
-                $tenantStr.'|entity:'.$subject->id,
                 $tenantStr.'|entity:'.$pairKey.':'.$trafficKey,
             ]));
+            if ($panelSlot === null) {
+                $entityScopeCandidates[] = $tenantStr.'|entity:'.$subject->id;
+            }
 
             $subjectBudgets = [];
             $unmatchedBudgets = [];
@@ -2718,15 +2765,22 @@ final class PolicyResolver implements PolicyResolverContract
                 }
             }
 
-            foreach ($bindingsBySubjectPair[$pairKey] ?? [] as $bRow) {
+            $typedPair = json_encode([$subject->type, $subject->id], JSON_THROW_ON_ERROR);
+            foreach ($bindingsBySubjectPair[$typedPair] ?? [] as $bRow) {
                 $boundHead = $headsById[(string) $bRow->head_id] ?? null;
+                if ($boundHead === null || ($bRow->profile_id !== null && ! isset($profileKeyById[(string) $bRow->profile_id]))) {
+                    throw new SubjectResolutionFailed('Binding references a missing policy or retired profile.');
+                }
+                if ($panelSlot !== null && array_diff(array_keys($boundHead['patch']->changes), $panelSlot->settings) !== []) {
+                    throw new SubjectResolutionFailed('Stored binding exceeds the panel field subset.');
+                }
 
-                if ($isLeaf && $boundHead !== null) {
+                if ($isLeaf) {
                     $editableHeadId = $boundHead['head_id'];
                 }
 
                 $boundProfileKey = $bRow->profile_id !== null
-                    ? ($profileKeyById[(string) $bRow->profile_id] ?? null)
+                    ? $profileKeyById[(string) $bRow->profile_id]
                     : null;
 
                 $boundProfileId = $bRow->profile_id !== null
@@ -2737,13 +2791,11 @@ final class PolicyResolver implements PolicyResolverContract
                     ? ($profileRevisionMap[$boundProfileKey] ?? 1)
                     : null;
 
-                $patchForBinding = $boundHead !== null && ! isset($addedHeadIds[$boundHead['head_id']->value])
+                $patchForBinding = ! isset($addedHeadIds[$boundHead['head_id']->value])
                     ? $boundHead['patch']
                     : new SettingPatch(1, []);
 
-                $revisionForBinding = $boundHead !== null
-                    ? max((int) $bRow->revision, $boundHead['revision'])
-                    : (int) $bRow->revision;
+                $revisionForBinding = max((int) $bRow->revision, $boundHead['revision']);
 
                 $layers[] = new PolicyLayer(
                     kind: $layerKind,
@@ -3511,7 +3563,7 @@ final class PolicyResolver implements PolicyResolverContract
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         );
 
-        return $registryFp.':'.substr($configFp, 0, 16);
+        return $registryFp.':'.substr($configFp, 0, 16).':'.($this->definitions?->fingerprint() ?? 'legacy');
     }
 
     private function requireConnection(): Connection

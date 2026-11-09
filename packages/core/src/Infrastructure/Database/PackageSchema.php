@@ -25,6 +25,7 @@ final class PackageSchema
             'policy_heads' => Eloquent\PolicyHeadRecord::class,
             'policy_revisions' => Eloquent\PolicyRevisionRecord::class,
             'bindings' => Eloquent\BindingRecord::class,
+            'binding_revisions' => Eloquent\BindingRevisionRecord::class,
             'operations' => Eloquent\OperationRecord::class,
             'demands' => Eloquent\DemandRecord::class,
             'permits' => Eloquent\PermitRecord::class,

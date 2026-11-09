@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 final readonly class SubjectRef
 {
-    public const int MAX_PARENTS = 16;
+    public const int MAX_PARENTS = 15;
 
     /** @var list<self> */
     public array $parents;
@@ -34,7 +34,7 @@ final readonly class SubjectRef
             throw new InvalidArgumentException('Subject parent chain exceeds maximum depth of 16.');
         }
 
-        $seenTypes = [$type => $id];
+        $seen = [json_encode([$type, $id], JSON_THROW_ON_ERROR) => true];
         $normalizedParents = [];
 
         foreach ($parents as $parent) {
@@ -46,15 +46,11 @@ final readonly class SubjectRef
                 throw new InvalidArgumentException('Ordered parent chain must be flat; nested parent lists are ambiguous.');
             }
 
-            if (isset($seenTypes[$parent->type])) {
-                if ($seenTypes[$parent->type] === $parent->id) {
-                    throw new InvalidArgumentException('Cycle detected in subject parent chain.');
-                }
-
-                throw new InvalidArgumentException("Ambiguous parent for subject type '{$parent->type}'.");
+            $key = json_encode([$parent->type, $parent->id], JSON_THROW_ON_ERROR);
+            if (isset($seen[$key])) {
+                throw new InvalidArgumentException('Cycle detected in subject parent chain.');
             }
-
-            $seenTypes[$parent->type] = $parent->id;
+            $seen[$key] = true;
             $normalizedParents[] = $parent;
         }
 
@@ -63,7 +59,7 @@ final readonly class SubjectRef
 
     public function key(): string
     {
-        return "{$this->tenant->value}:{$this->type}:{$this->id}";
+        return implode(':', array_map(rawurlencode(...), [$this->tenant->value, $this->type, $this->id]));
     }
 
     public function withoutParents(): self

@@ -131,11 +131,11 @@ it('validates Uuid, ContentHash, Duration, RetryAt, TenantKey, and SubjectChain 
         new SubjectRef($tenant, 'crawler', 'c1'),
     ]))->toThrow(InvalidArgumentException::class, 'Cycle');
 
-    // Ambiguous parent of same type with different ID -> rejected
-    expect(static fn () => new SubjectRef($tenant, 'crawler', 'c1', [
+    // Один тип может повторяться с разными ID; конфликт родителей проверяет resolver.
+    expect((new SubjectRef($tenant, 'crawler', 'c1', [
         new SubjectRef($tenant, 'platform', 'p1'),
         new SubjectRef($tenant, 'platform', 'p2'),
-    ]))->toThrow(InvalidArgumentException::class, 'Ambiguous');
+    ]))->parents)->toHaveCount(2);
 
     // Cross-tenant parent -> rejected
     expect(static fn () => new SubjectRef($tenant, 'crawler', 'c1', [

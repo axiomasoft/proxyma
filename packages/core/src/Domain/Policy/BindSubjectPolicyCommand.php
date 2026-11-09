@@ -14,5 +14,8 @@ final readonly class BindSubjectPolicyCommand
         public ?Uuid $routeProfileId,
         public string $policyKey,
         public CatalogMutationActor $actor,
+        public string $panelKey = 'default',
+        public string $slotKey = 'default',
+        public SettingPatch $patch = new SettingPatch(1, []),
     ) {}
 }

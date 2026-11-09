@@ -8,4 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 
 /** @internal */
 #[Table(name: 'pxm_bindings')]
-final class BindingRecord extends AuthorityRecord {}
+final class BindingRecord extends AuthorityRecord
+{
+    protected $attributes = ['panel_key' => 'default', 'slot_key' => 'default', 'policy_key' => 'default'];
+}

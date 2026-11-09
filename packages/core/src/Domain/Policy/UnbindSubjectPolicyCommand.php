@@ -12,5 +12,7 @@ final readonly class UnbindSubjectPolicyCommand
         public SubjectRef $subject,
         public string $policyKey,
         public CatalogMutationActor $actor,
+        public string $panelKey = 'default',
+        public string $slotKey = 'default',
     ) {}
 }

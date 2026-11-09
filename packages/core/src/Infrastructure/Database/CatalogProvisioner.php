@@ -5,13 +5,21 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
+use Proxyma\Domain\Bindings\BindingIdentity;
 use Proxyma\Domain\Policy\BudgetConstraint;
+use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
 
 /** @internal Вызывается только из catalog transaction, никогда из send path. */
 final readonly class CatalogProvisioner
 {
     public function __construct(private Connection $db) {}
+
+    public function lockBinding(SubjectRef $subject, string $panel, string $slot): void
+    {
+        $id = BindingIdentity::id($subject, $panel, $slot);
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:binding:'.$id->value]);
+    }
 
     public function lockCatalog(TenantKey $tenant): void
     {

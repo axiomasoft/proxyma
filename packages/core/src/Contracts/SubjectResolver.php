@@ -9,5 +9,6 @@ use Proxyma\Domain\Policy\SubjectRef;
 
 interface SubjectResolver
 {
-    public function resolve(SubjectRef $leaf): SubjectChain;
+    /** Root-to-parent ancestors; null means the subject does not exist in this tenant. */
+    public function resolve(SubjectRef $leaf): ?SubjectChain;
 }
