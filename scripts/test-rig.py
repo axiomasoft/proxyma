@@ -55,9 +55,13 @@ def preflight():
     compose('exec', '-T', 'runner', 'php', 'scripts/test-preflight.php')
 
 
+def test_roots():
+    return (ROOT / 'tests', ROOT / 'packages/core/tests', ROOT / 'packages/filament/tests')
+
+
 def test(path):
     target = (ROOT / path).resolve()
-    if not target.is_file() or not target.is_relative_to(ROOT / 'tests') or target.suffix != '.php':
+    if not target.is_file() or not any(target.is_relative_to(root) for root in test_roots()) or target.suffix != '.php':
         raise ValueError('test-file requires an existing repository test PHP file')
     preflight()
     fingerprint = source_fingerprint()
@@ -89,7 +93,8 @@ def main():
     elif cmd == 'file-env':
         test(os.environ.get('TEST_FILE', ''))
     elif cmd == 'suite' and len(sys.argv) == 3:
-        files = sorted((ROOT / 'tests' / sys.argv[2].capitalize()).rglob('*Test.php')) if sys.argv[2] != '.' else sorted((ROOT / 'tests').rglob('*Test.php'))
+        roots = [root if sys.argv[2] == '.' else root / sys.argv[2].capitalize() for root in test_roots()]
+        files = sorted(path for root in roots if root.is_dir() for path in root.rglob('*Test.php'))
         if not files:
             raise ValueError('suite contains zero test files')
         for path in files:
