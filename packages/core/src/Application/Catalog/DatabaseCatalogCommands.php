@@ -6,14 +6,18 @@ namespace Proxyma\Application\Catalog;
 
 use Closure;
 use Illuminate\Database\Connection;
-use Proxyma\Contracts\Authorizer;
+use Illuminate\Database\QueryException;
+use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Contracts\CatalogCommands;
+use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\RetireCatalogEntityCommand;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteProfile;
 use Proxyma\Domain\Catalog\SetRouteEnabledCommand;
+use Proxyma\Domain\Catalog\SharedRouteGrant;
+use Proxyma\Domain\Catalog\ShareRouteCommand;
 use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Catalog\UpsertEndpointCommand;
 use Proxyma\Domain\Catalog\UpsertRouteCommand;
@@ -22,13 +26,37 @@ use Proxyma\Domain\Catalog\UpsertTargetCommand;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\BudgetConstraint;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Security\SharedRouteStorage;
 
-final readonly class DatabaseCatalogCommands implements CatalogCommands
+final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedRouteCommands
 {
-    public function __construct(private Connection $db, private Authorizer $authorizer) {}
+    public function __construct(private Connection $db, private CatalogAccess $access) {}
+
+    public function shareRoute(ShareRouteCommand $command): SharedRouteGrant
+    {
+        // Конструктор проверяет owner/consumer до начала SQL transaction.
+        new SharedRouteGrant($command->grantId, $command->owner, $command->consumer, $command->routeId);
+        $row = $this->mutate('catalog.route.share', 'shared_route_grants', $command->grantId, $command->owner, $command->actor, $command,
+            function (?object $previous) use ($command): array {
+                if ($previous !== null) {
+                    throw new CatalogInvalidMutation('Grant identity cannot be reassigned; revoke instead.');
+                }
+                $this->requireActive('routes', $command->owner, $command->routeId);
+
+                return ['consumer_tenant_key' => $command->consumer->value, 'route_id' => $command->routeId->value];
+            });
+
+        return SharedRouteStorage::map($row);
+    }
+
+    public function revokeRouteGrant(RetireCatalogEntityCommand $command): SharedRouteGrant
+    {
+        return SharedRouteStorage::map($this->retire('shared_route_grants', 'catalog.route.revoke-share', $command));
+    }
 
     public function upsertEndpoint(UpsertEndpointCommand $command): Endpoint
     {
@@ -92,11 +120,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands
     {
         $profile = new RouteProfile($command->profileId, $command->tenantKey, $command->profileKey, $command->memberRouteIds, $command->strategyKey);
         $row = $this->mutate('catalog.profile.upsert', 'route_profiles', $command->profileId, $command->tenantKey, $command->actor, $command,
-            function (?object $previous) use ($command, $profile): array {
-                foreach ($profile->memberRouteIds as $routeId) {
-                    $this->requireActive('routes', $command->tenantKey, $routeId);
-                }
-
+            function (?object $previous) use ($profile): array {
                 return ['profile_key' => $profile->profileKey, 'strategy_key' => $profile->strategyKey];
             }, $command->budgets, $profile->memberRouteIds);
 
@@ -142,64 +166,95 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands
         if ($this->db->transactionLevel() !== 0) {
             throw new CatalogInvalidMutation('Catalog commands own their provisioning transaction; call before execution locks.');
         }
-        $this->authorizer->authorize($actor->actor, $tenant, $ability, $id);
+        $this->access->authorize($tenant, $ability, $id, $actor->actor);
         if ($actor->expectedRevision === null || $actor->idempotencyKey === null) {
             throw new CatalogInvalidMutation('Catalog writes require expectedRevision (0 for create) and idempotencyKey.');
         }
         $budgets = self::checkedBudgets($budgets);
         $hash = hash('sha256', json_encode([$ability, $command], JSON_THROW_ON_ERROR));
 
+        // Каждая ссылка требует отдельного permission; adapter вызывается до transaction.
+        if ($members !== null) {
+            foreach ($members as $routeId) {
+                $this->access->authorize($tenant, 'catalog.route.select', $routeId, $actor->actor);
+            }
+        }
+        if ($command instanceof UpsertRouteCommand && $command->endpointId !== null) {
+            $this->access->authorize($tenant, 'catalog.endpoint.read', $command->endpointId, $actor->actor);
+        }
+        if ($command instanceof ShareRouteCommand) {
+            $this->access->authorize($tenant, 'catalog.route.share', $command->routeId, $actor->actor);
+        }
+
         // Повторяем только SQL; внешние authorizer/secret/network вызовы остаются вне closure.
-        return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $hash, $changes, $budgets, $members): object {
-            $t = PackageSchema::tables();
-            $provisioner = new CatalogProvisioner($this->db);
-            $provisioner->lockCatalog($tenant);
-            $receipt = $this->db->table($t['audit_events'])->where('tenant_key', $tenant->value)->where('idempotency_key', $actor->idempotencyKey)->first();
-            if ($receipt !== null) {
-                if (! hash_equals($receipt->command_hash, $hash)) {
-                    throw new CatalogConflict('Idempotency key was used for another command.');
-                }
+        try {
+            return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $hash, $changes, $budgets, $members): object {
+                $t = PackageSchema::tables();
+                $provisioner = new CatalogProvisioner($this->db);
+                $provisioner->lockCatalog($tenant);
+                $receipt = $this->db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey))->first();
+                if ($receipt !== null) {
+                    if (! hash_equals($receipt->command_hash, $hash)) {
+                        throw new CatalogConflict('Idempotency key was used for another command.');
+                    }
 
-                return json_decode($receipt->result, false, 512, JSON_THROW_ON_ERROR);
-            }
-            $query = $this->db->table($t[$table])->where('tenant_key', $tenant->value)->where('id', $id->value);
-            $previous = (clone $query)->first();
-            if ((int) ($previous->revision ?? 0) !== $actor->expectedRevision) {
-                throw new CatalogConflict('Catalog expected revision does not match.');
-            }
-            if ($previous !== null && $previous->retired_at !== null) {
-                throw new CatalogInvalidMutation('Retired catalog identities cannot be changed or revived.');
-            }
-            $revision = $actor->expectedRevision + 1;
-            $values = $changes($previous) + ['revision' => $revision, 'updated_at' => $this->db->raw('clock_timestamp()')];
-            if ($previous === null) {
-                $this->db->table($t[$table])->insert(['id' => $id->value, 'tenant_key' => $tenant->value] + $values);
-            } else {
-                $query->update($values);
-            }
-            if ($members !== null) {
-                $pivot = $this->db->table($t['route_profile_members'])->where('tenant_key', $tenant->value)->where('profile_id', $id->value);
-                $pivot->delete();
-                foreach ($members as $position => $routeId) {
-                    $this->db->table($t['route_profile_members'])->insert(['tenant_key' => $tenant->value, 'profile_id' => $id->value, 'route_id' => $routeId->value, 'position' => $position]);
+                    return json_decode($receipt->result, false, 512, JSON_THROW_ON_ERROR);
                 }
-            }
-            $provisioner->materialize($tenant, $budgets);
-            $result = (clone $query)->first();
-            if ($table === 'route_profiles') {
-                $result->member_route_ids = array_map(static fn (Uuid $routeId): string => $routeId->value, $members ?? []);
-            }
-            if ($table === 'routes') {
-                $result->credential_version = $result->endpoint_id === null ? 1 : $this->db->table($t['endpoints'])
-                    ->where('tenant_key', $tenant->value)->where('id', $result->endpoint_id)->value('credential_version');
-            }
-            $this->db->table($t['audit_events'])->insert(['tenant_key' => $tenant->value, 'actor_type' => $actor->actor->type,
-                'actor_id' => $actor->actor->id, 'reason' => $actor->reason, 'ability' => $ability, 'entity_type' => $table,
-                'entity_id' => $id->value, 'previous_revision' => $actor->expectedRevision, 'revision' => $revision,
-                'idempotency_key' => $actor->idempotencyKey, 'command_hash' => $hash, 'result' => json_encode($result, JSON_THROW_ON_ERROR)]);
+                $query = $this->db->table($t[$table])->where('tenant_key', $tenant->value)->where('id', $id->value);
+                $previous = (clone $query)->first();
+                if ((int) ($previous->revision ?? 0) !== $actor->expectedRevision) {
+                    throw new CatalogConflict('Catalog expected revision does not match.');
+                }
+                if ($previous !== null && $previous->retired_at !== null) {
+                    throw new CatalogInvalidMutation('Retired catalog identities cannot be changed or revived.');
+                }
+                $revision = $actor->expectedRevision + 1;
+                $patch = $changes($previous);
+                $fields = array_keys(array_filter($patch, static fn ($value, $field): bool => $previous === null || ($previous->{$field} ?? null) != $value, ARRAY_FILTER_USE_BOTH));
+                $values = $patch + ['revision' => $revision, 'updated_at' => $this->db->raw('clock_timestamp()')];
+                if ($previous === null) {
+                    $this->db->table($t[$table])->insert(['id' => $id->value, 'tenant_key' => $tenant->value] + $values);
+                } else {
+                    $query->update($values);
+                }
+                if ($members !== null) {
+                    $pivot = $this->db->table($t['route_profile_members'])->where('tenant_key', $tenant->value)->where('profile_id', $id->value);
+                    $pivot->delete();
+                    foreach ($members as $position => $routeId) {
+                        $owned = $this->db->table($t['routes'])->where('tenant_key', $tenant->value)->where('id', $routeId->value)->whereNull('retired_at')->first();
+                        $grant = $owned === null ? (new SharedRouteStorage($this->db))->forConsumer($tenant, $routeId) : null;
+                        $owner = $owned === null ? $grant?->owner : $tenant;
+                        if ($owner === null) {
+                            throw new CatalogNotFound('Route not found in tenant scope.');
+                        }
+                        $this->requireActive('routes', $owner, $routeId);
+                        $this->db->table($t['route_profile_members'])->insert(['tenant_key' => $tenant->value, 'profile_id' => $id->value,
+                            'route_id' => $routeId->value, 'route_owner_tenant_key' => $owner->value, 'shared_grant_id' => $grant?->id->value, 'position' => $position]);
+                    }
+                    $fields[] = 'member_route_ids';
+                }
+                $provisioner->materialize($tenant, $budgets);
+                $result = (clone $query)->first();
+                if ($table === 'route_profiles') {
+                    $result->member_route_ids = array_map(static fn (Uuid $routeId): string => $routeId->value, $members ?? []);
+                }
+                if ($table === 'routes') {
+                    $endpoint = $result->endpoint_id === null ? null : $this->db->table($t['endpoints'])
+                        ->where('tenant_key', $tenant->value)->where('id', $result->endpoint_id)->first();
+                    $result->credential_version = $endpoint->credential_version ?? 1;
+                    $result->endpoint_revision = $endpoint === null ? null : (int) $endpoint->revision;
+                }
+                if ($budgets !== []) {
+                    $fields[] = 'budgets';
+                }
+                (new CatalogAudit($this->db))->mutation($table, $tenant, $id, $ability, $actor, $hash, $previous, $result, $fields);
 
-            return $result;
-        }, 3);
+                return CatalogAudit::snapshot($table, $result);
+            }, 3);
+        } catch (QueryException) {
+            // QueryException включает SQL bindings, поэтому не передаём его как previous.
+            throw new CatalogStorageFailure;
+        }
     }
 
     private function requireActive(string $table, TenantKey $tenant, Uuid $id): void

@@ -37,7 +37,9 @@ UUID — глобальный PK; одинаковые логические кл
 | `pxm_target_health` | Unique target, circuit/probe и availability `unknown/available/suspect/unavailable` |
 | `pxm_observations` | Attempt, unique receipt_id, classification, JSON evidence, observed_at |
 | `pxm_observation_applications` | Observation, canonical application_key, health_epoch; unique observation+application_key |
-| `pxm_audit_events` | Actor type/id, reason, ability, entity type/id, previous/current revision, tenant-unique idempotency_key, command hash и исходный результат; immutable UPDATE/DELETE |
+| `pxm_audit_events` | Actor type и digest id/reason/key, ability, entity type/id, read/mutation kind, previous/current revision, safe patch field names и command hash; immutable UPDATE/DELETE |
+| `pxm_shared_route_grants` | Owner tenant, consumer tenant, route UUID, revision и retired_at; composite owner/consumer/route identity и один active grant на пару |
+| `pxm_catalog_command_receipts` | Tenant, hashed idempotency key, command hash, audit FK и закрытый DTO projection для stable replay; immutable UPDATE/DELETE |
 
 Health state: `unknown/closed/open/half_open`; epochs и state versions ≥1,
 failures/openings ≥0. Probe token/deadline задаются только парой.
@@ -59,8 +61,8 @@ SQL transition сам по себе её не доказывает.
 ## Команды каталога
 
 `CatalogCommands` связан с `DatabaseCatalogCommands`; `CatalogQueries` — с
-`DatabaseCatalogQueries`. Приложение **обязано** внедрить `Authorizer`.
-Production allow-all и fallback binding отсутствуют. Authorizer получает
+`DatabaseCatalogQueries`. Приложение **обязано** внедрить `Authorizer` и
+`TenantContextResolver`; defaults отказывают в доступе. Authorizer получает
 `ActorRef(type,id)`, trusted `TenantKey`, ability и resource UUID; отказ оформляет
 исключением. Все mutations, включая idempotent replay, проходят авторизацию.
 Ability names: `catalog.endpoint.upsert/retire`, `catalog.route.upsert/set-enabled`,
@@ -83,8 +85,9 @@ Catalog commands владеют самостоятельной transaction и о
 или object I/O в retry closure нет. Deadlock retry ограничен тремя SQL попытками.
 
 Revision, catalog row, exact membership, health/budget provisioning и audit
-коммитятся атомарно. Audit сохраняет opaque credential reference/version,
-но не разрешает/загружает secret. Direct ORM save/delete запрещены у внутренних
+коммитятся атомарно. Audit сохраняет имена patch полей и revision, а закрытый command
+receipt — allowlisted DTO projection с opaque credential reference/version.
+Secret не разрешается/загружается. Direct ORM save/delete запрещены у внутренних
 моделей; observers и public model substitution не являются путём изменения authority.
 Внутренний query builder доступен только storage implementation.
 
@@ -96,11 +99,12 @@ Endpoint rotation повышает endpoint revision и credential version пр�
 проверять актуальные revisions и retired/enabled state при send.
 `Route.credentialVersion` при чтении берётся из текущего endpoint.
 
-Чтение всегда ограничено явным tenant. UUID другого tenant даёт null/пустой
-результат. Profile membership принимает только принадлежащие tenant маршруты;
-`shared_grant=true` сохраняет intent, но не является wildcard доступом.
-Отдельный scoped grant и permission integration относятся к P1.4; до этого
-cross-tenant чтение и membership закрыты. Empty profile остаётся deny.
+Чтение ограничено trusted tenant и permissions. Подмена tenant отклоняется до SQL;
+UUID другого tenant в собственном scope даёт null/пустой результат, кроме explicit
+shared grant. Membership включает route owner и grant UUID с composite FK.
+`shared_grant=true` не является authority. Revocation инвалидирует dependent bindings;
+повторная выдача требует обновить membership. Подробности abilities, audit redaction,
+prepared route locks и exception rules: [security.md](security.md). Empty profile остаётся deny.
 
 ## Provisioning и lock protocol
 

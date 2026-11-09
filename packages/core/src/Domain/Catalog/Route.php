@@ -24,6 +24,8 @@ final readonly class Route
         public int $revision = 1,
         public bool $sharedGrant = false,
         public ?DateTimeImmutable $retiredAt = null,
+        public ?SharedRouteGrant $accessGrant = null,
+        public ?int $endpointRevision = null,
     ) {
         if (preg_match('/^[a-z0-9][a-z0-9_.:-]{0,127}$/D', $routeKey) !== 1) {
             throw new InvalidArgumentException('Route key must be a non-empty canonical identifier.');
@@ -41,14 +43,14 @@ final readonly class Route
             throw new InvalidArgumentException('Egress identity must not be conflated with route key or independence group.');
         }
 
-        if ($credentialVersion < 1 || $revision < 1) {
+        if ($credentialVersion < 1 || $revision < 1 || ($endpointRevision !== null && $endpointRevision < 1)) {
             throw new InvalidArgumentException('Route credential version and revision must be at least 1.');
         }
     }
 
     public function isAccessibleBy(TenantKey $callerTenant): bool
     {
-        return $this->tenantKey->equals($callerTenant) || $this->sharedGrant;
+        return $this->tenantKey->equals($callerTenant) || ($this->accessGrant?->permits($this, $callerTenant) ?? false);
     }
 
     public function isRetired(): bool

@@ -16,6 +16,7 @@ use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Catalog\RouteProfile;
+use Proxyma\Domain\Catalog\SharedRouteGrant;
 use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Execution\AdmissionLockTier;
 use Proxyma\Domain\Execution\AttemptResult;
@@ -219,8 +220,9 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
         sharedGrant: false,
     );
 
+    $sharedRouteId = Uuid::random();
     $sharedProxyRoute = new Route(
-        id: Uuid::random(),
+        id: $sharedRouteId,
         tenantKey: $otherTenant,
         routeKey: 'shared-proxy',
         kind: RouteKind::Proxy,
@@ -228,6 +230,7 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
         enabled: true,
         egress: $poolEgress,
         sharedGrant: true,
+        accessGrant: new SharedRouteGrant(Uuid::random(), $otherTenant, $tenant, $sharedRouteId),
     );
 
     $unsharedForeignRoute = new Route(

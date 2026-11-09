@@ -25,8 +25,12 @@ use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Laravel\ProxymaServiceProvider;
 use RuntimeException;
 
+require_once __DIR__.'/TenantFixtures.php';
+
 abstract class CatalogTestCase extends TestCase
 {
+    use TenantFixtures;
+
     protected Connection $db;
 
     protected string $fixtureSchema;
@@ -56,6 +60,7 @@ abstract class CatalogTestCase extends TestCase
             throw new RuntimeException('Refusing catalog fixture writes outside the marked proxyma_test database.');
         }
         $this->tenant = new TenantKey('acme');
+        $this->useTenant($this->tenant);
         $this->fixtureSchema = 'pxm_t_'.bin2hex(random_bytes(8));
         $this->db->statement('CREATE SCHEMA '.$this->fixtureSchema);
         $this->db->statement('SET search_path TO '.$this->fixtureSchema);

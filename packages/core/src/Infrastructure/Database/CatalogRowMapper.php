@@ -13,6 +13,7 @@ use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Catalog\RouteProfile;
+use Proxyma\Domain\Catalog\SharedRouteGrant;
 use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
@@ -27,12 +28,13 @@ final class CatalogRowMapper
             (int) $row->revision, self::retiredAt($row));
     }
 
-    public static function route(object $row): Route
+    public static function route(object $row, ?SharedRouteGrant $grant = null): Route
     {
         return new Route(new Uuid($row->id), new TenantKey($row->tenant_key), $row->route_key, RouteKind::from($row->kind),
             $row->endpoint_id === null ? null : new Uuid($row->endpoint_id), (bool) $row->enabled,
             new EgressIdentity($row->egress_key, (bool) $row->conservative_pool), $row->independence_group,
-            (int) ($row->credential_version ?? 1), (int) $row->revision, (bool) $row->shared_grant, self::retiredAt($row));
+            (int) ($row->credential_version ?? 1), (int) $row->revision, (bool) $row->shared_grant, self::retiredAt($row), $grant,
+            isset($row->endpoint_revision) ? (int) $row->endpoint_revision : null);
     }
 
     public static function profile(object $row): RouteProfile

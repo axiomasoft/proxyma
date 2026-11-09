@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
+use Proxyma\Infrastructure\Audit\CatalogCommandReceiptRecord;
 use Proxyma\Infrastructure\Eloquent;
+use Proxyma\Infrastructure\Security\SharedRouteGrantRecord;
 use RuntimeException;
 
 /** @internal PostgreSQL authority; имена берутся из внутренних моделей. */
@@ -37,6 +39,8 @@ final class PackageSchema
             'observations' => Eloquent\ObservationRecord::class,
             'observation_applications' => Eloquent\ObservationApplicationRecord::class,
             'audit_events' => Eloquent\AuditEventRecord::class,
+            'shared_route_grants' => SharedRouteGrantRecord::class,
+            'catalog_command_receipts' => CatalogCommandReceiptRecord::class,
         ];
 
         return array_map(static fn (string $model): string => (new $model)->getTable(), $models);
