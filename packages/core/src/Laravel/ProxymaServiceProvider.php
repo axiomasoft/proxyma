@@ -8,6 +8,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
+use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\SettingRegistryFactory;
 use Proxyma\Application\Policy\UpdatePolicy;
@@ -15,11 +16,13 @@ use Proxyma\Contracts\Authorizer;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
 use Proxyma\Contracts\RouteAccessChecks;
 use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
+use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
@@ -48,6 +51,8 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->alias(DatabaseCatalogQueries::class, CatalogQueries::class);
         $this->app->alias(DatabaseCatalogQueries::class, RouteAccessChecks::class);
 
+        $this->app->singleton(PolicyResolutionCache::class, static fn (): PolicyResolutionCache => new PolicyResolutionCache);
+
         $this->app->singleton(SettingRegistry::class, static function (Application $app): SettingRegistry {
             $configuration = $app['config']->get('proxyma.settings', []);
             if (! is_array($configuration)) {
@@ -57,10 +62,30 @@ class ProxymaServiceProvider extends ServiceProvider
             return (new SettingRegistryFactory($app))->make($configuration);
         });
         $this->app->bind(UpdatePolicy::class, static function (Application $app): UpdatePolicy {
-            return new UpdatePolicy($app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
-                $app->make(CatalogAccess::class), $app->make(SettingRegistry::class));
+            return new UpdatePolicy(
+                $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
+                $app->make(CatalogAccess::class),
+                $app->make(SettingRegistry::class),
+                $app->make(PolicyResolutionCache::class),
+            );
         });
         $this->app->alias(UpdatePolicy::class, PolicyCommands::class);
+
+        $this->app->bind(PolicyResolver::class, static function (Application $app): PolicyResolver {
+            return new PolicyResolver(
+                db: $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
+                access: $app->make(CatalogAccess::class),
+                registry: null,
+                cache: $app->make(PolicyResolutionCache::class),
+                registryResolver: static fn (): SettingRegistry => $app->make(SettingRegistry::class),
+                policyConfigResolver: static function () use ($app): array {
+                    $cfg = $app['config']->get('proxyma.policy', []);
+
+                    return is_array($cfg) ? $cfg : [];
+                },
+            );
+        });
+        $this->app->alias(PolicyResolver::class, PolicyResolverContract::class);
 
         $this->app->bind(TransactionCoordinator::class, static function (Application $app): TransactionCoordinator {
             $connection = $app['config']->get('proxyma.connection', 'pgsql');

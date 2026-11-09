@@ -16,11 +16,17 @@ use Proxyma\Domain\Policy\PolicyStorageFailure;
 use Proxyma\Domain\Policy\SettingPatch;
 use Proxyma\Domain\Policy\UpdatePolicyCommand;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
+use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
 final readonly class UpdatePolicy implements PolicyCommands
 {
-    public function __construct(private Connection $db, private CatalogAccess $access, private SettingRegistry $registry) {}
+    public function __construct(
+        private Connection $db,
+        private CatalogAccess $access,
+        private SettingRegistry $registry,
+        private ?PolicyResolutionCache $cache = null,
+    ) {}
 
     public function update(UpdatePolicyCommand $command): PolicyRevision
     {
@@ -38,7 +44,7 @@ final readonly class UpdatePolicy implements PolicyCommands
         $hash = hash('sha256', json_encode(['policy.update', $command], JSON_THROW_ON_ERROR));
 
         try {
-            return $this->db->transaction(function () use ($command, $patch, $hash): PolicyRevision {
+            $savedRevision = $this->db->transaction(function () use ($command, $patch, $hash): PolicyRevision {
                 $t = PackageSchema::tables();
                 $tenant = $command->tenant->value;
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy:'.$tenant.':'.$command->scopeKey()]);
@@ -107,6 +113,10 @@ final readonly class UpdatePolicy implements PolicyCommands
 
                 return new PolicyRevision($command->headId, $revisionId, $revision, $next);
             }, 3);
+
+            $this->cache?->invalidateScope($command->tenant, $command->scope, $command->scopeId);
+
+            return $savedRevision;
         } catch (QueryException $failure) {
             if ($failure->getCode() === '23505') {
                 throw new PolicyConflict;
