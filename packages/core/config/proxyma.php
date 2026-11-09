@@ -28,6 +28,12 @@ return [
     */
     'default_tenant' => TenantKey::SYSTEM,
 
+    // Provider IDs select only explicitly approved PHP class strings; no closures or objects.
+    'settings' => [
+        'approved_providers' => [],
+        'providers' => [],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Mandatory Durable Safety Stack (Decision D2)

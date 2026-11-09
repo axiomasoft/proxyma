@@ -8,13 +8,18 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
+use Proxyma\Application\Policy\SettingRegistry;
+use Proxyma\Application\Policy\SettingRegistryFactory;
+use Proxyma\Application\Policy\UpdatePolicy;
 use Proxyma\Contracts\Authorizer;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
+use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Contracts\RouteAccessChecks;
 use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TransactionCoordinator;
+use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
@@ -42,6 +47,20 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->alias(DatabaseCatalogCommands::class, SharedRouteCommands::class);
         $this->app->alias(DatabaseCatalogQueries::class, CatalogQueries::class);
         $this->app->alias(DatabaseCatalogQueries::class, RouteAccessChecks::class);
+
+        $this->app->singleton(SettingRegistry::class, static function (Application $app): SettingRegistry {
+            $configuration = $app['config']->get('proxyma.settings', []);
+            if (! is_array($configuration)) {
+                throw new InvalidSettingPatch;
+            }
+
+            return (new SettingRegistryFactory($app))->make($configuration);
+        });
+        $this->app->bind(UpdatePolicy::class, static function (Application $app): UpdatePolicy {
+            return new UpdatePolicy($app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
+                $app->make(CatalogAccess::class), $app->make(SettingRegistry::class));
+        });
+        $this->app->alias(UpdatePolicy::class, PolicyCommands::class);
 
         $this->app->bind(TransactionCoordinator::class, static function (Application $app): TransactionCoordinator {
             $connection = $app['config']->get('proxyma.connection', 'pgsql');

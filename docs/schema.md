@@ -37,7 +37,7 @@ UUID — глобальный PK; одинаковые логические кл
 | `pxm_target_health` | Unique target, circuit/probe и availability `unknown/available/suspect/unavailable` |
 | `pxm_observations` | Attempt, unique receipt_id, classification, JSON evidence, observed_at |
 | `pxm_observation_applications` | Observation, canonical application_key, health_epoch; unique observation+application_key |
-| `pxm_audit_events` | Actor type и digest id/reason/key, ability, entity type/id, read/mutation kind, previous/current revision, safe patch field names и command hash; immutable UPDATE/DELETE |
+| `pxm_audit_events` | Actor type и digest id/reason/key, ability, entity type/id (включая policy heads), read/mutation kind, previous/current revision, safe patch field names и command hash; immutable UPDATE/DELETE |
 | `pxm_shared_route_grants` | Owner tenant, consumer tenant, route UUID, revision и retired_at; composite owner/consumer/route identity и один active grant на пару |
 | `pxm_catalog_command_receipts` | Tenant, hashed idempotency key, command hash, audit FK и закрытый DTO projection для stable replay; immutable UPDATE/DELETE |
 

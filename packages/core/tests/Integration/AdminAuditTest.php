@@ -128,7 +128,7 @@ it('read audit проверяет actor tenant revision и не возвраща
 });
 
 it('upgrade установленной P1.3 схемы сохраняет catalog и replay, удаляя snapshots из audit', function (): void {
-    $this->artisan('migrate:rollback', ['--step' => 1, '--force' => true])->assertExitCode(0);
+    $this->artisan('migrate:rollback', ['--step' => 2, '--force' => true])->assertExitCode(0);
     $id = Uuid::random();
     $auditId = Uuid::random();
     $legacy = ['id' => $id->value, 'tenant_key' => 'acme', 'target_key' => 'legacy', 'canonical_origin' => 'https://legacy.test:443',
