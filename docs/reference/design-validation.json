@@ -1,0 +1,1564 @@
+{
+  "kind": "design-validation-not-runtime-tests",
+  "plan": "2026.11.09-№1-PROXYMA-01",
+  "items": [
+    {
+      "id": "P1.1",
+      "bytes": 46636,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 4
+    },
+    {
+      "id": "P1.2",
+      "bytes": 46863,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P1.3",
+      "bytes": 46284,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P1.4",
+      "bytes": 44631,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P2.1",
+      "bytes": 27041,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 1
+    },
+    {
+      "id": "P2.2",
+      "bytes": 27849,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P2.3",
+      "bytes": 29577,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 1
+    },
+    {
+      "id": "P2.4",
+      "bytes": 31854,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P3.1",
+      "bytes": 39953,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 1
+    },
+    {
+      "id": "P3.2",
+      "bytes": 36897,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P3.3",
+      "bytes": 37485,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P3.4",
+      "bytes": 38199,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P4.1",
+      "bytes": 35830,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P4.2",
+      "bytes": 36251,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P4.3",
+      "bytes": 37274,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P5.1",
+      "bytes": 29260,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 1
+    },
+    {
+      "id": "P5.2",
+      "bytes": 30009,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P5.3",
+      "bytes": 39877,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P5.4",
+      "bytes": 28050,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P5.5",
+      "bytes": 34731,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 3
+    },
+    {
+      "id": "P6.1",
+      "bytes": 35719,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P6.2",
+      "bytes": 32190,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P6.3",
+      "bytes": 34686,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P7.1",
+      "bytes": 33728,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P7.2",
+      "bytes": 33176,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P7.3",
+      "bytes": 30885,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P7.4",
+      "bytes": 35468,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P8.1",
+      "bytes": 37470,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 2
+    },
+    {
+      "id": "P8.2",
+      "bytes": 37699,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 4
+    },
+    {
+      "id": "P8.3",
+      "bytes": 47686,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 1
+    },
+    {
+      "id": "P9.1",
+      "bytes": 45300,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 5
+    },
+    {
+      "id": "P9.2",
+      "bytes": 52417,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 3
+    },
+    {
+      "id": "P9.3",
+      "bytes": 52100,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 3
+    },
+    {
+      "id": "P9.4",
+      "bytes": 44836,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 4
+    },
+    {
+      "id": "P9.5",
+      "bytes": 48168,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 4
+    },
+    {
+      "id": "P10.1",
+      "bytes": 49197,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 3
+    },
+    {
+      "id": "P10.2",
+      "bytes": 50239,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 3
+    },
+    {
+      "id": "P10.3",
+      "bytes": 46679,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 4
+    },
+    {
+      "id": "P10.4",
+      "bytes": 53612,
+      "duplicates": 0,
+      "required_reads_exist": true,
+      "embedded_knowledge_complete": true,
+      "status": "todo",
+      "acceptance_checks": 17
+    }
+  ],
+  "phase_design": [
+    {
+      "phase": "P1",
+      "result": {
+        "phase": "P1",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P1.1",
+            "bytes": 46636,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/architecture",
+                "bytes": 6701,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P1.2",
+            "bytes": 46863,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/architecture",
+                "bytes": 6701,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P1.3",
+            "bytes": 46284,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/architecture",
+                "bytes": 6701,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P1.4",
+            "bytes": 44631,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/architecture",
+                "bytes": 6701,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/architecture",
+          "knowledge/design-check",
+          "knowledge/evidence",
+          "knowledge/verification"
+        ]
+      }
+    },
+    {
+      "phase": "P2",
+      "result": {
+        "phase": "P2",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P2.1",
+            "bytes": 27041,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D10",
+                "bytes": 1372,
+                "reason": "explicit"
+              },
+              {
+                "key": "decisions",
+                "ref": "D3",
+                "bytes": 1137,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P2.2",
+            "bytes": 27849,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D10",
+                "bytes": 1372,
+                "reason": "explicit"
+              },
+              {
+                "key": "decisions",
+                "ref": "D3",
+                "bytes": 1137,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P2.3",
+            "bytes": 29577,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/architecture#identity",
+                "bytes": 1896
+              },
+              {
+                "key": "decisions",
+                "ref": "D10",
+                "bytes": 1372,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P2.4",
+            "bytes": 31854,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/evidence#corrections",
+                "bytes": 3549
+              },
+              {
+                "key": "decisions",
+                "ref": "D10",
+                "bytes": 1372,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/policy"
+        ]
+      }
+    },
+    {
+      "phase": "P3",
+      "result": {
+        "phase": "P3",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P3.1",
+            "bytes": 39953,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/architecture#api",
+                "bytes": 2502
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P3.2",
+            "bytes": 36897,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D2",
+                "bytes": 1378,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P3.3",
+            "bytes": 37485,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D2",
+                "bytes": 1378,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P3.4",
+            "bytes": 38199,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D2",
+                "bytes": 1378,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/authority",
+          "knowledge/budgets"
+        ]
+      }
+    },
+    {
+      "phase": "P4",
+      "result": {
+        "phase": "P4",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P4.1",
+            "bytes": 35830,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D2",
+                "bytes": 1378,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P4.2",
+            "bytes": 36251,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D2",
+                "bytes": 1378,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P4.3",
+            "bytes": 37274,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/verification#review",
+                "bytes": 1515
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/authority",
+          "knowledge/budgets"
+        ]
+      }
+    },
+    {
+      "phase": "P5",
+      "result": {
+        "phase": "P5",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P5.1",
+            "bytes": 29260,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/transport",
+                "bytes": 4730,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/authority#wire",
+                "bytes": 1779
+              },
+              {
+                "key": "decisions",
+                "ref": "D6",
+                "bytes": 1267,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P5.2",
+            "bytes": 30009,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/transport",
+                "bytes": 4730,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/authority#wire",
+                "bytes": 1779
+              },
+              {
+                "key": "decisions",
+                "ref": "D6",
+                "bytes": 1267,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P5.3",
+            "bytes": 39877,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "item"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/transport",
+                "bytes": 4730,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/evidence#corrections",
+                "bytes": 3549
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P5.4",
+            "bytes": 28050,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/transport",
+                "bytes": 4730,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D6",
+                "bytes": 1267,
+                "reason": "explicit"
+              },
+              {
+                "key": "decisions",
+                "ref": "D4",
+                "bytes": 1204,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P5.5",
+            "bytes": 34731,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/transport",
+                "bytes": 4730,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/authority#lifecycle",
+                "bytes": 3756
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/health#cooldown",
+                "bytes": 1477
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/transport"
+        ]
+      }
+    },
+    {
+      "phase": "P6",
+      "result": {
+        "phase": "P6",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P6.1",
+            "bytes": 35719,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/authority#locks",
+                "bytes": 3169
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/health",
+                "bytes": 2865,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P6.2",
+            "bytes": 32190,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/health",
+                "bytes": 2865,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D2",
+                "bytes": 1378,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P6.3",
+            "bytes": 34686,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/budgets",
+                "bytes": 5006,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/health",
+                "bytes": 2865,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/verification#review",
+                "bytes": 1515
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/budgets",
+          "knowledge/health"
+        ]
+      }
+    },
+    {
+      "phase": "P7",
+      "result": {
+        "phase": "P7",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P7.1",
+            "bytes": 33728,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/ui",
+                "bytes": 3504,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/architecture#api",
+                "bytes": 2502
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P7.2",
+            "bytes": 33176,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/ui",
+                "bytes": 3504,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/architecture#boundaries",
+                "bytes": 2023
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P7.3",
+            "bytes": 30885,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/ui",
+                "bytes": 3504,
+                "reason": "phase"
+              },
+              {
+                "key": "decisions",
+                "ref": "D10",
+                "bytes": 1372,
+                "reason": "explicit"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P7.4",
+            "bytes": 35468,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/policy",
+                "bytes": 4618,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/ui",
+                "bytes": 3504,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/budgets#accounting",
+                "bytes": 2401
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/policy",
+          "knowledge/ui"
+        ]
+      }
+    },
+    {
+      "phase": "P8",
+      "result": {
+        "phase": "P8",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P8.1",
+            "bytes": 37470,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/architecture#boundaries",
+                "bytes": 2023
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P8.2",
+            "bytes": 37699,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/budgets#races",
+                "bytes": 1404
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P8.3",
+            "bytes": 47686,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "item"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/evidence",
+          "knowledge/integration",
+          "knowledge/verification"
+        ]
+      }
+    },
+    {
+      "phase": "P9",
+      "result": {
+        "phase": "P9",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P9.1",
+            "bytes": 45300,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/verification#consumer",
+                "bytes": 2431
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P9.2",
+            "bytes": 52417,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "item"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P9.3",
+            "bytes": 52100,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/authority",
+                "bytes": 7392,
+                "reason": "item"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P9.4",
+            "bytes": 44836,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/transport#execution",
+                "bytes": 2115
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P9.5",
+            "bytes": 48168,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "reads",
+                "ref": "knowledge/verification#consumer",
+                "bytes": 2431
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/authority",
+          "knowledge/evidence",
+          "knowledge/integration"
+        ]
+      }
+    },
+    {
+      "phase": "P10",
+      "result": {
+        "phase": "P10",
+        "detailed": true,
+        "mode": "scoped",
+        "budget_bytes": 98304,
+        "items": [
+          {
+            "item": "P10.1",
+            "bytes": 49197,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P10.2",
+            "bytes": 50239,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P10.3",
+            "bytes": 46679,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          },
+          {
+            "item": "P10.4",
+            "bytes": 53612,
+            "over_budget": false,
+            "top": [
+              {
+                "key": "documents",
+                "ref": "knowledge/integration",
+                "bytes": 9511,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/evidence",
+                "bytes": 6392,
+                "reason": "phase"
+              },
+              {
+                "key": "documents",
+                "ref": "knowledge/verification",
+                "bytes": 4843,
+                "reason": "phase"
+              }
+            ],
+            "unbound_bytes": 0,
+            "duplicate_bytes": 0
+          }
+        ],
+        "warnings": [],
+        "phase_documents_unread": [
+          "knowledge/design-check",
+          "knowledge/evidence",
+          "knowledge/integration",
+          "knowledge/verification"
+        ]
+      }
+    }
+  ],
+  "structural_check": {
+    "ok": true,
+    "errors": 0,
+    "warnings": 0,
+    "issues": []
+  },
+  "next": "run-items: planner:plan-run 2026.11.09-№1-PROXYMA-01 P1.1  (implementation/medium)\nbatch BP1-1 (recommended: run together, a split needs log --type deviation) -> planner:plan-run 2026.11.09-№1-PROXYMA-01 P1.1\noverlays planner:plan-run: none\n"
+}

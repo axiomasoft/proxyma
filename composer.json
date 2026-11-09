@@ -1,0 +1,9 @@
+{
+    "name": "axiomasoft/proxyma-workspace",
+    "description": "Private development workspace for Proxyma 0.1",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.4"
+    }
+}

@@ -1,0 +1,657 @@
+{
+  "repository": "axiomasoft/agelto",
+  "commit": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+  "inspected_at": "2026-11-09",
+  "evidence_kind": "static_source_inventory_not_executed_tests",
+  "audit_sha256": "85e6e08c4746b31fe20222cb88f028df63f1fef524952d633123031f619f03c4",
+  "files": [
+    {
+      "path": ".ai/guidelines/cheatsheet.md",
+      "sha256": "3e0ab366daa47beb543ea3a6a37ed9f7273e39c53a3599d76e34908b1f58b66f"
+    },
+    {
+      "path": "app/Dto/Procurement/Acquisition/AcquisitionConfiguration.php",
+      "sha256": "195c0ff86f8175a75112c8d2945c3e1f4d229dc3dc8bb093e8e0987dc41bc82b"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AdapterContractRef.php",
+      "sha256": "6981d5e26f385c2865f9914541838bf57f78b7ff80ea2a59fbfcb0c5101d4ac5"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AdapterInspection.php",
+      "sha256": "3331df68cd9cba341fba655177f55e7c86852e65b77e852693fbb71c10d899d2"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AdapterValidatedInput.php",
+      "sha256": "3be75ff6c5add4bbe1b197e87074a32685814219cf2f67e0ae88b04da10e1672"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AdapterValidationCall.php",
+      "sha256": "fc319d0036fb495be36588db6eae5822d610c74b252cc76d9e671106d86bf110"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AdapterValidationClaim.php",
+      "sha256": "dcad5144c21c90111a3a5b6ba008d543e42b7fb8396dfae1ecd427854dbbe8e4"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AdapterValidationReceipt.php",
+      "sha256": "628e16bbce98ea7078ad8d12d9bbc6d7ea6c6d4586ada9eeced31c9f12cc0def"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/AuthorizedHttpRequest.php",
+      "sha256": "39e6171b5cde9ccbbe7e86761997c2d4cc9d57ad7042ba875ea6db1bb7868e61"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/BinaryBodyArtifact.php",
+      "sha256": "029773fc966c6f14742f8da46d59dae93819e7e5c873ac5fa0d4448af3b2d829"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/CatalogSyncReport.php",
+      "sha256": "0c03a717d859522fb3134307f743baf56d7412e20c5a840b21536bc75fa15660"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/DecodedTextBody.php",
+      "sha256": "aabd6e353a8540051b2a46b0f44a31343a141fdc6b6f76e95c57b81a44cf3cfa"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/FinalHttpResponseEvidence.php",
+      "sha256": "7c70d7cc0fef3399c781e52def56f10a459c82fadb96419c9e2d455c90f6c134"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HealthAuthorization.php",
+      "sha256": "662038a6ccebc644c702323800719972ea465760211eca2b43181d92f2e6a28c"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HealthClassification.php",
+      "sha256": "1e2b2292cfd21e81558570a5e624669558c4b96b1b393ee56f7dd79c94745cb3"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HealthMutation.php",
+      "sha256": "89fee89df9e5f73af758f9ae4a460df484ca02bbe57b8b459a1049ef25c567aa"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HealthSnapshot.php",
+      "sha256": "eed17c50a66622861dd9174d0be6efb03910de5fbc6995bcf1c59f83e6ccbf85"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HttpAttemptResult.php",
+      "sha256": "11e1a23b8439f757bbe02218c8cd7f225ac46f1465055f84e53e2f600b15f954"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HttpRequestPayload.php",
+      "sha256": "17326473f12fba108d4a74f676993837f07ddc88e3abe89a2648404b76b75506"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HttpResponseHead.php",
+      "sha256": "130e44d98f10494dcab51b5ebfbe12eff15f8e9de2316d4c44b6e48761502cd4"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/HttpRouteBinding.php",
+      "sha256": "d6b9fcc59f7e77149b92119d5d650247aaeec5dc3eae495a9cad502340e94e96"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/NetworkChangeResult.php",
+      "sha256": "e202e2bbad4ebc99d967c66706598ec7eb7d9d9e6ed8d2f9e4d1ecc512f8a0df"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/NetworkDemandTicket.php",
+      "sha256": "c29e845fac6a5c02dad9854efe34de27976d19e6fe9a10d6ba73720d669c7b71"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/NetworkOwnerState.php",
+      "sha256": "bde54443d5f153eda85e1b35fcd5e5d1bf164fcd77133ea049f1068fa7a821d7"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/NetworkPermitWait.php",
+      "sha256": "c804afd8714cf141a6efa6268154ef7e2099a940ee4ab96957e77d09cc1e518a"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/NetworkRouteSelection.php",
+      "sha256": "a50faecec3c9dfceb3660c1cfbcb0e8f240afe29b88824af231a8e75b517dd6a"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/NetworkSendClaim.php",
+      "sha256": "c37ce3f0f75f11b4e863d5d82fadefae4b5aaf5ec5e8118bd31c9eb1c00d8fcf"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/OutboundExecutionContext.php",
+      "sha256": "06309e1fdb221a64a22b9db18250eadec2d29036a0e9c1f5dd4c595bc0ceb0c4"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/OutboundOperationHandle.php",
+      "sha256": "93baa442b32ed47f30192d4df07377229476ebedec2e8f5162284140a3086204"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/OutboundRequestPlan.php",
+      "sha256": "dba4d37106ce7d4e1a62a94203763d76fc736b850a0f31aa28194bddefab5322"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/PermitEvidence.php",
+      "sha256": "50281ef7600ced8b86e608207abe87a39809303f9471a0e8860d6cd0d535b70e"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ProbeClaim.php",
+      "sha256": "9e9c515ef125de114b928a7fc6a1c872227a3d1eb4c4686ea52da78bed86f662"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ProviderKey.php",
+      "sha256": "7c9dc3186106a002a799bae64fc01ab7273e4b52d27157049b57f19c38ae11bd"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ProviderTargetDefinitions.php",
+      "sha256": "019bab71d83644ec3b73dca1fd4855b9548f02a7bb879be85db62cca28f3c562"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ProxyNodeConfiguration.php",
+      "sha256": "adc7a5b19be686fb022775b3dc3dc8f3ac92432a0332aaf6853d75d96803bb63"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ReservedProviderNetwork.php",
+      "sha256": "1fb6a2714c2ba37630be1f48b77f80498745f4c76942c7bc4b4c2795673fcfdf"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ResolvedUrl.php",
+      "sha256": "2bcce5e5972ad629f8327c6208a3ed4f915b9112568a70640f165f94d37ec939"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ResponseBody.php",
+      "sha256": "b87ee81a1c709a54981ab68544b768bf42ab5774631a512804d7ef157325a611"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ResponseEnvelope.php",
+      "sha256": "604e5144fbe726fb2b982fb83a826480e7054b2a4ca1bab2095fae7ba0937640"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/RetryRoutePreference.php",
+      "sha256": "27a2ef0aeb54ec139756632acf0712cda142593a6c255f3b2a1ea3381bd7a454"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/SafeUrl.php",
+      "sha256": "092b8d815a3b1a2ba6fb2f0116b33e2905635ff524667af4a2ec29701422ebc3"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/ScheduledNetworkPermit.php",
+      "sha256": "67614ce7cb2a18214880a9844e6fb684c464e3967ed625a255b142d3d02aac8d"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/SelectedNetworkRoute.php",
+      "sha256": "c2dff3d57d63ad9c4f899c4119e3c1aaa77dee1380295b633f096d7386cb6098"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/TransferBudget.php",
+      "sha256": "dd15f65e577353cb1f88a11d40aa61aa696a590a54dc4dd7a9978536912483da"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/TransportBlocked.php",
+      "sha256": "68882d04498b3846cf475f2e2c60f7f2e5c672546480b74257ad833f8d5aeb96"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/TransportDeferred.php",
+      "sha256": "b0062ed251d76d197eba09299a7a93dab0bd0879f71d76e5fec100a90dd3a9b3"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/TransportMetrics.php",
+      "sha256": "62c9e7b61eac970e7b110c687518fe01aa811859685d6ab10394ea99ec09f53c"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/TransportOutcome.php",
+      "sha256": "325dfe6300501288aae6d0b20311aa577be75e934ec04fca86d4d4ff2fe97594"
+    },
+    {
+      "path": "app/Dto/Procurement/Network/TransportSucceeded.php",
+      "sha256": "62a4a20770ba7d6782d6c5c9c13dc6f47997aa424f1a5b5ff3bd0daa46d73f92"
+    },
+    {
+      "path": "app/Filament/Pages/NetworkRouteProfilesPage.php",
+      "sha256": "1a3175b1a46576122e281f101d6a1b3f317cdfa39a2585f5aaa067f48e123066"
+    },
+    {
+      "path": "app/Filament/Resources/Procurement/Crawler/Proxies/ProxyResource.php",
+      "sha256": "8fb62b757538759cda8d31a725c2997c439598e61f7de4dfcfe02e414ed3c583"
+    },
+    {
+      "path": "app/Filament/Resources/Procurement/Crawler/Proxies/Schemas/ProxyForm.php",
+      "sha256": "bc3e8c8e0e70c5ceed3e3d6275cc160259a51c000c653929e9fe3d833518ed98"
+    },
+    {
+      "path": "app/Models/Procurement/Crawler/Proxy.php",
+      "sha256": "5d4292d04f35524ed69e8f6bef59d55ac24355078ee524dbfbbc46b821c48741"
+    },
+    {
+      "path": "app/Models/Procurement/Network/AdapterHealth.php",
+      "sha256": "6d915dd38fd1001041cb90e93e7ba43f70b8eca3707341025032fde97290fda6"
+    },
+    {
+      "path": "app/Models/Procurement/Network/NetworkBudget.php",
+      "sha256": "e14e0446ca68a1a6b566b48dffe10945f47b6a6cba26fa11271e351b2f72c1a3"
+    },
+    {
+      "path": "app/Models/Procurement/Network/NetworkDemand.php",
+      "sha256": "42e9165050f7f89b4a2424e110162bf5e846f65d75ed302f610b1a66ac52ae45"
+    },
+    {
+      "path": "app/Models/Procurement/Network/NetworkPermit.php",
+      "sha256": "973b238f4c7eb96bd6afe42feaf43ac4ac570b330e65a191c95aee81a50c1516"
+    },
+    {
+      "path": "app/Models/Procurement/Network/NetworkRoute.php",
+      "sha256": "880d16073baf1f40ad38df5f49c9ad7c3e92d6806e4864987f6bc7a126500935"
+    },
+    {
+      "path": "app/Models/Procurement/Network/NetworkRouteProfile.php",
+      "sha256": "a1bbe1b8f074e7d0ea5b6ab49cb17b47470446a2b7a56265920ed01ca7794cdb"
+    },
+    {
+      "path": "app/Models/Procurement/Network/Observation.php",
+      "sha256": "7e5709f8f22a7b2d6c13529b4b2b5a3c29f85f4bca440b713bf7c6a89122ad83"
+    },
+    {
+      "path": "app/Models/Procurement/Network/ObservationApplication.php",
+      "sha256": "9b7df4da391f70cc5cc2e84ab897caa514ad80d55b5e0870f20aa175a71e57da"
+    },
+    {
+      "path": "app/Models/Procurement/Network/OutboundOperation.php",
+      "sha256": "6b07de17cde4ab36a12a9d79ebdc34191ec09fb1442a76ed1865c1ec01826b67"
+    },
+    {
+      "path": "app/Models/Procurement/Network/RequestAttempt.php",
+      "sha256": "7cc8cc331bb44bff148c82838fd33ca5edeb85bcc6cf71f8396809f6af12bf9c"
+    },
+    {
+      "path": "app/Models/Procurement/Network/RouteHealth.php",
+      "sha256": "55209b7bfcc65c04fe8042521abdc159cf661d68d6b5575b17ffb8fe03cdf9fe"
+    },
+    {
+      "path": "app/Models/Procurement/Network/RouteTargetHealth.php",
+      "sha256": "38c09f47fb6ba6d56529252475d6dea9adf86dd0f76229f9e6966fba82f68119"
+    },
+    {
+      "path": "app/Models/Procurement/Network/SourceTarget.php",
+      "sha256": "602f64a459eb0676afcbd6bdc5c8d4c43f1f742e0cba0507c64d83ce4148f464"
+    },
+    {
+      "path": "app/Models/Procurement/Network/TargetHealth.php",
+      "sha256": "26d51a2df18a6894906ad6cb27bb8c3a48aa68194948441ef32b020caba16b78"
+    },
+    {
+      "path": "app/Repositories/Procurement/Document/DownloadStorageRepository.php",
+      "sha256": "d9cb207a802e81e71389a5e01e4201f652250982fe0a57f0bbd30e49ff18f113"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/AdapterHealthRepository.php",
+      "sha256": "f922cef4776ac673d025ca4758d216951642bc357e05fa072f23ed6aba5c8adb"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/AdapterHealthSqlHelper.php",
+      "sha256": "6c59bd15c1226af2904af93ab7e77b57db7f7ab2af179935949249d33830abf1"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/HealthRepository.php",
+      "sha256": "980e43a3788cb4fb98fa8f39cf1444b1c2863f5aca79a35a830ccb1dff1af6a8"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/LockedNetwork.php",
+      "sha256": "d64e64a9caa3265929423dea3516665155a4645b60c1e80e6df4030dc077daa1"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/NetworkAuthorityRepository.php",
+      "sha256": "a9a7e4b010f64b467b3875604d26262205f2f6abd4eb75634ab54f81badca594"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/NetworkEligibilityRepository.php",
+      "sha256": "2dcea3cbebafe0d4094b25fc822d9e8fa48e28c4ca8bf0dcc2a6364f1434b8fa"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/NetworkPermitRepository.php",
+      "sha256": "3012af50817ad6b1b980d43bc3c706fc7a22e39e18ea5b3167277c095c07ca33"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/NetworkPermitSqlHelper.php",
+      "sha256": "2da5bcf5d061d36a36ab643945a701c93a81d62d101cbd3511d2afbf908221f0"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/OutboundOperationRepository.php",
+      "sha256": "e359a21560a47d1ce11e270f019a230bf53ae097cdfd811f4c94a7402d3a62d4"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/RouteRepository.php",
+      "sha256": "2bc1a2b6c29c36eede90e1762af12a1cef28be22a8d5f02dc087683e89621b17"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/SourceCatalogRepository.php",
+      "sha256": "93e20bcd7e89a2731921c8633b2cf7259d0c2b5e30a5ba10e469e71ec2c25b6b"
+    },
+    {
+      "path": "app/Repositories/Procurement/Network/SourceCatalogSqlHelper.php",
+      "sha256": "d5ab5fe9f2cd72c489a0b2126e091cdd7862079c33b80a316b11855a550f563c"
+    },
+    {
+      "path": "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php",
+      "sha256": "e24b58475dd1b5fb5267799bbee25904cecfa36635cab91e9379f1780a2fbde9"
+    },
+    {
+      "path": "app/Services/Procurement/Network/AcquisitionEligibility.php",
+      "sha256": "384f1e054b257c74a2f8cbbc0f824a446bbdbbe40838af5a216bbec8ca0da988"
+    },
+    {
+      "path": "app/Services/Procurement/Network/AdapterCanaryRouteSelector.php",
+      "sha256": "21b91410b1fc155e34b7f6c81f2cc54972b7111ec3099123e5f0e1bbd379514c"
+    },
+    {
+      "path": "app/Services/Procurement/Network/AdapterHealthPolicy.php",
+      "sha256": "6776c2f090c32a380e942eaa09c8237b638ac3908100b634e166b5d0c5527fa5"
+    },
+    {
+      "path": "app/Services/Procurement/Network/ArtifactResponseStream.php",
+      "sha256": "c9f268604b254d79eb8ac0f55dfcb3a97446408a31063cc1f9a480ea78f704bd"
+    },
+    {
+      "path": "app/Services/Procurement/Network/BoundedDnsResolver.php",
+      "sha256": "b20bda4647925846053af60d76453e2ed86d1808497931ebe83f05cb835b65d7"
+    },
+    {
+      "path": "app/Services/Procurement/Network/BoundedResponseReader.php",
+      "sha256": "b50ee879e3a00657dd43a2dcfa0e086cdcbfa772528214681f4034ad04a6acba"
+    },
+    {
+      "path": "app/Services/Procurement/Network/BoundedSink.php",
+      "sha256": "335ac024d857f2064e147b713c6c67a29ce305e395727da66f87a25d7d43a0cc"
+    },
+    {
+      "path": "app/Services/Procurement/Network/Contracts/DiagnosticCheck.php",
+      "sha256": "c750d72cfce53e50131b49e525e3f3cda6c39a653f87b9d483e1a54f37ee598f"
+    },
+    {
+      "path": "app/Services/Procurement/Network/Contracts/LegacyOutbound.php",
+      "sha256": "d9d8c3cc782bbed3b296aaa3549d64287aea9a287cd30aeb0f57f691826d7ad5"
+    },
+    {
+      "path": "app/Services/Procurement/Network/Contracts/OutboundAttemptGate.php",
+      "sha256": "2abcd041d2dddefdaf2ecffc2fa7bab1d95b2f7650a0e6a9b58d8382cef49ed7"
+    },
+    {
+      "path": "app/Services/Procurement/Network/Contracts/OutboundRouteSelector.php",
+      "sha256": "b26d3f32349201e084f62f67a2eb1a7f41fbc425e6ecd987f08b1d60d1fe7872"
+    },
+    {
+      "path": "app/Services/Procurement/Network/Contracts/SourceCatalogProvider.php",
+      "sha256": "6e1605ecb3a07a0926d398a525b925f177135e448ff27cffc087ea9862743eab"
+    },
+    {
+      "path": "app/Services/Procurement/Network/HealthPolicy.php",
+      "sha256": "ea4e0f1b0f06583e4b7f61fcb1b9ef29a003d4c739b637e565078abfef2267be"
+    },
+    {
+      "path": "app/Services/Procurement/Network/HealthReducer.php",
+      "sha256": "152511102b6c5bd2a27111570f589205c716bde3747e99b9f86e29926c5b20ca"
+    },
+    {
+      "path": "app/Services/Procurement/Network/HttpTransport.php",
+      "sha256": "8efbb41111b3c9a2befbe1516ef48ed8c69fa5d44198fcf516f7285d41dd640d"
+    },
+    {
+      "path": "app/Services/Procurement/Network/LegacyBridge.php",
+      "sha256": "0660dc1aa22ece4435498f769b5b0740c49eba2fce207effce50747c494b9c92"
+    },
+    {
+      "path": "app/Services/Procurement/Network/LegacyOutboundClient.php",
+      "sha256": "b8f8b23d630c8c820c3d2e9d62e2ad6660dde58ea20088e4f7377a1e60962aad"
+    },
+    {
+      "path": "app/Services/Procurement/Network/LegacyResponseAssessment.php",
+      "sha256": "225b886a4eb6770275c17905f8c44fbd612997a5e77c8556ce63734885ac9f98"
+    },
+    {
+      "path": "app/Services/Procurement/Network/NetworkOwnerFence.php",
+      "sha256": "27bf280cc3f176d4689817d74dbf48383a13185dd5d2fe4e9c05c976ad6fff95"
+    },
+    {
+      "path": "app/Services/Procurement/Network/NetworkProbeReconcileCategory.php",
+      "sha256": "78f8bb460e4bbf804412bb20cbf3198cba359a327190769588c70965534d6025"
+    },
+    {
+      "path": "app/Services/Procurement/Network/NetworkReconcileCategory.php",
+      "sha256": "dbdf684c5ed809a39b1049dfb8a0abfa0db4708e34af7392116f8d9eba071e0e"
+    },
+    {
+      "path": "app/Services/Procurement/Network/NetworkRouteCommands.php",
+      "sha256": "2070653529c12c33ff57a40e6d2ac8dc120a3bd8c7b6929acc276715a9ff30f9"
+    },
+    {
+      "path": "app/Services/Procurement/Network/OutboundExecutor.php",
+      "sha256": "9953321ac353dcc46ba713519514c0b9e993efd2376f650f0bce0df738f9c460"
+    },
+    {
+      "path": "app/Services/Procurement/Network/OutboundPolicy.php",
+      "sha256": "ad47e5546833cc6c6d316be99689b2d3de242533f0aa01b55037c217496bd02e"
+    },
+    {
+      "path": "app/Services/Procurement/Network/PinnedCurlHandler.php",
+      "sha256": "ce83093ed6623b30689dc15b48dec56252680e62492fc878cb0a5f0e9c73b514"
+    },
+    {
+      "path": "app/Services/Procurement/Network/ProbeScheduler.php",
+      "sha256": "10f6f13082d39e7d32d6c81a01b90cd9d7e84f451b47581ac5a9f96c3c8340a8"
+    },
+    {
+      "path": "app/Services/Procurement/Network/RequestClassifier.php",
+      "sha256": "8ccd89b5352f56263a7bee5857a883a06307f3d2ba265dab6c264e117e8f44b9"
+    },
+    {
+      "path": "app/Services/Procurement/Network/ResponseDecoder.php",
+      "sha256": "d6fcf92f5c04c03408a8bdc4865721ce045bbf01cda0821a021a05362f87a4e3"
+    },
+    {
+      "path": "app/Services/Procurement/Network/RetryPolicy.php",
+      "sha256": "74997b2d66c76b2f9e3b5fa10df877cb520eff9cf9562ca63637477edf1904a4"
+    },
+    {
+      "path": "app/Services/Procurement/Network/ScheduledAttemptGate.php",
+      "sha256": "1097f39a14fea6f6682ac9d42be23039fe77a57f97a1680c5cef1b76d33abca3"
+    },
+    {
+      "path": "app/Services/Procurement/Network/SourceCatalogRegistry.php",
+      "sha256": "92ceed0fa0e3b31af60f2393781903e4cc02c269a0ebbc9899fd4f4646a0cd7a"
+    },
+    {
+      "path": "app/Services/Procurement/Network/SourceCatalogSync.php",
+      "sha256": "05175e559ae9f36d0eb0fe2f282ad8119acb063e8c93cdcb2fade69aa14f0fb1"
+    },
+    {
+      "path": "app/Services/Procurement/Network/UrlPolicy.php",
+      "sha256": "cfcefc8f06e400c28cef9a652a68e44045953cccb93a3c07b5c9d36f67952e95"
+    },
+    {
+      "path": "app/Services/Procurement/Proxy/ProxyBindingResolver.php",
+      "sha256": "5abc42f225edef85c59e637f08439c47d8dbd4b26c499e795c5589f06b23978b"
+    },
+    {
+      "path": "app/Services/Procurement/Proxy/ProxyResolver.php",
+      "sha256": "a52787dfcf6d166daef5226708db67bf4b6bb0ba83504531f438c2288fdf0923"
+    },
+    {
+      "path": "app/Services/Procurement/Proxy/RoutePolicy.php",
+      "sha256": "64b48f1e06510a6380e1d4823d0ac8fdb4de3a4f128a4bae9bf454b08f3521bf"
+    },
+    {
+      "path": "app/Services/Procurement/Proxy/RouteSelector.php",
+      "sha256": "084022e3342a185bb549fc0f6f1dfff0438e9ad29dbe55ae1a099fdf8cce0588"
+    },
+    {
+      "path": "app/Services/Procurement/SourceTlsTrust.php",
+      "sha256": "f6a88fec081f826a52993355c531256f857cf61cdcc1b00f42670c5e28662012"
+    },
+    {
+      "path": "composer.json",
+      "sha256": "ffcb5694e294d2fc9a0ec66d6f14d13c212dda57ab9de3cb6b3ba6aa559a21f5"
+    },
+    {
+      "path": "composer.lock",
+      "sha256": "6e1c28f93ab5d46ec852c7a6eec62f4d141d94799a1b870aaaaf314d2a80f35a"
+    },
+    {
+      "path": "config/outbound.php",
+      "sha256": "013df4df90e6db9a70c669fbf954a149f177a6421cf6fefce17a199dd2472569"
+    },
+    {
+      "path": "database/migrations/2026_07_04_100040_create_prc_proxies_table.php",
+      "sha256": "f5e896855b0882512824898e8282025ae83822dd1b282ab5a70768516585d101"
+    },
+    {
+      "path": "database/migrations/2026_10_25_100000_create_prc_process_network_tables.php",
+      "sha256": "b5bf4161db580aef12fcbf9f5b9247f515c835aa38ebde7413629a0ae464d35d"
+    },
+    {
+      "path": "database/migrations/2026_10_25_100001_create_prc_request_observation_tables.php",
+      "sha256": "23afbc7dc57d25af92a3b11ce1e5a9320a5484b97018d8142bb0f061e43e5b5d"
+    },
+    {
+      "path": "docker/compose.core-test.yml",
+      "sha256": "08428fb40e87961c2fcd0ecbcf5aa25f489b082bd8da186d116ebe0221afa709"
+    },
+    {
+      "path": "docker/php/Dockerfile",
+      "sha256": "85e066906b0d354e2632b48c20bc742babb8e6270fa42885f9736d3f56e19cf2"
+    },
+    {
+      "path": "docker/private-vendors.lock.json",
+      "sha256": "6a3cee45d614b4c304e69b4c86866830049536d6b839d2a55f561358b24912b9"
+    },
+    {
+      "path": "docker/scripts/vendor-sync.sh",
+      "sha256": "bcf147ae9113bb5e87db3c4a7b48a8bd4dc59241f0ab723e401767771d61be33"
+    },
+    {
+      "path": "docker/tests/process-core/acceptance_report.py",
+      "sha256": "94d6d33f155201c513a6fc93c2ce737039994b66f287b08171cfbb3fb8aeff80"
+    },
+    {
+      "path": "docker/tests/process-core/rig.py",
+      "sha256": "3b41672be45eac1e6ea8186876db9c5dc44851dc054f3755b39e7877c8a03eb4"
+    },
+    {
+      "path": "docs/dev/runbooks/process-test-rig.md",
+      "sha256": "049a45c5b10c519dc84225c226f7c5ec1e525315428d0bef4025f1e77c13cf77"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AdapterAdmissionTest.php",
+      "sha256": "59e921f5c2d44707de3e8a79261401c66556ed928364abfc8050e730179d31bd"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AdapterCallerValidationTest.php",
+      "sha256": "26d38a05a15e569da4331dd3a33f38bf1161d786f8482100cb490f97a2dffce6"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AdapterContractBindingTest.php",
+      "sha256": "3ba9dc2b58131e7e2389f9f0a42c106f48ba1fc24d145c3a493f60aa0f2279c7"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AdapterInputBudgetTest.php",
+      "sha256": "5cc93de980c58156b4bddb341a4db64ce02affea0dd937e97bb3a3460bb1747e"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AdapterOutcomeTest.php",
+      "sha256": "753ce9a17bd41f6188f07448989a70dfa7b9a38da3d70166dc6cc09983565ef4"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AdapterSendFenceTest.php",
+      "sha256": "71c8d6d8d9f6dd756ba23d6e55d207d148ff179f755a70ed4d13fcf84828b11c"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/AuditNetworkRegressionTest.php",
+      "sha256": "a2f49034088beb241243da311a319d2e1b0b3582c08a0ddf5e2c2ef0edaa16a7"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/BoundedFifoDemandTest.php",
+      "sha256": "154d0f60414e6bcd36eb022a8058a65b418dc88e69f34e381b9d8d4bfcb858f7"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/CallerWireTest.php",
+      "sha256": "05110ff9c394666c3a00751ef0d0e56e96957197293c930a9295912a2bee85c0"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/ClaimSendFenceTest.php",
+      "sha256": "ccfc8f7ce3b9dcee8699ecc854d45f53c88b916ae455dce26b41f372eac6417f"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/DetailDispatcherEligibilityTest.php",
+      "sha256": "ec72394c246dab0b20d1baa72c1e70a3c5b343d19f519c3703e3edbb96dc856e"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/GcraConcurrencyTest.php",
+      "sha256": "5541601c2050dd26d3a1e2c474e3378c0f1d58da92722e3f42018c02f04fc1fa"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/HealthReducerTest.php",
+      "sha256": "a75956bcb79f85e21abc95eab3cc041fbde009fd44e7b090d06d1e87f0489a8a"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/HttpPolicyTest.php",
+      "sha256": "7173c209d1e7c7f2fe90182d83673bda6f761e303dbb44279d538e8bda2e4af7"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/HttpTransportTest.php",
+      "sha256": "913225f0062068a4038d5db1be059a1367445bc781722ca21b80c0a05d0d5ac4"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/LegacyBridgeSchemaTest.php",
+      "sha256": "669f6819378ad2e70f52c863bf54445f82b147351a711c28dedb0c13e85f3b02"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/LegacyOutboundClientTest.php",
+      "sha256": "eee77f14613797387e772abd8bd0bc69a71509ac3879f60837f17bd07c517897"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/NetworkContractsTest.php",
+      "sha256": "ecc07a884c7bfdaa9f0ebbf093ae85944f200035cbf6a009b81afea57cd98d09"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/NetworkDemandRecoveryTest.php",
+      "sha256": "df4e6c7ce6ca7ce0202d62e16468bb1fd6f78cb2dc8499f1fe3fe1fea045a955"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/NetworkReconcileCategoryTest.php",
+      "sha256": "f8e86f662b7f85c2be4f2c3228b6f5a5ad5a62e323c9990ed3e12e580e68f6ff"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/ProbeOwnershipTest.php",
+      "sha256": "2cddd1ee73f67dc9eb72f5025e4ac22d0d07efea232d8bde29a4cd1004a73bd5"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/ProviderOwnershipTest.php",
+      "sha256": "8429428e664472fc720bda4c646b66698f959b6063cc9ca9ddeb2e5b0d156d0f"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/ResponseDecoderTest.php",
+      "sha256": "41fe3ea26ec28e09c7181e67a03091cf3243c14f3c50b583045c1a5d348ef886"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/RouteHealthTest.php",
+      "sha256": "f003f7e63eb389f17bf13e6d775ba1c61cc66ce0e3c036577d6db7d6854606ce"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/SourceCatalogSyncTest.php",
+      "sha256": "0fc752a78052056cf051634177572d233397ba96f21e558d231af930d9a60ed2"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/StatusCapacityQuotaTest.php",
+      "sha256": "d3be28beba34e7e089366bbc9ee6f6a256709add94d0dae2bfbd7457f849873e"
+    },
+    {
+      "path": "tests/Feature/ProcessCore/Network/TerminalHttpEvidenceTest.php",
+      "sha256": "4311be1bb17971bcf50fab54ddced15d19f876b29f8497e05a651a42b8060684"
+    },
+    {
+      "path": "tests/Fixtures/ProcessCore/manifest.json",
+      "sha256": "1148a8cd62d99bf47290886f8d2ddee53c8782b13bde7a37af2bd04405905a55"
+    },
+    {
+      "path": "tests/Fixtures/ProcessCore/runtime-inputs.json",
+      "sha256": "317272108732dddd5ace460347a2b282fcb27d1006ad90d54ded581e26c77763"
+    },
+    {
+      "path": "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php",
+      "sha256": "638a3c6e01ba9a755ba54754f58445985fa00902259f487ac970512c021de89a"
+    }
+  ]
+}
