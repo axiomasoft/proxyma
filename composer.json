@@ -3,7 +3,20 @@
     "description": "Private development workspace for Proxyma 0.1",
     "type": "project",
     "license": "proprietary",
-    "require": {
-        "php": "^8.4"
-    }
+    "repositories": [
+        {"type": "path", "url": "packages/core", "options": {"symlink": true, "versions": {"axiomasoft/proxyma": "dev-main"}}},
+        {"type": "path", "url": "packages/filament", "options": {"symlink": true, "versions": {"axiomasoft/proxyma-filament": "dev-main"}}}
+    ],
+    "require": {"php": "^8.4", "axiomasoft/proxyma": "dev-main", "axiomasoft/proxyma-filament": "dev-main"},
+    "require-dev": {
+        "laravel/pao": "*",
+        "laravel/pint": "^1.24",
+        "orchestra/testbench": "^11.0",
+        "pestphp/pest": "^5.0",
+        "phpstan/phpstan": "^2.1"
+    },
+    "autoload-dev": {"psr-4": {"Tests\\": "tests/"}},
+    "config": {"sort-packages": true, "allow-plugins": {"pestphp/pest-plugin": true}},
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

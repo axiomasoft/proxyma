@@ -1,0 +1,75 @@
+name: proxyma_test
+services:
+  db:
+    image: postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    environment:
+      POSTGRES_USER: proxyma_test
+      POSTGRES_PASSWORD: proxyma-test-only
+      POSTGRES_DB: proxyma_test
+    volumes:
+      - db:/var/lib/postgresql/data
+      - ../scripts/test-db-entrypoint.sh:/test-db-entrypoint.sh:ro
+      - ../scripts/test-db-init.sql:/docker-entrypoint-initdb.d/01-marker.sql:ro
+      - ../scripts/test-db-marker.sh:/docker-entrypoint-initdb.d/02-marker.sh:ro
+    entrypoint: ["/test-db-entrypoint.sh"]
+    networks: [fixtures]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U proxyma_test -d proxyma_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  fixture:
+    image: proxyma_test_php:local
+    command: [python3, /work/scripts/test-fixture.py]
+    volumes:
+      - ../scripts:/work/scripts:ro
+    networks: [fixtures]
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8080/', timeout=2).read() == b'proxyma-fixture-v1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  runner:
+    image: proxyma_test_php:local
+    build:
+      context: ..
+      dockerfile: docker/test/Dockerfile
+    working_dir: /work
+    command: ["sleep", "infinity"]
+    environment:
+      APP_ENV: testing
+      APP_PACKAGES_CACHE: /tmp/proxyma-packages.php
+      APP_SERVICES_CACHE: /tmp/proxyma-services.php
+      APP_CONFIG_CACHE: /tmp/proxyma-config.php
+      APP_ROUTES_CACHE: /tmp/proxyma-routes.php
+      APP_EVENTS_CACHE: /tmp/proxyma-events.php
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: proxyma_test
+      DB_USERNAME: proxyma_test
+      DB_PASSWORD: proxyma-test-only
+      DB_URL: ""
+    volumes:
+      - ../packages:/work/packages:ro
+      - ../tests:/work/tests:ro
+      - ../vendor:/work/vendor:ro
+      - ../composer.json:/work/composer.json:ro
+      - ../composer.lock:/work/composer.lock:ro
+      - ../phpunit.xml:/work/phpunit.xml:ro
+      - ../phpstan.neon:/work/phpstan.neon:ro
+      - ../pint.json:/work/pint.json:ro
+      - ../scripts:/work/scripts:ro
+      - ../build:/work/build
+    tmpfs:
+      - /work/vendor/pestphp/pest-plugin-mutate/.temp
+    networks: [fixtures]
+    depends_on:
+      db: {condition: service_healthy}
+      fixture: {condition: service_healthy}
+networks:
+  fixtures:
+    internal: true
+volumes:
+  db:
+    name: proxyma_test_db
