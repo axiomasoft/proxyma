@@ -15,8 +15,17 @@ use Symfony\Component\HttpFoundation\IpUtils;
 
 final readonly class DestinationPolicy implements DestinationResolver
 {
-    /** @param array<string, array<string, list<string>>> $privateTargets Exact target ID, host and IP bindings. */
-    public function __construct(private DnsResolver $dns, private array $privateTargets = [], private array $allowedPorts = [80, 443]) {}
+    /**
+     * @param  array<string, array<string, list<string>>>  $privateTargets  Exact target ID, host and IP bindings.
+     * @param  list<int>  $allowedPorts
+     * @param  array<string, list<string>>  $allowedRedirectOrigins  Optional allowed redirect origins/hosts per target ID.
+     */
+    public function __construct(
+        private DnsResolver $dns,
+        private array $privateTargets = [],
+        private array $allowedPorts = [80, 443],
+        private array $allowedRedirectOrigins = [],
+    ) {}
 
     public function resolve(SafeUrl $url, ExecutionContext $context, int $timeoutMs, ?Target $target = null): ResolvedUrl
     {
@@ -26,7 +35,13 @@ final readonly class DestinationPolicy implements DestinationResolver
     /** @return array{non-empty-list<string>, Target} */
     public function validatedAddresses(SafeUrl $url, ExecutionContext $context, int $timeoutMs, ?Target $target): array
     {
-        if ($target === null || $target->isRetired() || ! $target->origin->equals($url->origin)
+        $originAllowed = $target !== null && (
+            $target->origin->equals($url->origin)
+            || isset($this->privateTargets[$target->id->value][$url->origin->host])
+            || in_array($url->origin->value(), $this->allowedRedirectOrigins[$target->id->value] ?? [], true)
+            || in_array($url->origin->host, $this->allowedRedirectOrigins[$target->id->value] ?? [], true)
+        );
+        if ($target === null || $target->isRetired() || ! $originAllowed
             || ! in_array($url->origin->port, $this->allowedPorts, true)) {
             throw new InvalidArgumentException('Destination target or port denied.');
         }

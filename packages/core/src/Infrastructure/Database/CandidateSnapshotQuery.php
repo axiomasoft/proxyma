@@ -154,7 +154,7 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
                 ->leftJoin($t['route_health'].' as h', fn ($j) => $j->on('h.tenant_key', '=', 'r.tenant_key')->on('h.route_id', '=', 'r.id'))
                 ->leftJoin($t['route_target_health'].' as rh', fn ($j) => $j->on('rh.tenant_key', '=', 'r.tenant_key')->on('rh.route_id', '=', 'r.id')->where('rh.target_id', '=', $targetId->value))
                 ->whereIn('r.id', $authorizedIds)->select(['r.id', 'h.state as route_state', 'h.health_epoch as route_epoch', 'h.state_version as route_version',
-                    'rh.state as pair_state', 'rh.health_epoch as pair_epoch', 'rh.state_version as pair_version'])->get();
+                    'rh.state as pair_state', 'rh.health_epoch as pair_epoch', 'rh.state_version as pair_version', 'rh.open_until as pair_open_until'])->get();
             foreach ($healthRows as $row) {
                 $health[$row->id] = $row;
             }
@@ -203,7 +203,8 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
             $ready = true;
             if ($reasons === [] && $route !== null) {
                 $h = $health[$id] ?? null;
-                if ($h === null || $h->route_state !== 'closed' || $h->pair_state !== 'closed') {
+                if ($h === null || $h->route_state !== 'closed' || $h->pair_state !== 'closed'
+                    || ($h->pair_open_until !== null && new DateTimeImmutable($h->pair_open_until) > $now)) {
                     $reasons[] = 'route_health_unavailable';
                 }
                 foreach (['route' => [$h?->route_epoch, $h?->route_version], 'route_target' => [$h?->pair_epoch, $h?->pair_version],
@@ -262,6 +263,9 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
                         $interval = max((int) $budget->emission_interval_us, $constraint === null ? 0 : $constraint->emissionIntervalUs);
                         $burst = min((int) $budget->burst, $constraint === null ? PHP_INT_MAX : $constraint->burst);
                         $threshold = (float) $now->format('U.u');
+                        if ($budget->cooldown_until !== '-infinity' && new DateTimeImmutable($budget->cooldown_until) > $now) {
+                            $ready = false;
+                        }
                         foreach ([$budget->tat_epoch, $budget->send_tat_epoch] as $tat) {
                             if (is_numeric($tat) && (float) $tat - ($interval * ($burst - 1) / 1_000_000) > $threshold) {
                                 $ready = false;

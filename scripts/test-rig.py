@@ -59,6 +59,23 @@ def test_roots():
     return (ROOT / 'tests', ROOT / 'packages/core/tests', ROOT / 'packages/filament/tests')
 
 
+def suite_files(name):
+    if name == 'transport':
+        contract = ROOT / 'packages/core/tests/Contract'
+        names = (
+            'DestinationPolicyTest.php', 'TlsPolicyTest.php', 'SecretRotationTest.php',
+            'SealedWireTest.php', 'PhysicalTransportTest.php', 'DispatchDeadlineTest.php',
+            'BoundedResponseTest.php', 'ArtifactOwnershipTest.php',
+            'ExecutorPolicyTest.php', 'RedirectPolicyTest.php',
+        )
+        files = [contract / filename for filename in names]
+        if not all(path.is_file() for path in files):
+            raise ValueError('transport suite is missing required contract test files')
+        return files
+    roots = [root if name == '.' else root / name.capitalize() for root in test_roots()]
+    return sorted(path for root in roots if root.is_dir() for path in root.rglob('*Test.php'))
+
+
 def test(path):
     target = (ROOT / path).resolve()
     if not target.is_file() or not any(target.is_relative_to(root) for root in test_roots()) or target.suffix != '.php':
@@ -93,8 +110,7 @@ def main():
     elif cmd == 'file-env':
         test(os.environ.get('TEST_FILE', ''))
     elif cmd == 'suite' and len(sys.argv) == 3:
-        roots = [root if sys.argv[2] == '.' else root / sys.argv[2].capitalize() for root in test_roots()]
-        files = sorted(path for root in roots if root.is_dir() for path in root.rglob('*Test.php'))
+        files = suite_files(sys.argv[2])
         if not files:
             raise ValueError('suite contains zero test files')
         for path in files:

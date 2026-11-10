@@ -24,6 +24,8 @@ final readonly class OutboundRequest
         public ?WireBody $body = null,
         string $trafficKey = 'default',
         public ?int $sendLimit = null,
+        public ResponseProfile $responseProfile = new ResponseProfile,
+        public ?string $outcomePolicyKey = null,
     ) {
         if (! in_array($method, self::METHODS, true)) {
             throw new InvalidArgumentException("Unsupported outbound HTTP method '{$method}'.");

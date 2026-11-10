@@ -111,6 +111,18 @@ final class ClaimSend
             || $input->request->timeouts->connectTimeoutMs > (int) $root->connect_timeout_ms) {
             throw new AdmissionRejected('operation_intent_conflict');
         }
+        $priorAttempts = $scope->connection->table(PackageSchema::tables()['attempts'])
+            ->where('tenant_key', $tenant->value)->where('operation_id', $root->id)->get(['snapshot']);
+        $distinctLimit = min($input->request->timeouts->maxDistinctRoutes, $input->policy->timeouts->maxDistinctRoutes);
+        $usedRoutes = [];
+        foreach ($priorAttempts as $attempt) {
+            $prior = json_decode($attempt->snapshot, true, flags: JSON_THROW_ON_ERROR);
+            $usedRoutes[$prior['route_id']] = true;
+            $distinctLimit = min($distinctLimit, (int) ($prior['max_distinct_routes'] ?? $distinctLimit));
+        }
+        if (! isset($usedRoutes[$input->route->id->value]) && count($usedRoutes) >= $distinctLimit) {
+            throw new AdmissionRejected('distinct_route_limit');
+        }
         $evidence = $this->catalog->lock($input, $tx);
         if ($input->route->endpointId !== null) {
             $endpoint = $scope->connection->table(PackageSchema::tables()['endpoints'])->where('id', $input->route->endpointId->value)->first();
@@ -193,6 +205,12 @@ final class ClaimSend
         $this->budgets->planSend($snapshots, DatabaseClock::micros(DatabaseClock::now($scope->connection)));
         $safe = ['route_id' => $input->route->id->value, 'endpoint_id' => $input->route->endpointId?->value,
             'credential_version' => $input->selection->credentialVersion, 'fingerprint' => $input->request->fingerprint()->hex,
+            'origin' => $input->request->url->origin->value(), 'egress_key' => $input->route->egress->key,
+            'egress_pool_fallback' => $input->route->egress->conservativePoolFallback, 'target_id' => $input->target->id->value,
+            'profile_id' => $input->profile->id->value, 'policy_revision' => $input->request->policyRevision,
+            'outcome_policy_key' => $input->policy->outcomePolicyKey,
+            'route_owner_tenant_key' => $input->route->tenantKey->value,
+            'max_distinct_routes' => $distinctLimit,
             'versions' => $evidence['versions'], 'epochs' => $evidence['epochs'], 'quota' => array_keys($quotaPlan), 'dispatch' => 'unknown'];
         try {
             $authorized = $this->permits->authorize($permit, $input, $ownerState, $snapshots, $safe, $quotaPlan);

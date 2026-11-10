@@ -74,9 +74,22 @@ final readonly class PreparedHeaders
         return array_keys($this->headers);
     }
 
-    public function acrossOrigin(): self
+    public function acrossOrigin(bool $preserveContentType = false): self
     {
-        return new self(array_intersect_key($this->headers, array_flip(['accept', 'user-agent'])));
+        $allowed = $preserveContentType ? ['accept', 'user-agent', 'content-type'] : ['accept', 'user-agent'];
+
+        return new self(array_intersect_key($this->headers, array_flip($allowed)));
+    }
+
+    public function withoutContentHeaders(): self
+    {
+        return new self(array_diff_key($this->headers, array_flip([
+            'content-type',
+            'content-encoding',
+            'content-language',
+            'content-location',
+            'digest',
+        ])));
     }
 
     /**

@@ -133,3 +133,31 @@ direct HTTP(S), HTTP/HTTPS proxy forwarding/CONNECT и SOCKS5 local DNS.
 Capability consume происходит после bind options непосредственно перед dispatch;
 повторный consume, поздний старт и SQL transaction отказывают без socket bytes.
 Protocol qualification и actual socket crash checkpoints описаны в `docs/transports.md`.
+
+**Attempt facts** — неизменяемая сводка фактов одной физической попытки (идентификаторы
+операции и попытки, номер повтора, шаг редиректа, маршрут, egress, версия учётных данных,
+класс идемпотентности, HTTP-статус либо транспортный сбой, счётчики байт, дайджест receipt,
+значения `Retry-After` и `Location`, воспроизводимость тела), передаваемая классификатору
+и политике исходов без раскрытия секретов или сырого тела.
+
+**Technical classification** — независимая техническая оценка фактов попытки
+(`TechnicalOutcomeClassifier`), определяющая атрибуцию здоровья (`HealthAttribution`),
+обязательные защитные флаги (`holdsProxyCredential`, `extendsOriginCooldown`,
+`appliesWafHold`, `isAmbiguousAfterAuthorization`) и базовое решение до применения
+пользовательской политики исходов.
+
+**Outcome policy registry** — реестр политик классификации исходов с иерархией приоритетов
+`SecurityOwnership > Project > Panel > Default`. Отвергает конфликты одного уровня при
+заморозке и защищает обязательные инварианты безопасности (запрет повтора неоднозначной
+записи после авторизации, удержание учётных данных при 407, запрет ротации маршрутов при 429)
+от ослабления пользовательской политикой.
+
+**Outbound executor** — оркестратор логической операции (`OutboundExecutor`), выполняющий
+повторы и редиректы вне SQL-транзакции. Каждая физическая попытка и каждый шаг редиректа
+проходят проверку остатка времени и лимитов до DNS и получают новый permit, новый claim и
+заново запечатанный `SealedWire`. Правила оркестрации описаны в `docs/execution.md`.
+
+**Origin cooldown** — независимый `budgets.cooldown_until`, продлеваемый через max
+по исходному origin из authorization snapshot. Не зависит от burst/GCRA и проверяется
+в admission и финальном send CAS. Даже stale epoch не отменяет консервативное
+продление; атрибуция новому egress или изменённой цели запрещена.

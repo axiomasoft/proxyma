@@ -19,6 +19,10 @@ use Proxyma\Application\Bindings\DatabaseBindingCommands;
 use Proxyma\Application\Bindings\DatabaseBindingQueries;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
 use Proxyma\Application\Catalog\RotateCredentials;
+use Proxyma\Application\Execution\DestinationPolicy;
+use Proxyma\Application\Execution\OutboundExecutor;
+use Proxyma\Application\Execution\OutcomePolicyRegistry;
+use Proxyma\Application\Execution\ProxyResolver;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\PolicyResolver;
@@ -29,6 +33,7 @@ use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Application\Recovery\OwnedTemporaryArtifacts;
 use Proxyma\Application\Recovery\Reconciler;
 use Proxyma\Application\Recovery\RetentionPruner;
+use Proxyma\Application\Routing\RouteSelector;
 use Proxyma\Application\Routing\SecureRandomIndex;
 use Proxyma\Application\Routing\StrategyRegistry;
 use Proxyma\Contracts\Authorizer;
@@ -38,7 +43,9 @@ use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\Completion;
+use Proxyma\Contracts\DestinationResolver;
 use Proxyma\Contracts\LockedCompletionReducer;
+use Proxyma\Contracts\OutboundClient;
 use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Contracts\PhysicalTransport;
 use Proxyma\Contracts\PolicyCommands;
@@ -51,6 +58,8 @@ use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TlsTrustPolicy;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Admission\QueueLimits;
+use Proxyma\Domain\Outcomes\RetryAfterParser;
+use Proxyma\Domain\Outcomes\TechnicalOutcomeClassifier;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
 use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
@@ -64,6 +73,7 @@ use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
+use Proxyma\Infrastructure\Http\DnsResolver;
 use Proxyma\Infrastructure\Http\PhysicalHttpTransport;
 use Proxyma\Infrastructure\Http\TlsTrust;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
@@ -204,11 +214,43 @@ class ProxymaServiceProvider extends ServiceProvider
                 $app->make(QueueLimits::class), $app['config']->get('proxyma.extensions.budget_contributors', []), $app['config']->get('proxyma.extensions.locked_admission_guards', []),
                 quotaRepository: $app->make(QuotaRepository::class), traffic: $app->make(TrafficSharePolicy::class));
         });
+        $this->app->bindIf(DnsResolver::class, static fn (Application $app): DnsResolver => new DnsResolver($app->make(ConnectionScope::class)));
+        $this->app->bindIf(DestinationPolicy::class, static fn (Application $app): DestinationPolicy => new DestinationPolicy($app->make(DnsResolver::class)));
+        $this->app->bindIf(DestinationResolver::class, DestinationPolicy::class);
+        $this->app->bindIf(ProxyResolver::class, static fn (Application $app): ProxyResolver => new ProxyResolver($app->make(DnsResolver::class)));
+        $this->app->bindIf(RouteSelector::class, static fn (Application $app): RouteSelector => new RouteSelector(
+            $app->make(CandidateSnapshots::class), $app->make(StrategyRegistry::class)));
+        $this->app->bindIf(RetryAfterParser::class, static fn (): RetryAfterParser => new RetryAfterParser);
+        $this->app->bindIf(TechnicalOutcomeClassifier::class, static fn (Application $app): TechnicalOutcomeClassifier => new TechnicalOutcomeClassifier(
+            $app->make(RetryAfterParser::class)));
+        $this->app->singleton(OutcomePolicyRegistry::class, static fn (Application $app): OutcomePolicyRegistry => new OutcomePolicyRegistry(
+            $app->make(TechnicalOutcomeClassifier::class), $app->make(RetryAfterParser::class)));
+        $this->app->bind(OutboundExecutor::class, static fn (Application $app): OutboundExecutor => new OutboundExecutor(
+            $app->make(ConnectionScope::class),
+            $app->make(CatalogQueries::class),
+            $app->make(PolicyResolverContract::class),
+            $app->make(DestinationResolver::class),
+            $app->make(RouteSelector::class),
+            $app->make(ProxyResolver::class),
+            $app->make(SecretResolver::class),
+            $app->make(TlsTrustPolicy::class),
+            $app->make(WireSealer::class),
+            $app->make(OperationCommands::class),
+            $app->make(ReservationService::class),
+            $app->make(ClaimSend::class),
+            $app->make(PhysicalTransport::class),
+            $app->make(OutcomePolicyRegistry::class),
+            $app->make(CompletionCoordinator::class),
+        ));
+        $this->app->alias(OutboundExecutor::class, OutboundClient::class);
     }
 
     public function boot(): void
     {
-        $this->app->booted(fn () => $this->app->make(DefinitionRegistry::class)->freeze());
+        $this->app->booted(function (): void {
+            $this->app->make(DefinitionRegistry::class)->freeze();
+            $this->app->make(OutcomePolicyRegistry::class)->freeze();
+        });
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
         if ($this->app->runningInConsole()) {

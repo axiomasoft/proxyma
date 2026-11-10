@@ -11,6 +11,8 @@ use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Admission\ReservationInput;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Execution\LockedTransactionContext;
+use Proxyma\Domain\Execution\ResolvedUrl;
+use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
@@ -110,8 +112,10 @@ final readonly class ReservationCatalogLocks
             $versions[$name.':'.$id] = (int) $health->state_version;
         }
         $target = $this->locks->rows(AuthorityLockTier::Target, $tenant, [$input->target->id->value], $tx)[0];
+        $originAllowed = $target->canonical_origin === $input->request->url->origin->value()
+            || ResolvedUrl::isUrlVerifiedForTarget($input->target->id, $input->request->url, (int) $target->revision, (new SafeUrl($target->canonical_origin))->origin);
         if ($target->retired_at !== null || (int) $target->revision !== $input->target->revision
-            || $target->canonical_origin !== $input->request->url->origin->value()) {
+            || ! $originAllowed) {
             throw new AdmissionRejected('target_revision_changed');
         }
         $versions['target:'.$target->id] = (int) $target->revision;
@@ -130,6 +134,9 @@ final readonly class ReservationCatalogLocks
 
     private function health(object $row, ReservationInput $input): void
     {
+        if ($row->open_until !== null && new DateTimeImmutable($row->open_until) > DatabaseClock::now($this->scope->connection)) {
+            throw new AdmissionRejected('health_unavailable');
+        }
         if ($row->state === 'closed') {
             return;
         }

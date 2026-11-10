@@ -68,7 +68,7 @@ final readonly class PermitRepository
         foreach ($snapshots as $id => $snapshot) {
             $checks[] = "EXISTS (SELECT 1 FROM {$t['budgets']} b JOIN {$t['reservations']} r ON r.budget_id=b.id
                 AND r.budget_tenant_key=b.tenant_key WHERE r.permit_id=p.id AND b.id=? AND b.revision=?
-                AND r.state='reserved' AND r.cost=1 AND r.quota_window_id IS NULL AND b.inflight BETWEEN 1 AND ?
+                AND r.state='reserved' AND r.cost=1 AND r.quota_window_id IS NULL AND b.inflight BETWEEN 1 AND ? AND b.cooldown_until<=n.t
                 AND (b.send_tat='-infinity'::timestamptz OR (isfinite(b.send_tat) AND
                     extract(epoch FROM b.send_tat)*1000000 <= extract(epoch FROM n.t)*1000000 + ?::bigint)))";
             array_push($bindings, $id, (int) $snapshot['row']->revision, $snapshot['cap'], $snapshot['gcra']->toleranceUs);

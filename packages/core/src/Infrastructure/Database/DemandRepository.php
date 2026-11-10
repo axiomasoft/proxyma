@@ -173,7 +173,7 @@ final readonly class DemandRepository
         $t = PackageSchema::tables();
         $result = [];
         foreach ($budgets as $budget) {
-            $value = $this->scope->connection->selectOne("SELECT ceil(extract(epoch FROM greatest(clock_timestamp(),
+            $value = $this->scope->connection->selectOne("SELECT ceil(extract(epoch FROM greatest(clock_timestamp(), b.cooldown_until,
                 b.tat - (b.emission_interval_us * (b.burst - 1)) * interval '1 microsecond',
                 b.send_tat - (b.emission_interval_us * (b.burst - 1)) * interval '1 microsecond',
                 CASE WHEN b.inflight >= b.max_inflight THEN greatest(clock_timestamp() + ? * interval '1 millisecond',

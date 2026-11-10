@@ -6,6 +6,7 @@ namespace Proxyma\Application\Routing;
 
 use InvalidArgumentException;
 use Proxyma\Contracts\CandidateSnapshots;
+use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\RouteSelectionContext;
 use Proxyma\Domain\Execution\Uuid;
@@ -29,7 +30,9 @@ final readonly class RouteSelector
         if ($snapshot->holds !== [] || $snapshot->profile === null || $snapshot->target === null) {
             return new SelectionResult($snapshot, null, null, 'configuration_hold');
         }
-        if (! $request->url->origin->equals($snapshot->target->origin)) {
+        $originAllowed = $request->url->origin->equals($snapshot->target->origin)
+            || ResolvedUrl::isUrlVerifiedForTarget($snapshot->target->id, $request->url, $snapshot->target->revision, $snapshot->target->origin);
+        if (! $originAllowed) {
             $exclusions = [];
             foreach ($snapshot->candidates as $candidate) {
                 if ($candidate->eligible()) {

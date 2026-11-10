@@ -28,6 +28,7 @@ use Proxyma\Domain\Execution\LockedOwnerState;
 use Proxyma\Domain\Execution\LockedTransactionContext;
 use Proxyma\Domain\Execution\OperationCorrelation;
 use Proxyma\Domain\Execution\PermitState;
+use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RetryAt;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\ScheduledPermit;
@@ -85,15 +86,19 @@ final readonly class ReservationService
         $target = $this->catalog->findTarget($tenant, $request->targetId) ?? throw new AdmissionRejected('target_missing');
         $this->access->authorize($tenant, 'catalog.route.select', $route->id);
         $this->access->authorize($tenant, 'catalog.profile.select', $profile->id);
+        $originAllowed = $target->origin->equals($request->url->origin)
+            || ResolvedUrl::isUrlVerifiedForTarget($target->id, $request->url, $target->revision, $target->origin);
         if (! $route->isAccessibleBy($tenant) || ! $route->enabled || $route->isRetired() || $policy->isRouteDenied($route)
             || ($route->kind === RouteKind::Direct && ! $policy->allowDirectRoute) || ! $policy->isProfileAllowed($profile->profileKey)
-            || ! $policy->isDestinationAllowed($target->destinationPolicyKey) || ! $target->origin->equals($request->url->origin)
+            || ! $policy->isDestinationAllowed($target->destinationPolicyKey) || ! $originAllowed
             || ! $route->egress->equals($selection->egress) || $route->credentialVersion !== $selection->credentialVersion
             || ($policy->routeProfileId !== null && ! $policy->routeProfileId->equals($profile->id))
             || ($policy->routeProfileRevision !== null && $policy->routeProfileRevision !== $profile->revision)) {
             throw new AdmissionRejected('reservation_policy_mismatch');
         }
-        $extra = array_values($policy->budgets);
+        $special = [$request->url->origin->budgetScopeKey(), $request->url->origin->routeScopeKey($route->id), $request->url->origin->egressScopeKey($route->egress)];
+        $extra = array_values(array_filter($policy->budgets, static fn (BudgetConstraint $b): bool => (! str_starts_with($b->scopeKey, 'origin:')
+            && ! str_starts_with($b->scopeKey, 'route-origin:') && ! str_starts_with($b->scopeKey, 'egress-origin:')) || in_array($b->scopeKey, $special, true)));
         $trafficScope = TrafficSharePolicy::scope($request->url->origin, $request->trafficClass);
         $persistedTraffic = $this->transactions->scope->connection->table(PackageSchema::tables()['budgets'])
             ->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))->where('scope_key', $trafficScope)

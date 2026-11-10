@@ -23,6 +23,7 @@ final readonly class BudgetRepository
         foreach ($rows as $row) {
             $debt = $this->scope->connection->selectOne("SELECT CASE WHEN isfinite(tat) THEN (extract(epoch FROM tat) * 1000000)::bigint END AS tat,
                 CASE WHEN isfinite(send_tat) THEN (extract(epoch FROM send_tat) * 1000000)::bigint END AS send,
+                CASE WHEN isfinite(cooldown_until) THEN (extract(epoch FROM cooldown_until) * 1000000)::bigint END AS cooldown,
                 tat::text AS tat_text, send_tat::text AS send_text FROM {$t['budgets']} WHERE id = ?", [$row->id]);
             if ($debt->tat_text === 'infinity' || $debt->send_text === 'infinity') {
                 throw new AdmissionRejected('invalid_gcra_debt');
@@ -30,7 +31,8 @@ final readonly class BudgetRepository
             $constraint = $constraints[$row->scope_key] ?? new BudgetConstraint($row->scope_key, (int) $row->emission_interval_us, (int) $row->burst, (int) $row->max_inflight);
             $gcra = new Gcra(max((int) $row->emission_interval_us, $constraint->emissionIntervalUs), min((int) $row->burst, $constraint->burst));
             $result[$row->id] = ['row' => $row, 'tat' => $debt->tat === null ? null : (int) $debt->tat,
-                'send' => $debt->send === null ? null : (int) $debt->send, 'gcra' => $gcra, 'cap' => min((int) $row->max_inflight, $constraint->maxInflight)];
+                'send' => $debt->send === null ? null : (int) $debt->send, 'cooldown' => $debt->cooldown === null ? null : (int) $debt->cooldown,
+                'gcra' => $gcra, 'cap' => min((int) $row->max_inflight, $constraint->maxInflight)];
         }
 
         return $result;
@@ -42,7 +44,7 @@ final readonly class BudgetRepository
         $result = [];
         foreach ($snapshots as $id => $snapshot) {
             $gcra = $snapshot['gcra'];
-            $ready = max($gcra->eligibleAt($snapshot['tat'], $nowUs), $gcra->eligibleAt($snapshot['send'], $nowUs));
+            $ready = max($gcra->eligibleAt($snapshot['tat'], $nowUs), $gcra->eligibleAt($snapshot['send'], $nowUs), $snapshot['cooldown'] ?? $nowUs);
             if ((int) $snapshot['row']->inflight >= $snapshot['cap']) {
                 $ready = max($ready, $nowUs + $retryUs);
             }
@@ -81,6 +83,7 @@ final readonly class BudgetRepository
         $plan = [];
         foreach ($snapshots as $id => $snapshot) {
             if ((int) $snapshot['row']->inflight < 1 || (int) $snapshot['row']->inflight > $snapshot['cap']
+                || ($snapshot['cooldown'] ?? $nowUs) > $nowUs
                 || $snapshot['gcra']->eligibleAt($snapshot['send'], $nowUs) > $nowUs) {
                 throw new AdmissionRejected('send_budget_unavailable');
             }

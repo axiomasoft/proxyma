@@ -7,11 +7,13 @@ namespace Proxyma\Domain\Execution;
 use InvalidArgumentException;
 use Proxyma\Application\Execution\DestinationPolicy;
 use Proxyma\Domain\Catalog\Target;
+use Proxyma\Domain\Catalog\CanonicalOrigin;
 use WeakMap;
 
 final class ResolvedUrl
 {
     private static ?WeakMap $verified = null;
+
     /** @var non-empty-list<string> */
     public readonly array $addresses;
 
@@ -32,6 +34,7 @@ final class ResolvedUrl
         public readonly int $targetRevision = 1,
         public readonly ?string $destinationPolicyKey = null,
         bool $policyVerified = false,
+        public readonly ?CanonicalOrigin $targetOrigin = null,
     ) {
         $this->originalHost = $originalHost ?? $url->origin->host;
         $this->port = $port ?? $url->origin->port;
@@ -55,11 +58,24 @@ final class ResolvedUrl
     public static function fromPolicy(DestinationPolicy $policy, SafeUrl $url, ExecutionContext $context, int $timeoutMs, ?Target $target): self
     {
         [$addresses, $target] = $policy->validatedAddresses($url, $context, $timeoutMs, $target);
-        $resolved = new self($url, $addresses[0], $addresses, $url->origin->host, $url->origin->port, $target->id, $target->revision, $target->destinationPolicyKey);
+        $resolved = new self($url, $addresses[0], $addresses, $url->origin->host, $url->origin->port, $target->id, $target->revision, $target->destinationPolicyKey,
+            targetOrigin: $target->origin);
         self::$verified ??= new WeakMap;
         self::$verified[$resolved] = true;
 
         return $resolved;
+    }
+
+    public static function isUrlVerifiedForTarget(Uuid $targetId, SafeUrl $url, int $targetRevision, CanonicalOrigin $targetOrigin): bool
+    {
+        foreach (self::$verified ?? [] as $resolved => $verified) {
+            if ($resolved->url === $url && $resolved->targetId?->equals($targetId)
+                && $resolved->targetRevision === $targetRevision && $resolved->targetOrigin?->equals($targetOrigin)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function isPolicyVerified(): bool
@@ -73,7 +89,8 @@ final class ResolvedUrl
             throw new InvalidArgumentException('Address must belong to the resolved candidate set.');
         }
 
-        $result = new self($this->url, $address, $this->addresses, $this->originalHost, $this->port, $this->targetId, $this->targetRevision, $this->destinationPolicyKey);
+        $result = new self($this->url, $address, $this->addresses, $this->originalHost, $this->port, $this->targetId, $this->targetRevision, $this->destinationPolicyKey,
+            targetOrigin: $this->targetOrigin);
         if ($this->isPolicyVerified()) {
             self::$verified[$result] = true;
         }

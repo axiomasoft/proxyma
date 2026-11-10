@@ -67,6 +67,7 @@ final readonly class WireSealer
             $route->endpointRevision, $route->credentialVersion, $route->egress->key,
             $destination->url->hash()->hex, $destination->address, $destination->addresses,
             $destination->targetId?->value, $destination->targetRevision, $destination->destinationPolicyKey, $destination->originalHost, $destination->port,
+            $destination->targetOrigin?->value(),
             $tls->verifyPeer, $tls->verifyHost, $tls->caBundlePath, $tls->pinnedCertificateSha256?->hex, $tls->caBundleSha256?->hex,
             $proxyTls,
             $proxy,

@@ -44,16 +44,19 @@ final class ResponseDecoder
             }
         }
         $encoding ??= $profile->charsetDefault;
+        $nonTextEncodings = ['BASE64', 'UUENCODE', 'HTML-ENTITIES', 'QUOTED-PRINTABLE', '7BIT', '8BIT'];
         $supported = [];
         foreach (mb_list_encodings() as $name) {
+            if (in_array(strtoupper($name), $nonTextEncodings, true)) {
+                continue;
+            }
             $supported[strtolower($name)] = $name;
             foreach (mb_encoding_aliases($name) as $alias) {
                 $supported[strtolower($alias)] = $name;
             }
         }
         $canonical = $supported[strtolower($encoding ?? '')] ?? null;
-        if ($canonical === null || in_array(strtoupper($canonical), ['BASE64', 'UUENCODE', 'HTML-ENTITIES', 'QUOTED-PRINTABLE', '7BIT', '8BIT'], true)
-            || ! mb_check_encoding($bytes, $canonical)) {
+        if ($canonical === null || ! mb_check_encoding($bytes, $canonical)) {
             throw new LogicException('Invalid or unsupported text encoding.');
         }
         $text = '';
@@ -67,6 +70,7 @@ final class ResponseDecoder
             }
             $text .= $utf8;
         }
+
         return new DecodedTextBody($text, $canonical);
     }
 }
