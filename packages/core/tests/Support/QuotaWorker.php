@@ -23,6 +23,7 @@ use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\NeedsReplan;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Execution\DemandPurpose;
+use Proxyma\Domain\Execution\IdempotencyClass;
 use Proxyma\Domain\Execution\OperationCorrelation;
 use Proxyma\Domain\Execution\OwnerRef;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
@@ -95,6 +96,10 @@ $catalogLocks = new ReservationCatalogLocks($scope, $locks);
 $traffic = new TrafficSharePolicy($payload['classes']);
 $quotas = new QuotaRepository($scope, $traffic);
 $quotaService = new QuotaService($transactions, $locks, $access, $quotas, $demands, $budgets, $traffic);
+if (isset($payload['recovery_action']) && $payload['recovery_action'] !== 'crash') {
+    require __DIR__.'/RecoveryWorkerActions.php';
+    exit;
+}
 if ($payload['mode'] === 'configure') {
     $quotaService->configure($tenant, new Uuid($payload['budget']), $payload['hour'], $payload['day'], $payload['revision']);
     echo json_encode(['status' => 'configured', 'bytes' => 0, 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()], JSON_THROW_ON_ERROR);
@@ -110,8 +115,9 @@ $owner = new OwnerRef($tenant, $root->owner_type, $root->owner_id, $root->owner_
 $deadline = DateTimeImmutable::createFromFormat('U.u', $payload['deadline']);
 $operation = new OperationCorrelation(new Uuid($root->id), $owner, $deadline, $root->external_operation_key,
     purpose: DemandPurpose::from($root->purpose), probeToken: $root->probe_token === null ? null : new Uuid($root->probe_token));
-$request = new WireRequest($operation->operationId, new Uuid($payload['attempt']), new Uuid($root->target_id), 1, 'GET', new SafeUrl('https://example.test/path'),
-    new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 8, maxDistinctRoutes: 8), $deadline, purpose: $operation->purpose, trafficClass: $payload['class']);
+$request = new WireRequest($operation->operationId, new Uuid($payload['attempt']), new Uuid($root->target_id), 1, $payload['method'] ?? 'GET', new SafeUrl('https://example.test/path'),
+    new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 8, maxDistinctRoutes: 8), $deadline,
+    idempotency: IdempotencyClass::from($payload['idempotency'] ?? 'read_only'), purpose: $operation->purpose, trafficClass: $payload['class']);
 $route = $catalog->findRoute($tenant, new Uuid($payload['route']));
 $wire = $sealer->seal($request, $route, new ResolvedUrl($request->url, '192.0.2.1'), new TlsTrustConfiguration);
 $selection = new RouteSelection($route->id, $route->kind, new Uuid($root->profile_id), $route->endpointId, $route->credentialVersion, $route->egress);
@@ -119,6 +125,10 @@ $policy = selectionPolicy($tenant, new Uuid($root->profile_id), new Uuid($root->
 $input = $service->prepare($wire->request, $operation, $selection, $policy, new FixtureWorkBudget);
 $demand = $demands->byAttempt($tenant, $operation->operationId, $request->physicalAttemptId);
 $ticket = $demands->ticket($demand, $request->url->origin->budgetScopeKey());
+if (($payload['recovery_action'] ?? null) === 'crash') {
+    require __DIR__.'/RecoveryWorkerActions.php';
+    exit;
+}
 if ($payload['cas_gate']) {
     $gated = false;
     $db->beforeExecuting(function ($sql) use ($db, &$gated): void {
@@ -148,4 +158,4 @@ try {
 } catch (AdmissionRejected $rejected) {
     $status = $rejected->reason;
 }
-echo json_encode(['status' => $status, 'bytes' => $bytes, 'released' => $released, 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()],JSON_THROW_ON_ERROR);
+echo json_encode(['status' => $status, 'bytes' => $bytes, 'released' => $released, 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()], JSON_THROW_ON_ERROR);

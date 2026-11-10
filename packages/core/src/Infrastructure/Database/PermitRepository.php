@@ -83,15 +83,17 @@ final readonly class PermitRepository
                 'route_health', 'route_target_health', 'target_health' => $kind, 'operation' => 'operations', default => null,
             };
             if ($kind === 'head') {
-                [$tenant, $scope] = explode(':', $id, 2);
-                $checks[] = "EXISTS (SELECT 1 FROM {$t['policy_heads']} h WHERE h.tenant_key=? AND h.scope_key=? AND h.revision=?)";
-                array_push($bindings, $tenant, $scope, $revision);
+                continue;
             } elseif ($name !== null) {
                 $column = str_ends_with($name, 'health') ? 'state_version' : 'revision';
                 $retired = in_array($name, ['route_profiles', 'routes', 'endpoints', 'targets'], true) ? ' AND v.retired_at IS NULL' : '';
                 $checks[] = "EXISTS (SELECT 1 FROM {$t[$name]} v WHERE v.id=? AND v.{$column}=?{$retired})";
                 array_push($bindings, $id, $revision);
             }
+        }
+        foreach ($input->policyState['heads'] as [$tenant, $scope, $revision]) {
+            $checks[] = "EXISTS (SELECT 1 FROM {$t['policy_heads']} h WHERE h.tenant_key=? AND h.scope_key=? AND h.revision=?)";
+            array_push($bindings, $tenant, $scope, $revision);
         }
         foreach ($safeSnapshot['epochs'] as $key => $epoch) {
             [$name, $id] = explode(':', $key, 2);

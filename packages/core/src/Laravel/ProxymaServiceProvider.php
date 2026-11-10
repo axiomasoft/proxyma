@@ -24,6 +24,10 @@ use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\SettingRegistryFactory;
 use Proxyma\Application\Policy\UpdatePolicy;
+use Proxyma\Application\Recovery\CompletionCoordinator;
+use Proxyma\Application\Recovery\OwnedTemporaryArtifacts;
+use Proxyma\Application\Recovery\Reconciler;
+use Proxyma\Application\Recovery\RetentionPruner;
 use Proxyma\Application\Routing\SecureRandomIndex;
 use Proxyma\Application\Routing\StrategyRegistry;
 use Proxyma\Contracts\Authorizer;
@@ -32,6 +36,8 @@ use Proxyma\Contracts\BindingQueries;
 use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
+use Proxyma\Contracts\Completion;
+use Proxyma\Contracts\LockedCompletionReducer;
 use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
@@ -47,15 +53,18 @@ use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\BudgetRepository;
 use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
+use Proxyma\Infrastructure\Database\CompletionObservationReducer;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
+use Proxyma\Infrastructure\Database\ReconcileRepository;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
 use Proxyma\Infrastructure\Security\UnconfiguredTenantContextResolver;
+use Proxyma\Laravel\Console\ReconcileCommand;
 
 class ProxymaServiceProvider extends ServiceProvider
 {
@@ -154,6 +163,15 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bind(TrafficSharePolicy::class, static fn (Application $app) => new TrafficSharePolicy($app['config']->get('proxyma.traffic_shares', [])));
         $this->app->bind(QuotaRepository::class);
         $this->app->bind(QuotaService::class);
+        $this->app->bind(ReconcileRepository::class);
+        $this->app->bind(LockedCompletionReducer::class, CompletionObservationReducer::class);
+        $this->app->bind(CompletionCoordinator::class);
+        $this->app->alias(CompletionCoordinator::class, Completion::class);
+        $this->app->bind(Reconciler::class);
+        $this->app->bind(RetentionPruner::class);
+        $this->app->bind(OwnedTemporaryArtifacts::class, static fn (Application $app) => new OwnedTemporaryArtifacts(
+            $app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(ReconcileRepository::class),
+            $app->make(CatalogAccess::class), $app->storagePath('app/proxyma/tmp')));
         $this->app->bind(ReservationCatalogLocks::class);
         $this->app->scoped(WireSealer::class, static fn (Application $app) => new WireSealer($app->make(ConnectionScope::class), (string) $app['config']->get('proxyma.wire.digest_key', '')));
         $this->app->scoped(ClaimSend::class, static fn (Application $app) => new ClaimSend($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class),
@@ -178,6 +196,7 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
         if ($this->app->runningInConsole()) {
+            $this->commands([ReconcileCommand::class]);
             $this->publishes([
                 __DIR__.'/../../config/proxyma.php' => $this->app->configPath('proxyma.php'),
             ], 'proxyma-config');

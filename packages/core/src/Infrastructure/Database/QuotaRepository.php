@@ -18,10 +18,10 @@ final readonly class QuotaRepository
 {
     public function __construct(private ConnectionScope $scope, private TrafficSharePolicy $traffic = new TrafficSharePolicy) {}
 
-    public function lockWindows(array $budgets, ?string $permitId = null): void
+    public function lockWindows(array $budgets, string|array|null $permitId = null): void
     {
         $t = PackageSchema::tables();
-        $old = $permitId === null ? [] : $this->scope->connection->table($t['quota_reservations'])->where('permit_id', $permitId)->pluck('window_id')->all();
+        $old = $permitId === null ? [] : $this->scope->connection->table($t['quota_reservations'])->whereIn('permit_id', (array) $permitId)->pluck('window_id')->all();
         $rows = $this->scope->connection->table($t['quota_windows'])->whereIn('budget_id', array_column($budgets, 'id'))
             ->where(fn ($q) => $q->whereRaw('ends_at > clock_timestamp()')->orWhereIn('id', $old))->orderBy('id')->limit(257)->lockForUpdate()->get();
         if ($rows->count() > 256) {

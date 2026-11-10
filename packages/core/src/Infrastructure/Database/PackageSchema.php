@@ -34,6 +34,8 @@ final class PackageSchema
             'budgets' => Eloquent\BudgetRecord::class,
             'quota_windows' => Eloquent\QuotaWindowRecord::class,
             'quota_reservations' => Eloquent\QuotaReservationRecord::class,
+            'reconcile_cursors' => Eloquent\ReconcileCursorRecord::class,
+            'temporary_artifacts' => Eloquent\TemporaryArtifactRecord::class,
             'reservations' => Eloquent\ReservationRecord::class,
             'route_health' => Eloquent\RouteHealthRecord::class,
             'profile_health' => Eloquent\ProfileHealthRecord::class,

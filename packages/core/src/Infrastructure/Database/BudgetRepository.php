@@ -102,7 +102,7 @@ final readonly class BudgetRepository
     {
         $byId = array_column($lockedBudgets, null, 'id');
         foreach ($references as $reference) {
-            if ($reference->state !== 'reserved') {
+            if (! in_array($reference->state, ['reserved', 'spent'], true)) {
                 continue;
             }
             $budget = $byId[$reference->budget_id] ?? throw new AdmissionRejected('reservation_budget_missing');
@@ -111,7 +111,7 @@ final readonly class BudgetRepository
             }
         }
         foreach ($references as $reference) {
-            if ($reference->state !== 'reserved') {
+            if (! in_array($reference->state, ['reserved', 'spent'], true)) {
                 continue;
             }
             $budget = $byId[$reference->budget_id];
