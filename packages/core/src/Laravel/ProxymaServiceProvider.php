@@ -16,19 +16,24 @@ use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\SettingRegistryFactory;
 use Proxyma\Application\Policy\UpdatePolicy;
+use Proxyma\Application\Routing\SecureRandomIndex;
+use Proxyma\Application\Routing\StrategyRegistry;
 use Proxyma\Contracts\Authorizer;
 use Proxyma\Contracts\BindingCommands;
 use Proxyma\Contracts\BindingQueries;
+use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
+use Proxyma\Contracts\RandomIndex;
 use Proxyma\Contracts\RouteAccessChecks;
 use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
+use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
@@ -56,6 +61,10 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->alias(DatabaseCatalogCommands::class, SharedRouteCommands::class);
         $this->app->alias(DatabaseCatalogQueries::class, CatalogQueries::class);
         $this->app->alias(DatabaseCatalogQueries::class, RouteAccessChecks::class);
+
+        $this->app->bindIf(RandomIndex::class, SecureRandomIndex::class);
+        $this->app->bind(CandidateSnapshots::class, static fn (Application $app): CandidateSnapshotQuery => new CandidateSnapshotQuery(
+            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')), $app->make(CatalogAccess::class), $app->make(StrategyRegistry::class)));
 
         $this->app->singleton(PolicyResolutionCache::class, static fn (): PolicyResolutionCache => new PolicyResolutionCache);
 
