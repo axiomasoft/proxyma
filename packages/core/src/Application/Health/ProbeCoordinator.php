@@ -72,7 +72,7 @@ final readonly class ProbeCoordinator
                 if ($row->state === 'closed') {
                     continue;
                 }
-                if ($row->credential_endpoint_id ?? false || str_starts_with($row->reason_code ?? '', 'credential_hold')) {
+                if (($row->credential_endpoint_id ?? false) || str_starts_with($row->reason_code ?? '', 'credential_hold')) {
                     throw new AdmissionRejected('credential_hold');
                 }
                 if ($row->state === 'half_open') {

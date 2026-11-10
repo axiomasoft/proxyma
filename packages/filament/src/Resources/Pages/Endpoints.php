@@ -15,6 +15,7 @@ use Proxyma\Application\Catalog\CatalogNotFound;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Filament\Actions\SaveCatalog;
 
+/** @property-read Schema $credentials */
 class Endpoints extends CatalogPage
 {
     protected static string $kind = 'endpoint';

@@ -37,7 +37,9 @@ it('отклоняет повреждённый artifact до передачи',
     fwrite($stream, 'wrong');
     $artifact = new BinaryBodyArtifact($stream, 5, ContentHash::of('right'), responseScope());
     $called = false;
-    expect(fn () => $artifact->accept(function () use (&$called): void { $called = true; }))->toThrow(LogicException::class)
+    expect(fn () => $artifact->accept(function () use (&$called): void {
+        $called = true;
+    }))->toThrow(LogicException::class)
         ->and($called)->toBeFalse()->and(is_resource($stream))->toBeFalse();
 });
 

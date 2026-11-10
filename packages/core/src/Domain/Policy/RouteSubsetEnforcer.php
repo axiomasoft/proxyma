@@ -28,6 +28,7 @@ final readonly class RouteSubsetEnforcer
         $seen = [];
 
         foreach ($filteredRoutes as $route) {
+            /** @var mixed $route */
             if (! $route instanceof Route) {
                 throw new InvalidArgumentException('RouteFilter must return typed routes.');
             }

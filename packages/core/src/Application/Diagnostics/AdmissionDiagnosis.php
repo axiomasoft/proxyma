@@ -36,11 +36,11 @@ final readonly class AdmissionDiagnosis
             $next = DatabaseClock::micros($snapshot->observedAt);
             foreach ($budgets->whereIn('scope_key', $candidate->budgetScopes) as $budget) {
                 $constraint = $policy->budgets[$budget->scope_key] ?? null;
-                if ((int) $budget->inflight >= min((int) $budget->max_inflight, $constraint?->maxInflight ?? PHP_INT_MAX)) {
+                if ((int) $budget->inflight >= min((int) $budget->max_inflight, $constraint->maxInflight ?? PHP_INT_MAX)) {
                     return null;
                 }
-                $interval = max((int) $budget->emission_interval_us, $constraint?->emissionIntervalUs ?? 0);
-                $burst = min((int) $budget->burst, $constraint?->burst ?? PHP_INT_MAX);
+                $interval = max((int) $budget->emission_interval_us, $constraint->emissionIntervalUs ?? 0);
+                $burst = min((int) $budget->burst, $constraint->burst ?? PHP_INT_MAX);
                 $allowance = $interval > intdiv(PHP_INT_MAX, max(1, $burst - 1)) ? PHP_INT_MAX : $interval * ($burst - 1);
                 foreach (['cooldown_until', 'tat', 'send_tat'] as $column) {
                     if (in_array($budget->$column, ['-infinity', 'infinity', null], true)) {

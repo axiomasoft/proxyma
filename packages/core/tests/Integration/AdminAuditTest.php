@@ -22,6 +22,7 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\BudgetConstraint;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
+use Proxyma\Infrastructure\Eloquent\BudgetRecord;
 use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
@@ -128,7 +129,10 @@ it('read audit проверяет actor tenant revision и не возвраща
 });
 
 it('upgrade установленной P1.3 схемы сохраняет catalog и replay, удаляя snapshots из audit', function (): void {
-    $this->artisan('migrate:rollback', ['--step' => 2, '--force' => true])->assertExitCode(0);
+    $this->artisan('migrate:rollback', ['--step' => 13, '--force' => true])->assertExitCode(0);
+    expect($this->db->table('migrations')->count())->toBe(1);
+    // 000011 поддерживает roll-forward: P1.3 форму восстанавливаем явно только в fixture.
+    $this->db->statement('ALTER TABLE '.(new BudgetRecord)->getTable().' DROP COLUMN cooldown_until');
     $id = Uuid::random();
     $auditId = Uuid::random();
     $legacy = ['id' => $id->value, 'tenant_key' => 'acme', 'target_key' => 'legacy', 'canonical_origin' => 'https://legacy.test:443',

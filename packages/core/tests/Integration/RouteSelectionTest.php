@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Routing\RouteSelector;
 use Proxyma\Application\Routing\StrategyRegistry;
@@ -151,8 +152,9 @@ it('не расширяет общую origin quota и группирует не
     $budgetId = Uuid::random();
     $this->table('budgets')->insert(['id' => $budgetId->value, 'tenant_key' => $this->tenant->value, 'scope_key' => $originKey, 'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => 5]);
     $this->table('budgets')->insert(['tenant_key' => $this->tenant->value, 'scope_key' => $egressKey, 'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => 5]);
-    $this->table('quota_windows')->insert(['tenant_key' => $this->tenant->value, 'budget_id' => $budgetId->value,
-        'starts_at' => $this->db->raw("clock_timestamp() - interval '1 hour'"), 'ends_at' => $this->db->raw("clock_timestamp() + interval '1 hour'"), 'quota_limit' => 1, 'spent' => 1]);
+    $this->app->make(QuotaService::class)->configure($this->tenant, $budgetId, 1, null, 1);
+    $this->table('quota_windows')->where('budget_id', $budgetId->value)->where('window_kind', 'hour')
+        ->whereRaw('starts_at <= clock_timestamp() AND ends_at > clock_timestamp()')->update(['spent' => 1]);
     $result = $this->selector->select($this->tenant, $this->catalog['profile'], $this->policy, $this->request, new RouteSelectionContext);
     expect($result->route)->toBeNull();
     foreach ($result->snapshot->candidates as $candidate) {

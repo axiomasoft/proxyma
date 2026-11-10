@@ -46,6 +46,7 @@ final readonly class DestinationPolicy implements DestinationResolver
             throw new InvalidArgumentException('Destination target or port denied.');
         }
         $host = $url->origin->host;
+        /** @var list<mixed> $addresses DNS и fixture responses проверяются на runtime boundary. */
         $addresses = $this->dns->resolve($host, $timeoutMs);
         if ($addresses === []) {
             throw new InvalidArgumentException('DNS returned no addresses.');

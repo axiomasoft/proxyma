@@ -15,10 +15,15 @@ use Proxyma\Infrastructure\Database\ConnectionScope;
 final class ResponseReader
 {
     private mixed $stream;
+
     private mixed $inflater = null;
+
     private int $wire = 0;
+
     private int $decoded = 0;
+
     private string $text = '';
+
     private bool $finished = false;
 
     public function __construct(private readonly ResponseProfile $profile, private readonly ConnectionScope $scope, string $encoding = '')
@@ -70,17 +75,25 @@ final class ResponseReader
         $this->finished = true;
         if ($this->profile->kind !== 'binary') {
             fclose($this->stream);
+
             return new RawResponseBody($this->text);
         }
         rewind($this->stream);
         $hash = hash_init('sha256');
         hash_update_stream($hash, $this->stream);
+
         return new BinaryBodyArtifact($this->stream, $this->wire, new ContentHash(hash_final($hash)), $this->scope);
     }
 
-    public function wireBytes(): int { return $this->wire; }
+    public function wireBytes(): int
+    {
+        return $this->wire;
+    }
 
-    public function decodedBytes(): int { return $this->decoded; }
+    public function decodedBytes(): int
+    {
+        return $this->decoded;
+    }
 
     public function close(): void
     {

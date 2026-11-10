@@ -61,7 +61,6 @@ use Proxyma\Domain\Outcomes\ResolvedOutcome;
 use Proxyma\Domain\Policy\EffectivePolicy;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\TenantKey;
-use Proxyma\Domain\Routing\Candidate;
 use Proxyma\Domain\Routing\SelectionResult;
 use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\ConnectionScope;
@@ -1067,7 +1066,7 @@ final readonly class OutboundExecutor implements OutboundClient
         }
 
         foreach ($selectionResult->snapshot->candidates as $candidate) {
-            if (! $candidate instanceof Candidate || ! $candidate->eligible() || $candidate->route === null) {
+            if (! $candidate->eligible() || $candidate->route === null) {
                 continue;
             }
             $idStr = $candidate->routeId->value;
@@ -1174,7 +1173,7 @@ final readonly class OutboundExecutor implements OutboundClient
 
             return new ExecutionBlocked(
                 BlockedReason::ConfigurationHold,
-                ['selection_reason' => $selectionResult->reason, 'holds' => $holds],
+                ['selection_reason' => $selectionResult->reason, 'holds' => implode(',', $holds)],
                 $attemptIds,
             );
         }

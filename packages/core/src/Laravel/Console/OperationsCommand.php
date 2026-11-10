@@ -16,6 +16,8 @@ use Proxyma\Application\Recovery\Reconciler;
 use Proxyma\Application\Recovery\RetentionPruner;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
+use Proxyma\Domain\Execution\ExecutionBlocked;
+use Proxyma\Domain\Execution\ExecutionDeferred;
 use Proxyma\Domain\Execution\ExecutionSucceeded;
 use Proxyma\Domain\Execution\ExecutionUnknownAfterAuthorization;
 use Proxyma\Domain\Execution\Uuid;
@@ -61,7 +63,11 @@ abstract class OperationsCommand extends Command
                     $outcome = $this->laravel->make(BoundedProbe::class)->run($subjects, $profile,
                         new Uuid((string) $this->argument('route')), $target, $this->integerOption('seconds', 16, 60));
                     $this->outputJson(['succeeded' => $outcome instanceof ExecutionSucceeded,
-                        'attempts' => $outcome instanceof ExecutionUnknownAfterAuthorization ? 1 : count($outcome->attemptIds),
+                        'attempts' => match (true) {
+                            $outcome instanceof ExecutionUnknownAfterAuthorization => 1,
+                            $outcome instanceof ExecutionSucceeded, $outcome instanceof ExecutionBlocked, $outcome instanceof ExecutionDeferred => count($outcome->attemptIds),
+                            default => throw new \LogicException('Unsupported execution result.'),
+                        },
                         'reason' => isset($outcome->reason) ? $outcome->reason->value : null]);
 
                     return $outcome instanceof ExecutionSucceeded ? self::SUCCESS : self::FAILURE;

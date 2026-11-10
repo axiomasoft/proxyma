@@ -14,7 +14,6 @@ use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\ResolvedSecret;
-use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\ScheduledPermit;
 use Proxyma\Domain\Execution\TlsTrustConfiguration;
 use Proxyma\Infrastructure\Database\ConnectionScope;

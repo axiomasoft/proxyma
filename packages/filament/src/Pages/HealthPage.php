@@ -20,6 +20,10 @@ use Proxyma\Domain\Health\HealthScope;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 
+/**
+ * @property-read Schema $probeSelector
+ * @property-read Schema $probeForm
+ */
 class HealthPage extends OperationsPage
 {
     protected string $view = 'proxyma-filament::filament.pages.health-page';

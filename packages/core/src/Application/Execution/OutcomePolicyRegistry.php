@@ -421,9 +421,7 @@ final class OutcomePolicyRegistry
 
         // 7. Запрет повтора по тому же маршруту при сбое прокси-соединения.
         if ($decision === OutcomeDecision::RetrySameRoute && $technical->forbidsSameRouteRetry) {
-            $decision = ($facts->idempotency->allowsAutomaticRetry() && $facts->bodyReplayable)
-                ? OutcomeDecision::RetryDifferentRoute
-                : OutcomeDecision::Defer;
+            $decision = OutcomeDecision::RetryDifferentRoute;
         }
 
         // 8. При отсутствии HTTP-ответа (транспортный сбой) нельзя вернуть Accept.

@@ -1,21 +1,41 @@
 #!/usr/bin/env python3
 import hashlib
+import fcntl
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 COMPOSE = ['docker', 'compose', '--project-name', 'proxyma_test', '--file', str(ROOT / 'docker/compose.test.yml')]
 
 
+@contextmanager
+def exclusive_run():
+    directory = ROOT / 'build'
+    directory.mkdir(exist_ok=True)
+    with (directory / '.rig.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def owned_source(path):
+    return not {'vendor', 'node_modules', '__pycache__'}.intersection(path.relative_to(ROOT).parts)
+
+
 def source_fingerprint():
     digest = hashlib.sha256()
     for directory in ('packages', 'tests', 'scripts', 'docker'):
         for path in sorted((ROOT / directory).rglob('*')):
-            if path.is_file() and '__pycache__' not in path.parts:
+            if owned_source(path) and path.is_file():
                 digest.update(str(path.relative_to(ROOT)).encode() + b'\0' + path.read_bytes() + b'\0')
     for name in ('composer.json', 'composer.lock', 'phpunit.xml', 'phpstan.neon', 'pint.json', 'Makefile'):
         digest.update(name.encode() + b'\0' + (ROOT / name).read_bytes() + b'\0')
@@ -61,7 +81,7 @@ def test_roots():
 
 def suite_files(name):
     if name == 'filament':
-        return sorted((ROOT / 'packages/filament/tests').rglob('*Test.php'))
+        return sorted(path for path in (ROOT / 'packages/filament/tests').rglob('*Test.php') if owned_source(path))
     if name == 'transport':
         contract = ROOT / 'packages/core/tests/Contract'
         names = (
@@ -75,12 +95,24 @@ def suite_files(name):
             raise ValueError('transport suite is missing required contract test files')
         return files
     roots = [root if name == '.' else root / name.capitalize() for root in test_roots()]
-    return sorted(path for root in roots if root.is_dir() for path in root.rglob('*Test.php'))
+    return sorted(path for root in roots if root.is_dir() for path in root.rglob('*Test.php') if owned_source(path))
+
+
+def runtime_identity():
+    php = json.loads(compose('exec', '-T', 'runner', 'php', '-r',
+        'echo json_encode(["php"=>PHP_VERSION,"memory_limit"=>ini_get("memory_limit"),"curl"=>curl_version()["version"],"ssl"=>curl_version()["ssl_version"],"extensions"=>get_loaded_extensions()]);', capture=True).stdout)
+    php['postgres'] = compose('exec', '-T', 'db', 'psql', '-U', 'proxyma_test', '-d', 'proxyma_test', '-Atqc', 'SHOW server_version', capture=True).stdout.strip()
+    php['images'] = {}
+    for service in ('runner', 'db', 'fixture'):
+        container = compose('ps', '-q', service, capture=True).stdout.strip()
+        php['images'][service] = run(['docker', 'inspect', '--format', '{{.Image}}', container], capture=True).stdout.strip()
+    php['composer_lock_sha256'] = hashlib.sha256((ROOT / 'composer.lock').read_bytes()).hexdigest()
+    return php
 
 
 def test(path):
     target = (ROOT / path).resolve()
-    if not target.is_file() or not any(target.is_relative_to(root) for root in test_roots()) or target.suffix != '.php':
+    if not target.is_file() or not any(target.is_relative_to(root) for root in test_roots()) or target.suffix != '.php' or not owned_source(target):
         raise ValueError('test-file requires an existing repository test PHP file')
     preflight()
     fingerprint = source_fingerprint()
@@ -90,16 +122,41 @@ def test(path):
     report.unlink(missing_ok=True)
     metadata = report.with_suffix('.json')
     metadata.unlink(missing_ok=True)
-    compose('exec', '-T', 'runner', 'vendor/bin/pest', path, '--log-junit', '/work/' + str(report.relative_to(ROOT)))
+    command = ['vendor/bin/pest', path, '--log-junit', '/work/' + str(report.relative_to(ROOT))]
+    wire_log = ROOT / 'build/p53-wire.jsonl'
+    wire_offset = wire_log.stat().st_size if wire_log.exists() else 0
+    started = datetime.now(timezone.utc).isoformat()
+    clock = time.monotonic()
+    try:
+        result = compose('exec', '-T', 'runner', *command, capture=True)
+    except subprocess.CalledProcessError as error:
+        report.with_suffix('.log').write_text((error.stdout or '') + (error.stderr or ''))
+        raise
+    report.with_suffix('.log').write_text(result.stdout + result.stderr)
+    print(result.stdout, end='')
+    print(result.stderr, end='', file=sys.stderr)
     root = ET.parse(report).getroot()
     if not any(case.find('skipped') is None for case in root.findall('.//testcase')):
         raise ValueError('zero tests executed')
     if fingerprint != source_fingerprint() or head != run(['git', 'rev-parse', 'HEAD'], capture=True).stdout.strip():
         raise ValueError('source changed during test')
-    metadata.write_text(json.dumps({'git_sha': head, 'source_sha256': fingerprint, 'junit_sha256': hashlib.sha256(report.read_bytes()).hexdigest()}))
+    receipts = None
+    if wire_log.exists():
+        with wire_log.open('rb') as stream:
+            stream.seek(wire_offset)
+            wire_bytes = stream.read()
+        if wire_bytes:
+            receipt_file = report.with_suffix('.wire.jsonl')
+            receipt_file.write_bytes(wire_bytes)
+            receipts = {'path': str(receipt_file.relative_to(ROOT)), 'sha256': hashlib.sha256(wire_bytes).hexdigest()}
+    metadata.write_text(json.dumps({'git_sha': head, 'source_sha256': fingerprint,
+        'junit_sha256': hashlib.sha256(report.read_bytes()).hexdigest(), 'test_file': path,
+        'command': command, 'cwd': '/work', 'host_cwd': str(ROOT), 'exit': 0,
+        'started_at': started, 'elapsed_seconds': time.monotonic() - clock,
+        'runtime': runtime_identity(), 'fixture_receipts': receipts}, indent=2) + '\n')
 
 
-def main():
+def dispatch():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
     if cmd == 'up':
         (ROOT / 'build').mkdir(exist_ok=True)
@@ -118,25 +175,17 @@ def main():
         for path in files:
             test(str(path.relative_to(ROOT)))
     elif cmd == 'report':
-        sha = run(['git', 'rev-parse', 'HEAD'], capture=True).stdout.strip()
-        fingerprint = source_fingerprint()
-        reports = sorted((ROOT / 'build/junit' / sha / fingerprint).glob('*.xml'))
-        if not reports:
-            raise ValueError('no JUnit reports')
-        cases = []
-        for report in reports:
-            metadata = json.loads(report.with_suffix('.json').read_text())
-            if metadata != {'git_sha': sha, 'source_sha256': fingerprint, 'junit_sha256': hashlib.sha256(report.read_bytes()).hexdigest()}:
-                raise ValueError('stale or modified JUnit evidence')
-            for case in ET.parse(report).getroot().findall('.//testcase'):
-                cases.append({'name': case.get('name'), 'class': case.get('classname'), 'time': case.get('time'), 'report': str(report.relative_to(ROOT))})
-        if not cases:
-            raise ValueError('no executed test cases')
-        hashes = {str(report.relative_to(ROOT)): hashlib.sha256(report.read_bytes()).hexdigest() for report in reports}
-        dirty = bool(run(['git', 'status', '--porcelain'], capture=True).stdout.strip())
-        (ROOT / 'build/test-report.json').write_text(json.dumps({'git_sha': sha, 'source_sha256': fingerprint, 'dirty_worktree': dirty, 'fixture_scope': 'proxyma_test internal network', 'junit_sha256': hashes, 'cases': cases}, indent=2) + '\n')
+        run([sys.executable, str(ROOT / 'scripts/acceptance-report.py')])
     else:
         raise ValueError('usage: test-rig.py up|env|file PATH|suite DIR|report')
+
+
+def main():
+    # Collector получает тот же lock сам, без вложенного flock через subprocess.
+    if len(sys.argv) > 1 and sys.argv[1] == 'report':
+        return dispatch()
+    with exclusive_run():
+        return dispatch()
 
 
 if __name__ == '__main__':

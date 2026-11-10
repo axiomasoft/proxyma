@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Proxyma\Application\Admission\TransactionCoordinator;
+use Proxyma\Application\Health\ProbeCoordinator;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
@@ -46,6 +47,8 @@ it('резервирует origin route egress probe и system scopes одним
     $this->budget($intent['request']->url->origin->probeScopeKey());
     $this->budget($this->scopeKey, TenantKey::system());
     $input = $this->reservationInput($intent);
+    $this->table('route_health')->update(['state' => 'unknown']);
+    $this->app->make(ProbeCoordinator::class)->claim($input);
     $ticket = $this->reservations->enqueue($input, $this->work);
     $permit = $this->reservations->reserve($ticket, $input);
     expect($permit)->toBeInstanceOf(ScheduledPermit::class)->and($this->table('reservations')->count())->toBe(5);

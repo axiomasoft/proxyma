@@ -61,7 +61,7 @@ class SaveCatalog
             return $this->commands->upsertRoute(new UpsertRouteCommand($uuid, $context->tenant, $data['route_key'],
                 RouteKind::from($data['kind']), empty($data['endpoint_id']) ? null : new Uuid($data['endpoint_id']),
                 $data['enabled'], new EgressIdentity($data['egress_key'], $data['conservative_pool']),
-                $data['independence_group'] ?: null, $previous?->sharedGrant ?? false, $actor));
+                $data['independence_group'] ?: null, $previous->sharedGrant ?? false, $actor));
         }
         if ($kind !== 'profile') {
             throw new InvalidArgumentException('Unknown catalog section.');

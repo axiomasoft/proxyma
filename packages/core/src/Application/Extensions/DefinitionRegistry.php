@@ -126,6 +126,7 @@ final class DefinitionRegistry
             $implementation = $extension->implementation;
             if ($extension->kind === ExtensionKind::PolicyDefinitions) {
                 foreach ($implementation->definitions() as $policy) {
+                    /** @var mixed $policy PHPDoc стороннего provider не является runtime validation. */
                     if (! $policy instanceof PolicyDefinition || isset($policies[$policy->policyKey])) {
                         throw new DefinitionError('Invalid or duplicate policy definition.');
                     }
@@ -167,8 +168,8 @@ final class DefinitionRegistry
             $required = $extension->requiredCapabilities;
             sort($required, SORT_STRING);
             $schema = $extension->budgetSchema;
-            $keys = $schema?->keys ?? [];
-            $grants = $schema?->sharedTenants ?? [];
+            $keys = $schema->keys ?? [];
+            $grants = $schema->sharedTenants ?? [];
             sort($keys, SORT_STRING);
             sort($grants, SORT_STRING);
             $data['extensions'][$id] = [$extension->kind->value, $implementation::class, $extension->version, $dependencies, $extension->priority, $extension->tier?->value, $required,

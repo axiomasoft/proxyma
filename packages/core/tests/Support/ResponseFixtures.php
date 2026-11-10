@@ -14,5 +14,6 @@ function responseScope(bool $transaction = false): ConnectionScope
     $connection->shouldReceive('beforeStartingTransaction');
     $connection->shouldReceive('transactionLevel')->andReturn($transaction ? 1 : 0);
     $connection->shouldReceive('getPdo')->andReturn($pdo);
+
     return new ConnectionScope($connection, new DatabaseTransactionsManager);
 }

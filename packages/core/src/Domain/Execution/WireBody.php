@@ -58,7 +58,7 @@ final readonly class WireBody
     {
         if (is_resource($stream)) {
             $meta = stream_get_meta_data($stream);
-            $isSeekable = (bool) ($meta['seekable'] ?? false);
+            $isSeekable = $meta['seekable'];
             $bytes = stream_get_contents($stream);
             if (! is_string($bytes)) {
                 throw new InvalidArgumentException('Unable to read request body stream.');

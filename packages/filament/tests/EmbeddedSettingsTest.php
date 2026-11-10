@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\TextInput;
@@ -11,9 +12,11 @@ use Filament\Schemas\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Livewire;
+use Proxyma\Contracts\BindingCommands;
 use Proxyma\Contracts\BindingQueries;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Policy\BindSubjectPolicyCommand;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Filament\Actions\ConfigureProxymaAction;
 use Proxyma\Filament\BindingEditor;
@@ -75,7 +78,7 @@ class EmbeddedProxymaEditor extends Component implements HasActions, HasSchemas
         ])->statePath('data');
     }
 
-    public function configureProxymaAction(): \Filament\Actions\Action
+    public function configureProxymaAction(): Action
     {
         return ConfigureProxymaAction::make(fn (): SubjectRef => $this->subject(), $this->panel, $this->slot, new Uuid($this->target));
     }
@@ -129,7 +132,7 @@ it('переиспользует modal action с тем же command и не с�
 it('action не меняет binding при stale ancestor и не сохраняет scheduling', function (): void {
     $page = Livewire::test(EmbeddedProxymaEditor::class, ['target' => $this->catalog['target']->value]);
     $page->mountAction('configureProxyma');
-    app(\Proxyma\Contracts\BindingCommands::class)->bindPolicy(new \Proxyma\Domain\Policy\BindSubjectPolicyCommand(
+    app(BindingCommands::class)->bindPolicy(new BindSubjectPolicyCommand(
         $this->folder, null, 'default', $this->actor(), 'files', 'read'));
     $page->set('mountedActions.0.data.proxyma.reason', 'Stale modal')->callMountedAction()->assertHasErrors(['data'])
         ->assertSet('savedOwnerSchedule', null);

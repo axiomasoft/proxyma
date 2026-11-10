@@ -6,8 +6,8 @@ namespace Proxyma\Infrastructure\Http;
 
 use Closure;
 use LogicException;
-use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Execution\ResponseDecoder;
+use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Contracts\PhysicalTransport;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\RouteKind;
@@ -51,6 +51,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
         $curl = curl_init();
         $multi = curl_multi_init();
         $reader = null;
+        /** @var array<string, list<string>> $headers */
         $headers = [];
         $status = 0;
         $headerBytes = 0;
@@ -70,8 +71,10 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
             } catch (\Throwable $error) {
                 $limit = $error instanceof \LengthException;
                 $readerError = $error;
+
                 return 0;
             }
+
             return strlen($chunk);
         };
         $options[CURLOPT_HEADERFUNCTION] = static function ($handle, string $line) use (&$headers, &$status, &$headerBytes, &$limit, &$lastActivity): int {
@@ -157,7 +160,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 $head === null => TransportFailure::Protocol,
                 default => null,
             };
-            $bytes = max($reader?->wireBytes() ?? 0, (int) ($stats['size_download'] ?? 0));
+            $bytes = max($reader?->wireBytes() ?? 0, $stats === false ? 0 : (int) $stats['size_download']);
             if ($failure !== null) {
                 return AttemptResult::failed($failure, $bytes, 0, $error, $head, $metrics);
             }
@@ -168,6 +171,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 if ($wire->request->responseProfile->kind === 'text' && $body instanceof RawResponseBody) {
                     $body = (new ResponseDecoder)->decode($body->bytes(), $headers['content-type'][0] ?? null, $wire->request->responseProfile);
                 }
+
                 return AttemptResult::delivered(new ResponseDescriptor($status, $headers, $body, $bytes, $reader->decodedBytes()), $metrics);
             } catch (\LengthException) {
                 return AttemptResult::failed(TransportFailure::ByteLimit, $bytes, 0, $error, $head, $metrics);

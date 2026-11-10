@@ -23,6 +23,7 @@ use Proxyma\Filament\Actions\SaveCatalog;
 use Proxyma\Filament\CatalogBrowser;
 use UnitEnum;
 
+/** @property-read Schema $form */
 abstract class CatalogPage extends Page
 {
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
@@ -117,6 +118,7 @@ abstract class CatalogPage extends Page
                 'endpoint' => $queries->findEndpoint($tenant, $uuid),
                 'route' => $queries->findRoute($tenant, $uuid),
                 'profile' => $queries->findProfile($tenant, $uuid),
+                default => throw new \InvalidArgumentException('Unknown catalog section.'),
             };
             abort_if($value === null || ! $value->tenantKey->equals($tenant), 404);
             $this->recordId = $id;

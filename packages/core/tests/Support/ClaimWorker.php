@@ -25,7 +25,6 @@ use Proxyma\Domain\Execution\OperationCorrelation;
 use Proxyma\Domain\Execution\OwnerRef;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\ResolvedSecret;
-use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\TlsTrustConfiguration;

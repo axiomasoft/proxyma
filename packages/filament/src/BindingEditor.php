@@ -56,10 +56,10 @@ class BindingEditor
         foreach ($projection->fields as $key => $field) {
             $local = $projection->binding?->retired ? null : ($projection->binding?->patch->changes[$key] ?? null);
             $mode = $local === null ? 'inherit' : ($local->operation->value === 'disable' ? 'disable' : ($local->value === null ? 'null' : 'set'));
-            $fields[self::fieldId($key)] = ['mode' => $mode, 'value' => $local?->value ?? $field['value']];
+            $fields[self::fieldId($key)] = ['mode' => $mode, 'value' => $local->value ?? $field['value']];
         }
         $context = [$subject->tenant->value, $subject->type, $subject->id, $target->value, $panel, $slot,
-            $projection->binding?->revision ?? 0, $projection->editVersion,
+            $projection->binding->revision ?? 0, $projection->editVersion,
             array_map(static fn (SubjectRef $s): string => $s->key(), $this->subjects->resolve($panel, $subject)->ordered)];
 
         return ['context' => Crypt::encryptString(json_encode($context, JSON_THROW_ON_ERROR)), 'fields' => $fields, 'reason' => ''];
@@ -72,7 +72,7 @@ class BindingEditor
             throw new AuthorizationDenied;
         }
         try {
-            $context = json_decode(Crypt::decryptString($data['context'] ?? ''), true, flags: JSON_THROW_ON_ERROR);
+            $context = json_decode(Crypt::decryptString($data['context']), true, flags: JSON_THROW_ON_ERROR);
         } catch (DecryptException|JsonException) {
             throw new AuthorizationDenied;
         }
@@ -118,7 +118,7 @@ class BindingEditor
             validator(['reason' => $reason], ['reason' => ['required', 'string', 'max:512']])->validate();
             $actor = $this->tenants->resolve()->actor;
             $this->commands->bindPolicy(new BindSubjectPolicyCommand($subject, $projection->binding?->routeProfileId,
-                $projection->binding?->policyKey ?? 'default', new CatalogMutationActor($actor, $reason, $revision, Uuid::random()->value),
+                $projection->binding->policyKey ?? 'default', new CatalogMutationActor($actor, $reason, $revision, Uuid::random()->value),
                 $panel, $slot, new SettingPatch(1, $changes), $version));
         } catch (PolicyConflict) {
             throw ValidationException::withMessages(['data' => 'Политика изменена. Перезагрузите форму.']);

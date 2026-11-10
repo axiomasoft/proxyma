@@ -24,7 +24,7 @@ final readonly class HealthSignals
         $ignored = HealthSignal::Ignored;
         $failure = TransportFailure::tryFrom($summary['failure'] ?? '');
         $status = $summary['status'] ?? null;
-        $reason = $failure?->value ?? 'http_'.($status ?? 'unknown');
+        $reason = $failure->value ?? 'http_'.($status ?? 'unknown');
         if (isset($summary['endpoint_id']) && (($summary['holds_proxy_credential'] ?? false) || $status === 407 || $failure === TransportFailure::ProxyAuth)) {
             return new self(HealthSignal::CredentialHold, $ignored, $ignored, 'credential_hold');
         }

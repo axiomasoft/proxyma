@@ -3,10 +3,18 @@
 declare(strict_types=1);
 
 use Proxyma\Contracts\OutboundClient;
+use Proxyma\Domain\Admission\LockPosition;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
+use Proxyma\Domain\Execution\BinaryBodyArtifact;
 use Proxyma\Domain\Execution\ClaimCandidate;
 use Proxyma\Domain\Execution\CommitLatch;
+use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Policy\TenantKey;
+
+final class UnexpectedMutableDomainFixture
+{
+    public int $value = 0;
+}
 
 it('keeps core completely independent of App, Filament, ProcessCore, and provider-specific headers', function (): void {
     $coreRoot = dirname(__DIR__, 2).'/src';
@@ -94,7 +102,22 @@ it('enforces public contract and immutable domain boundaries without convenience
         AuthorizedWireRequest::class,
         ClaimCandidate::class,
         CommitLatch::class,
+        LockPosition::class,
+        BinaryBodyArtifact::class,
+        ResolvedUrl::class,
     ];
+    $allowedState = static function (ReflectionClass $class) use ($mutableAllowed): bool {
+        if ($class->isReadOnly() || $class->isSubclassOf(Throwable::class) || in_array($class->getName(), $mutableAllowed, true)) {
+            return true;
+        }
+
+        return $class->getProperties() === []
+            && array_all($class->getMethods(), static fn (ReflectionMethod $method): bool => $method->isStatic());
+    };
+    expect($allowedState(new ReflectionClass(UnexpectedMutableDomainFixture::class)))->toBeFalse();
+    foreach ((new ReflectionClass(ResolvedUrl::class))->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+        expect($property->isReadOnly())->toBeTrue();
+    }
 
     foreach ($iterator as $file) {
         if (! $file->isFile() || $file->getExtension() !== 'php') {
@@ -110,9 +133,7 @@ it('enforces public contract and immutable domain boundaries without convenience
         }
 
         expect($reflection->isFinal())->toBeTrue();
-        if (! in_array($fqcn, $mutableAllowed, true)) {
-            expect($reflection->isReadOnly())->toBeTrue();
-        }
+        expect($allowedState($reflection))->toBeTrue($fqcn);
     }
 
     $config = require dirname(__DIR__, 2).'/config/proxyma.php';

@@ -69,7 +69,7 @@ final readonly class HealthRepository
                 }
                 $signal = $signals->forScope($scope);
                 if ($scope === HealthScope::Route && isset($s['endpoint_id'])) {
-                    $endpoint = $db->table($t['endpoints'])->where('id', $s['endpoint_id'] ?? null)->first();
+                    $endpoint = $db->table($t['endpoints'])->where('id', $s['endpoint_id'])->first();
                     if ($endpoint === null || (int) ($endpoint->credential_version ?? 1) !== (int) ($s['credential_version'] ?? 1)) {
                         $eligible = false;
                     }

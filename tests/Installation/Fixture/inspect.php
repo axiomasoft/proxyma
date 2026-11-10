@@ -47,6 +47,7 @@ $insideVendor = static function (string $path): bool {
     foreach (explode('/', $path) as $part) {
         if ($part === '..') {
             array_pop($parts);
+
             continue;
         }
         if ($part !== '' && $part !== '.') {

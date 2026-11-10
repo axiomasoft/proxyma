@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Proxyma\Application\Health\ProbeCoordinator;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
@@ -235,8 +236,9 @@ it('probe claim vs normal send сохраняет общий origin accounting �
     $normal = $this->matrixPrepared();
     $this->budget(CanonicalOrigin::of('https', 'example.test')->probeScopeKey());
     $intent = $this->quotaIntent(purpose: DemandPurpose::Probe);
-    $this->table('route_health')->update(['state' => 'half_open', 'probe_token' => $intent['operation']->probeToken->value,
-        'probe_until' => '2030-06-01T10:11:00Z', 'health_epoch' => 2, 'state_version' => 2]);
+    $this->table('route_health')->update(['state' => 'unknown']);
+    $claim = $this->app->make(ProbeCoordinator::class)->claim($this->reservationInput($intent));
+    expect($claim->token->value)->toBe($intent['operation']->probeToken->value);
     $probe = $this->matrixPrepared(intent: $intent);
     $one = $this->workers->worker($this->matrixPayload($probe), 'one', 'claim');
     $two = $this->workers->worker($this->matrixPayload($normal), 'two', 'claim');

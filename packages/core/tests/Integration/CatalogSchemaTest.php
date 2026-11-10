@@ -24,7 +24,7 @@ it('мигрирует независимый core дважды и откаты�
         expect($tables)->toContain($name);
     }
     $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
-    expect($this->db->table('migrations')->count())->toBe(10);
+    expect($this->db->table('migrations')->count())->toBe(14);
     $migration = require dirname(__DIR__, 2).'/database/migrations/2026_11_09_000001_create_pxm_authority_tables.php';
     $this->app['config']->set('proxyma.connection', 'configured-authority');
     expect($migration->getConnection())->toBe('configured-authority');

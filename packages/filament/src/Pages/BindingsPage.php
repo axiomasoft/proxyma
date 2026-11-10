@@ -22,6 +22,10 @@ use Proxyma\Filament\BindingEditor;
 use Proxyma\Filament\Schemas\ProxymaSettingsSection;
 use UnitEnum;
 
+/**
+ * @property-read Schema $selector
+ * @property-read Schema $form
+ */
 class BindingsPage extends Page
 {
     protected string $view = 'proxyma-filament::bindings';

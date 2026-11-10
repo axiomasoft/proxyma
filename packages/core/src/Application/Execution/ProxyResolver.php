@@ -22,6 +22,7 @@ final readonly class ProxyResolver
     public function validatedAddress(Endpoint $endpoint, int $timeoutMs): string
     {
         TransportDoctor::assertProtocol($endpoint->protocol);
+        /** @var list<mixed> $addresses */
         $addresses = $this->dns->resolve($endpoint->host, $timeoutMs);
         if ($addresses === []) {
             throw new RuntimeException('Proxy DNS returned no addresses.');

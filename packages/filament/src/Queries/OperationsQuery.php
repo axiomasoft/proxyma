@@ -33,6 +33,7 @@ class OperationsQuery
         $this->authorize($kind);
         [$table, $columns] = $this->projection($kind, $healthScope);
         $query = $this->query($table);
+        /** @var Paginator $paginator */
         $paginator = $query->orderBy('id')->simplePaginate(25, $columns, 'operationsPage', max(1, min(100000, $page)));
         $rows = [];
         $now = DatabaseClock::now($this->scope->connection);
@@ -86,6 +87,7 @@ class OperationsQuery
             'health' => [$scope->value, ['id', ...($scope !== HealthScope::Target ? ['route_id'] : []), ...($scope !== HealthScope::Route ? ['target_id'] : []), 'state', 'state_version', 'health_epoch', 'reason_code', 'open_until', 'probe_until']],
             'attempts' => ['attempts', ['id', 'operation_id', 'physical_attempt_id', 'status', 'authorized_at', 'completed_at']],
             'audit' => ['audit_events', ['id', 'entity_type', 'entity_id', 'event_kind', 'ability', 'previous_revision', 'revision', 'actor_type', 'actor_id', 'reason', 'created_at']],
+            default => throw new \InvalidArgumentException('Unknown operations section.'),
         };
     }
 

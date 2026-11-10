@@ -17,9 +17,15 @@ final class BinaryBodyArtifact implements ResponseBody
     public function __construct(private mixed $stream, private readonly int $length, private readonly ContentHash $hash,
         private readonly ConnectionScope $scope) {}
 
-    public function byteLength(): int { return $this->length; }
+    public function byteLength(): int
+    {
+        return $this->length;
+    }
 
-    public function contentHash(): ContentHash { return $this->hash; }
+    public function contentHash(): ContentHash
+    {
+        return $this->hash;
+    }
 
     /** The callback must finish copying before returning; it must not retain the stream. */
     public function accept(Closure $consumer): mixed
@@ -52,11 +58,20 @@ final class BinaryBodyArtifact implements ResponseBody
         }
     }
 
-    public function __serialize(): array { throw new LogicException('Artifact leases cannot be serialized.'); }
+    public function __serialize(): array
+    {
+        throw new LogicException('Artifact leases cannot be serialized.');
+    }
 
-    public function __unserialize(array $data): void { throw new LogicException('Artifact leases cannot be reconstructed.'); }
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('Artifact leases cannot be reconstructed.');
+    }
 
     private function __clone() {}
 
-    public function __debugInfo(): array { return ['length' => $this->length, 'hash' => $this->hash->hex]; }
+    public function __debugInfo(): array
+    {
+        return ['length' => $this->length, 'hash' => $this->hash->hex];
+    }
 }

@@ -6,8 +6,8 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use Proxyma\Application\Execution\DestinationPolicy;
-use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
+use Proxyma\Domain\Catalog\Target;
 use WeakMap;
 
 final class ResolvedUrl
@@ -36,6 +36,9 @@ final class ResolvedUrl
         bool $policyVerified = false,
         public readonly ?CanonicalOrigin $targetOrigin = null,
     ) {
+        if ($policyVerified) {
+            throw new InvalidArgumentException('Destination policy verification cannot be supplied by the caller.');
+        }
         $this->originalHost = $originalHost ?? $url->origin->host;
         $this->port = $port ?? $url->origin->port;
         if (filter_var($address, FILTER_VALIDATE_IP) === false) {

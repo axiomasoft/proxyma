@@ -15,6 +15,8 @@ final readonly class BudgetScopeSchema
     public function __construct(public string $namespace, public int $version = 1, public array $keys = [], public array $sharedTenants = [])
     {
         PanelSlot::identifier($namespace);
+        /** @var array<array-key, string> $keys */
+        /** @var array<array-key, string> $sharedTenants */
         if ($version < 1 || ! array_is_list($keys) || ! array_is_list($sharedTenants)) {
             throw new DefinitionError('Invalid budget scope schema.');
         }

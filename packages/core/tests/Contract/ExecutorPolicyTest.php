@@ -442,6 +442,18 @@ it('классифицирует 404 и 401 как доставленные от
     '403 without WAF interpretation' => [403, 'origin_forbidden'],
 ]);
 
+it('configuration hold сохраняет scalar details без отправки или списания', function (): void {
+    $this->table('target_health')->delete();
+    [$request, $context] = makeExecutionPair($this);
+    $result = makeExecutorForTest($this, [deliveredHttp(200)])->execute($request, $context);
+    expect($result)->toBeInstanceOf(ExecutionBlocked::class)
+        ->and($result->reason)->toBe(BlockedReason::ConfigurationHold)
+        ->and($result->safeDetails['holds'])->toBe('target_health_unavailable')
+        ->and($this->dispatched)->toBe([])
+        ->and($this->table('attempts')->count())->toBe(0)
+        ->and($this->table('permits')->count())->toBe(0);
+});
+
 it('при 407 ставит credential_hold на прокси-маршрут, переключается на другой прокси и никогда не падает в direct', function (): void {
     config(['proxyma.policy.project_defaults' => array_replace(config('proxyma.policy.project_defaults'), ['route.allow_direct' => false])]);
     $endpoint1 = Uuid::random();
@@ -575,8 +587,11 @@ it('при 429 парсит Retry-After, продлевает origin cooldown и
         ->and($outcome->retryAt->isAfter($before->modify('+110 seconds')))->toBeTrue();
 
     $targetHealth = $this->table('target_health')->where('target_id', $this->catalog['target']->value)->first();
-    expect($targetHealth->reason_code)->toBe('origin_cooldown')
-        ->and($targetHealth->open_until)->not->toBeNull();
+    expect($targetHealth->state)->toBe('closed')
+        ->and($targetHealth->reason_code)->toBeNull()
+        ->and($targetHealth->open_until)->toBeNull()
+        ->and(new DateTimeImmutable($this->table('budgets')->where('scope_key', $this->scopeKey)->value('cooldown_until')))
+        ->toBeGreaterThan($before->modify('+110 seconds'));
 
     // Проверим также парсер Retry-After на HTTP-date, сверхбольших значениях и мусоре.
     $parser = new RetryAfterParser(maxCeilingSeconds: 86_400, fallbackSeconds: 60);

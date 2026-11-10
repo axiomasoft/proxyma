@@ -21,6 +21,7 @@ final readonly class ProbeClaim
             throw new InvalidArgumentException('A probe requires a nonempty exact scope set and probe purpose.');
         }
         foreach ($epochs as $key => $epoch) {
+            /** @var mixed $epoch */
             [$scope, $id] = array_pad(explode(':', $key, 2), 2, '');
             if (HealthScope::tryFrom($scope) === null || ! is_int($epoch) || $epoch < 1) {
                 throw new InvalidArgumentException('Invalid probe scope or epoch.');

@@ -1,5 +1,13 @@
 # Tenant isolation, permissions и audit
 
+Квалификация safety contracts описана в [verification.md](verification.md):
+invariant→source/test digest→actual JUnit, public no-bypass scenarios и отдельные
+physical TLS/proxy negative cases. Наличие карты не означает выполненный gate.
+Collector принимает полный package inventory на одном SHA/fingerprint/runtime;
+failed/skipped/duplicate/undeclared cases и нулевые assertions закрывают gate.
+Unknown после authorization не является доказательством отсутствия bytes и не
+даёт права вернуть consumed quota или незаметно повторить отправку.
+
 ## Credentials и TLS trust
 
 `RotateCredentials::handle(endpointId, tenant, username, password, actor)` —

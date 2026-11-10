@@ -37,6 +37,7 @@ final readonly class ExtensionRuntime
     {
         $extra = [];
         foreach ($this->registry->selectExtensions(ExtensionKind::BudgetScopeContributor, $ids) as $definition) {
+            /** @var array<array-key, mixed> $constraints */
             $constraints = $definition->implementation->contribute($request, $route, $request->url->origin);
             if (! array_is_list($constraints)) {
                 throw new AdmissionRejected('invalid_budget_contribution');

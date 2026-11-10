@@ -32,6 +32,7 @@ class CatalogBrowser
             'endpoint' => ['endpoints', 'host'],
             'route' => ['routes', 'route_key'],
             'profile' => ['route_profiles', 'profile_key'],
+            default => throw new \InvalidArgumentException('Unknown catalog section.'),
         };
         $tenant = $this->tenants->resolve()->tenant;
         $tables = PackageSchema::tables();
@@ -45,6 +46,7 @@ class CatalogBrowser
         if ($search !== '') {
             $query->where($column, 'like', '%'.substr($search, 0, 128).'%');
         }
+        /** @var Paginator $paginator */
         $paginator = $query->orderBy('id')->simplePaginate(25, ['id'], 'catalogPage', max(1, min(100000, $page)));
         $records = [];
         foreach ($paginator->items() as $row) {
@@ -53,7 +55,7 @@ class CatalogBrowser
                 $value = match ($kind) {
                     'endpoint' => $this->queries->findEndpoint($tenant, $id),
                     'route' => $this->queries->findRoute($tenant, $id),
-                    'profile' => $this->queries->findProfile($tenant, $id),
+                    default => $this->queries->findProfile($tenant, $id),
                 };
                 if ($selectable) {
                     $this->access->authorize($tenant, "catalog.{$kind}.select", $id);
@@ -67,7 +69,7 @@ class CatalogBrowser
             $label = match ($kind) {
                 'endpoint' => "{$value->protocol->value}://{$value->host}:{$value->port}",
                 'route' => $value->routeKey.($value->kind->value === 'direct' ? ' — прямой' : ''),
-                'profile' => $value->profileKey.($value->isEmpty() ? ' — отправка запрещена' : ''),
+                default => $value->profileKey.($value->isEmpty() ? ' — отправка запрещена' : ''),
             };
             $records[] = ['id' => $id->value, 'label' => $label, 'revision' => $value->revision];
         }

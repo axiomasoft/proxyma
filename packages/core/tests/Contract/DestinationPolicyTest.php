@@ -13,9 +13,9 @@ use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Execution\ExecutionContext;
-use Proxyma\Domain\Execution\SafeUrl;
-use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
+use Proxyma\Domain\Execution\ResolvedUrl;
+use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\TlsTrustConfiguration;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
@@ -37,7 +37,9 @@ function destinationFixture(Closure $resolver, array $allow = [], array $ports =
 
 it('закрепляет публичные адреса и пересчитывает DNS при редиректе', function (): void {
     $responses = [['8.8.8.8', '2606:4700:4700::1111'], ['127.0.0.1']];
-    [$policy, $target, $context] = destinationFixture(function () use (&$responses) { return array_shift($responses); });
+    [$policy, $target, $context] = destinationFixture(function () use (&$responses) {
+        return array_shift($responses);
+    });
     $result = $policy->resolve(new SafeUrl('HTTPS://EXAMPLE.TEST:443'), $context, 100, $target);
     expect($result->url->reveal())->toBe('https://example.test/')->and($result->addresses)->toHaveCount(2)
         ->and($result->originalHost)->toBe('example.test')->and($result->targetRevision)->toBe(3);
@@ -82,7 +84,8 @@ it('принимает только проверенный descriptor для dir
     $wire = new WireRequest(Uuid::random(), Uuid::random(), $targetId, 1, 'GET', $url, new RequestTimeoutPolicy(1, 1, 1), new DateTimeImmutable('+1 hour'));
     $route = new Route(Uuid::random(), $tenant, 'route', $kind, $kind === RouteKind::Proxy ? Uuid::random() : null, true, EgressIdentity::explicit('nat:fixture'));
     $sealer = new WireSealer($scope, str_repeat('x', 32));
-    expect(fn () => $sealer->seal($wire, $route, new ResolvedUrl($url, '127.0.0.1', policyVerified: true), new TlsTrustConfiguration))->toThrow(AdmissionRejected::class);
+    expect(fn () => new ResolvedUrl($url, '127.0.0.1', policyVerified: true))->toThrow(InvalidArgumentException::class);
+    expect(fn () => $sealer->seal($wire, $route, new ResolvedUrl($url, '127.0.0.1'), new TlsTrustConfiguration))->toThrow(AdmissionRejected::class);
     $sealed = $sealer->seal($wire, $route, $policy->resolve($url, $context, 100, $target), new TlsTrustConfiguration);
     expect($sealed->destination->address)->toBe('8.8.8.8');
 })->with([['http', RouteKind::Direct], ['https', RouteKind::Direct], ['http', RouteKind::Proxy], ['https', RouteKind::Proxy]]);

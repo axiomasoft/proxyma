@@ -88,6 +88,7 @@ final readonly class ReviewedProbe
         return $this->receipt($tenant, $actor, $hash) ?? throw new CatalogConflict('Probe receipt missing.');
     }
 
+    /** @phpstan-impure */
     private function receipt(TenantKey $tenant, CatalogMutationActor $actor, string $hash): ?array
     {
         $row = $this->scope->connection->table(PackageSchema::tables()['catalog_command_receipts'])

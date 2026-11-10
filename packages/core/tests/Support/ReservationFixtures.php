@@ -43,7 +43,8 @@ trait ReservationFixtures
 
     protected function reservationInput(array $intent, array $heads = []): mixed
     {
-        $policy = \selectionPolicy($this->tenant, $this->catalog['profile'], $this->catalog['target'], layerRevisions: $heads);
+        $policy = \selectionPolicy($this->tenant, $this->catalog['profile'], $this->catalog['target'], layerRevisions: $heads,
+            trafficKey: $intent['request']->trafficClass);
 
         return $this->reservations->prepare($intent['request'], $intent['operation'], $intent['route'], $policy, $this->work);
     }

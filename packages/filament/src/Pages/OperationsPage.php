@@ -23,6 +23,7 @@ use Proxyma\Domain\Health\HealthScope;
 use Proxyma\Filament\Queries\OperationsQuery;
 use UnitEnum;
 
+/** @property-read Schema $form */
 abstract class OperationsPage extends Page
 {
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
