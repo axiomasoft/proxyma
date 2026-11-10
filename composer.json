@@ -9,11 +9,11 @@
     ],
     "require": {"php": "^8.4", "axiomasoft/proxyma": "dev-main", "axiomasoft/proxyma-filament": "dev-main"},
     "require-dev": {
-        "laravel/pao": "*",
-        "laravel/pint": "^1.24",
-        "orchestra/testbench": "^11.0",
-        "pestphp/pest": "^5.0",
-        "phpstan/phpstan": "^2.1"
+        "laravel/pao": "1.1.5",
+        "laravel/pint": "1.32.1",
+        "orchestra/testbench": "11.3.0",
+        "pestphp/pest": "5.3.5",
+        "phpstan/phpstan": "2.3.5"
     },
     "autoload-dev": {"psr-4": {"Tests\\": "tests/"}},
     "config": {"sort-packages": true, "allow-plugins": {"pestphp/pest-plugin": true}},

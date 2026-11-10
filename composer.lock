@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d8aa004837cd363b9552024dd016ecc6",
+    "content-hash": "41624faf6c9ccf971d96f5e18fd1bacf",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -77,15 +77,24 @@
             "dist": {
                 "type": "path",
                 "url": "packages/core",
-                "reference": "308ab0ae11a6cc1e934e21ca1436a0e5bcd79dc6"
+                "reference": "d4f380cdefc236b3d3c9afcd83a7edbdea1bb460"
             },
             "require": {
                 "ext-curl": "*",
+                "ext-mbstring": "*",
+                "ext-openssl": "*",
                 "ext-pdo": "*",
                 "ext-pdo_pgsql": "*",
+                "illuminate/console": "^13.0",
+                "illuminate/contracts": "^13.0",
                 "illuminate/database": "^13.0",
+                "illuminate/encryption": "^13.0",
+                "illuminate/events": "^13.0",
                 "illuminate/support": "^13.0",
-                "php": "^8.4"
+                "php": "^8.4",
+                "psr/log": "^3.0",
+                "symfony/http-foundation": "^7.4 || ^8.0",
+                "symfony/process": "^7.4 || ^8.0"
             },
             "type": "library",
             "extra": {

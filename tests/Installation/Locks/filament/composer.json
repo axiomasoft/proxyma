@@ -1,0 +1,41 @@
+{
+    "name": "proxyma-install/filament",
+    "type": "project",
+    "license": "proprietary",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "sources/core",
+            "options": {
+                "symlink": false,
+                "reference": "config",
+                "versions": {
+                    "axiomasoft/proxyma": "dev-main"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "sources/filament",
+            "options": {
+                "symlink": false,
+                "reference": "config",
+                "versions": {
+                    "axiomasoft/proxyma-filament": "dev-main"
+                }
+            }
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "axiomasoft/proxyma": "dev-main",
+        "laravel/framework": "13.40.0",
+        "axiomasoft/proxyma-filament": "dev-main",
+        "filament/filament": "5.11.2"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

@@ -1,0 +1,28 @@
+{
+    "name": "proxyma-install/core",
+    "type": "project",
+    "license": "proprietary",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "sources/core",
+            "options": {
+                "symlink": false,
+                "reference": "config",
+                "versions": {
+                    "axiomasoft/proxyma": "dev-main"
+                }
+            }
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "axiomasoft/proxyma": "dev-main",
+        "laravel/framework": "13.40.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
