@@ -118,8 +118,15 @@ tenant, panel или entity. Scope принадлежит определённо
 Protocol, hostname, port, revision и credential version входят в sealed wire;
 physical dispatch не перечитывает endpoint и не делегирует DNS proxy.
 
-**Raw response body** — ограниченная encoded entity одной физической попытки.
-Transport не декодирует её и передаёт response-слою без persistence body/секретов.
+**Response profile** — закреплённые в wire fingerprint вид ответа и независимые
+пределы wire, entity и text, а также default charset. Text декодируется после
+проверки content encoding; binary сохраняет исходные entity bytes, включая gzip.
+
+**Binary lease** — временный файл с единственным владельцем. Consumer принимает
+его callback вне SQL и сохраняет метаданные после успешного копирования; ошибка
+callback и close закрывают файл. Lease нельзя сериализовать или открыть по пути.
+Временный файл tmpfile удаляется при закрытии либо завершении процесса; он не
+регистрируется в recovery и не влияет на unknown attempt facts или DB retention.
 
 `PhysicalHttpTransport` реализует один dispatch на fresh cURL connection:
 direct HTTP(S), HTTP/HTTPS proxy forwarding/CONNECT и SOCKS5 local DNS.

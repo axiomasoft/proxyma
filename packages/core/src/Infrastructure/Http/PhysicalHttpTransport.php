@@ -7,6 +7,7 @@ namespace Proxyma\Infrastructure\Http;
 use Closure;
 use LogicException;
 use Proxyma\Application\Execution\WireSealer;
+use Proxyma\Application\Execution\ResponseDecoder;
 use Proxyma\Contracts\PhysicalTransport;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\RouteKind;
@@ -27,7 +28,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
     private const int CurlLoginDenied = 67;
 
     public function __construct(private ConnectionScope $scope, private WireSealer $sealer,
-        private int $maxResponseBytes = 1_048_576, private ?Closure $cancelled = null)
+        private int $maxResponseBytes = 67_108_864, private ?Closure $cancelled = null)
     {
         if ($maxResponseBytes < 1 || $maxResponseBytes > 64 * 1024 * 1024) {
             throw new LogicException('Physical response limit must be between 1 byte and 64 MiB.');
@@ -49,7 +50,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
         $options = $this->options($wire);
         $curl = curl_init();
         $multi = curl_multi_init();
-        $body = '';
+        $reader = null;
         $headers = [];
         $status = 0;
         $headerBytes = 0;
@@ -57,15 +58,20 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
         $lastActivity = hrtime(true);
         $progress = [0, 0];
         $failure = null;
-        $options[CURLOPT_WRITEFUNCTION] = function ($handle, string $chunk) use (&$body, &$limit, &$lastActivity): int {
+        $readerError = null;
+        $options[CURLOPT_WRITEFUNCTION] = function ($handle, string $chunk) use (&$reader, &$headers, &$limit, &$lastActivity, &$readerError, $wire): int {
             $lastActivity = hrtime(true);
-            if (strlen($body) + strlen($chunk) > $this->maxResponseBytes) {
-                $limit = true;
-
+            try {
+                $reader ??= new ResponseReader($wire->request->responseProfile, $this->scope, $headers['content-encoding'][0] ?? '');
+                $reader->write($chunk);
+                if ($reader->wireBytes() > $this->maxResponseBytes) {
+                    throw new \LengthException('Physical response byte limit exceeded.');
+                }
+            } catch (\Throwable $error) {
+                $limit = $error instanceof \LengthException;
+                $readerError = $error;
                 return 0;
             }
-            $body .= $chunk;
-
             return strlen($chunk);
         };
         $options[CURLOPT_HEADERFUNCTION] = static function ($handle, string $line) use (&$headers, &$status, &$headerBytes, &$limit, &$lastActivity): int {
@@ -141,6 +147,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
             $proxyStatus = (int) curl_getinfo($curl, CURLINFO_HTTP_CONNECTCODE);
             $failure ??= match (true) {
                 $limit => TransportFailure::ByteLimit,
+                $readerError !== null => TransportFailure::Protocol,
                 $wire->proxy !== null && ($status === 407 || $proxyStatus === 407 || $error === self::CurlLoginDenied) => TransportFailure::ProxyAuth,
                 in_array($error, [CURLE_SSL_CACERT, CURLE_SSL_CONNECT_ERROR, CURLE_SSL_CACERT_BADFILE, CURLE_SSL_PINNEDPUBKEYNOTMATCH], true) => TransportFailure::Tls,
                 $error === CURLE_OPERATION_TIMEDOUT => TransportFailure::Timeout,
@@ -150,13 +157,25 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 $head === null => TransportFailure::Protocol,
                 default => null,
             };
-            $bytes = max(strlen($body), (int) ($stats['size_download'] ?? 0));
+            $bytes = max($reader?->wireBytes() ?? 0, (int) ($stats['size_download'] ?? 0));
             if ($failure !== null) {
                 return AttemptResult::failed($failure, $bytes, 0, $error, $head, $metrics);
             }
 
-            return AttemptResult::delivered(new ResponseDescriptor($status, $headers, new RawResponseBody($body), $bytes, 0), $metrics);
+            try {
+                $reader ??= new ResponseReader($wire->request->responseProfile, $this->scope, $headers['content-encoding'][0] ?? '');
+                $body = $reader->finish();
+                if ($wire->request->responseProfile->kind === 'text' && $body instanceof RawResponseBody) {
+                    $body = (new ResponseDecoder)->decode($body->bytes(), $headers['content-type'][0] ?? null, $wire->request->responseProfile);
+                }
+                return AttemptResult::delivered(new ResponseDescriptor($status, $headers, $body, $bytes, $reader->decodedBytes()), $metrics);
+            } catch (\LengthException) {
+                return AttemptResult::failed(TransportFailure::ByteLimit, $bytes, 0, $error, $head, $metrics);
+            } catch (\Throwable) {
+                return AttemptResult::failed(TransportFailure::Protocol, $bytes, 0, $error, $head, $metrics);
+            }
         } finally {
+            $reader?->close();
             if ($added) {
                 curl_multi_remove_handle($multi, $curl);
             }

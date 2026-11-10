@@ -45,7 +45,7 @@ final readonly class WireSealer
         $digest = $this->digest($route, $destination, $tls, $credential, $proxyTls, $proxy);
         $wire = new WireRequest($request->operationId, $request->physicalAttemptId, $request->targetId, $request->policyRevision,
             $request->method, $request->url, $request->timeouts, $request->deadlineAt, $headers, $request->body,
-            $request->idempotency, $request->purpose, $digest, $request->trafficClass);
+            $request->idempotency, $request->purpose, $digest, $request->trafficClass, $request->responseProfile);
 
         return new SealedWire($wire, $route, $destination, $tls, $credential, $proxyTls, $proxy);
     }

@@ -32,6 +32,7 @@ final readonly class WireRequest implements \JsonSerializable
         public DemandPurpose $purpose = DemandPurpose::Ordinary,
         public ?ContentHash $sealDigest = null,
         public string $trafficClass = 'default',
+        public ResponseProfile $responseProfile = new ResponseProfile,
     ) {
         if (preg_match('/^[a-z][a-z0-9_.:-]{0,63}$/D', $trafficClass) !== 1) {
             throw new InvalidArgumentException('Invalid traffic class.');
@@ -78,6 +79,8 @@ final readonly class WireRequest implements \JsonSerializable
             'deadline' => $this->deadlineAt->format('Y-m-d\TH:i:s.uP'),
             'seal' => $sealDigest?->hex,
             'traffic_class' => $trafficClass,
+            'response_profile' => [$responseProfile->kind, $responseProfile->maxWireBytes, $responseProfile->maxEntityBytes,
+                $responseProfile->maxTextBytes, $responseProfile->charsetDefault],
         ], JSON_THROW_ON_ERROR));
     }
 

@@ -4,32 +4,59 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Execution;
 
-use InvalidArgumentException;
+use Closure;
+use LogicException;
+use Proxyma\Infrastructure\Database\ConnectionScope;
 
-final readonly class BinaryBodyArtifact implements ResponseBody
+/** Exclusive temporary lease. The consumer must accept or close it outside SQL. */
+final class BinaryBodyArtifact implements ResponseBody
 {
-    public function __construct(
-        public string $storageKey,
-        public int $bytes,
-        public ContentHash $hash,
-        public ?string $mediaType = null,
-    ) {
-        if ($storageKey === '' || strlen($storageKey) > 512 || preg_match('/[\x00-\x1f\x7f]/', $storageKey) === 1) {
-            throw new InvalidArgumentException('Binary artifact storage key must be non-empty and free of control characters.');
-        }
+    private bool $closed = false;
 
-        if ($bytes < 0) {
-            throw new InvalidArgumentException('Binary artifact byte count must be non-negative.');
-        }
-    }
+    /** @param resource $stream */
+    public function __construct(private mixed $stream, private readonly int $length, private readonly ContentHash $hash,
+        private readonly ConnectionScope $scope) {}
 
-    public function byteLength(): int
+    public function byteLength(): int { return $this->length; }
+
+    public function contentHash(): ContentHash { return $this->hash; }
+
+    /** The callback must finish copying before returning; it must not retain the stream. */
+    public function accept(Closure $consumer): mixed
     {
-        return $this->bytes;
+        $this->scope->assertOutsideTransaction();
+        if ($this->closed || ! is_resource($this->stream)) {
+            throw new LogicException('Artifact lease is closed.');
+        }
+        rewind($this->stream);
+        $hash = hash_init('sha256');
+        $length = hash_update_stream($hash, $this->stream);
+        if ($length !== $this->length || ! hash_equals($this->hash->hex, hash_final($hash))) {
+            $this->close();
+            throw new LogicException('Artifact integrity mismatch.');
+        }
+        rewind($this->stream);
+        try {
+            return $consumer($this->stream, $this->length, $this->hash);
+        } finally {
+            $this->close();
+        }
     }
 
-    public function contentHash(): ContentHash
+    public function close(): void
     {
-        return $this->hash;
+        $this->scope->assertOutsideTransaction();
+        if (! $this->closed) {
+            $this->closed = true;
+            fclose($this->stream);
+        }
     }
+
+    public function __serialize(): array { throw new LogicException('Artifact leases cannot be serialized.'); }
+
+    public function __unserialize(array $data): void { throw new LogicException('Artifact leases cannot be reconstructed.'); }
+
+    private function __clone() {}
+
+    public function __debugInfo(): array { return ['length' => $this->length, 'hash' => $this->hash->hex]; }
 }
