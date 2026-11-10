@@ -28,6 +28,9 @@ final readonly class RouteSubsetEnforcer
         $seen = [];
 
         foreach ($filteredRoutes as $route) {
+            if (! $route instanceof Route) {
+                throw new InvalidArgumentException('RouteFilter must return typed routes.');
+            }
             if (! isset($allowedById[$route->id->value])) {
                 throw new InvalidArgumentException("RouteFilter cannot introduce route '{$route->id->value}' outside the profile membership.");
             }

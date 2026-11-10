@@ -9,6 +9,7 @@ use LogicException;
 use Proxyma\Application\Execution\OutcomePolicyRegistry;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
+use Proxyma\Application\Extensions\ExtensionRuntime;
 use Proxyma\Contracts\LockedAdmissionGuard;
 use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Domain\Admission\AdmissionRejected;
@@ -51,7 +52,8 @@ final class ClaimSend
         private readonly DemandRepository $demands, private readonly BudgetRepository $budgets, private readonly PermitRepository $permits,
         private readonly DefinitionRegistry $definitions, private readonly WireSealer $sealer, private readonly array $guardIds = [],
         private readonly ?QuotaService $quotaService = null, ?QuotaRepository $quotaRepository = null,
-        private readonly array $cooldownScopes = [], private readonly ?OutcomePolicyRegistry $outcomes = null)
+        private readonly array $cooldownScopes = [], private readonly ?OutcomePolicyRegistry $outcomes = null,
+        private readonly array $contributorIds = [])
     {
         $this->quotas = $quotaRepository ?? new QuotaRepository($transactions->scope);
         $this->pending = new WeakMap;
@@ -150,6 +152,7 @@ final class ClaimSend
             $this->locks->guard($definition->id, $definition->implementation, $input->request, $ownerState, $tx);
         }
         $own = $this->demands->resolveBudgets($tenant, $input->request, $input->selection, $input->additionalScopes());
+        (new ExtensionRuntime($this->definitions))->assertSharedBudgets($own, $tenant, $this->contributorIds);
         $locked = $this->demands->lockBudgets($own, $tx);
         $this->quotas->lockWindows($locked, $scheduled->permitId->value);
         $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$scheduled->ticket->demandId->value], $tx)[0];

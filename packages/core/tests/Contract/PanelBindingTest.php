@@ -14,6 +14,7 @@ use Proxyma\Contracts\BindingQueries;
 use Proxyma\Contracts\BudgetScopeContributor;
 use Proxyma\Contracts\LockedAdmissionGuard;
 use Proxyma\Contracts\RouteFilter;
+use Proxyma\Contracts\SqlConnectionParticipant;
 use Proxyma\Contracts\SubjectResolver;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\Route;
@@ -24,6 +25,7 @@ use Proxyma\Domain\Execution\LockedOwnerState;
 use Proxyma\Domain\Execution\LockedTransactionContext;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
+use Proxyma\Domain\Panels\BudgetScopeSchema;
 use Proxyma\Domain\Panels\DefinitionError;
 use Proxyma\Domain\Panels\ExtensionDefinition;
 use Proxyma\Domain\Panels\ExtensionKind;
@@ -87,11 +89,16 @@ final class PanelFixtureBudgets implements BudgetScopeContributor
     }
 }
 
-final class PanelFixtureGuard implements LockedAdmissionGuard
+final class PanelFixtureGuard implements LockedAdmissionGuard, SqlConnectionParticipant
 {
+    public function connection(): Connection
+    {
+        throw new LogicException('Freeze must not resolve a connection.');
+    }
+
     public function tier(): AdmissionLockTier
     {
-        throw new LogicException('Registry must use metadata, not invoke a handler.');
+        return AdmissionLockTier::AdapterGuard;
     }
 
     public function evaluateLocked(WireRequest $request, LockedOwnerState $owner, LockedTransactionContext $transaction): ?ClaimDenied
@@ -141,8 +148,8 @@ it('замораживает PHP definitions без SQL и независимо 
             $r->registerPanel(new PanelDefinition($id, 'files', [new PanelSlot('read', ['timeout.connect_ms'])], ['network']));
         }
         $r->registerExtension(new ExtensionDefinition('filter', ExtensionKind::RouteFilter, new PanelFixtureFilter));
-        $r->registerExtension(new ExtensionDefinition('budget', ExtensionKind::BudgetScopeContributor, new PanelFixtureBudgets));
-        $r->registerExtension(new ExtensionDefinition('guard', ExtensionKind::LockedAdmissionGuard, new PanelFixtureGuard, tier: AdmissionLockTier::Budgets));
+        $r->registerExtension(new ExtensionDefinition('budget', ExtensionKind::BudgetScopeContributor, new PanelFixtureBudgets, budgetSchema: new BudgetScopeSchema('fixture')));
+        $r->registerExtension(new ExtensionDefinition('guard', ExtensionKind::LockedAdmissionGuard, new PanelFixtureGuard, tier: AdmissionLockTier::AdapterGuard));
         $r->freeze();
 
         return $r;

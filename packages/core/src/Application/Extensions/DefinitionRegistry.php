@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Application\Extensions;
 
 use Proxyma\Application\Policy\SettingRegistry;
+use Proxyma\Contracts\LockedAdmissionGuard;
+use Proxyma\Contracts\OutcomePolicy;
+use Proxyma\Contracts\RouteSelectionStrategy;
+use Proxyma\Contracts\SqlConnectionParticipant;
 use Proxyma\Domain\Execution\AdmissionLockTier;
 use Proxyma\Domain\Panels\DefinitionError;
 use Proxyma\Domain\Panels\ExtensionDefinition;
@@ -12,6 +16,7 @@ use Proxyma\Domain\Panels\ExtensionKind;
 use Proxyma\Domain\Panels\PanelSlot;
 use Proxyma\Domain\Panels\SubjectResolverDefinition;
 use Proxyma\Domain\Policy\PanelDefinition;
+use Proxyma\Domain\Policy\PolicyDefinition;
 use Proxyma\Domain\Policy\PolicyScope;
 
 final class DefinitionRegistry
@@ -29,6 +34,9 @@ final class DefinitionRegistry
     private array $capabilities = [];
 
     private ?string $fingerprint = null;
+
+    /** @var array<string, PolicyDefinition> */
+    private array $policies = [];
 
     public function __construct(private readonly SettingRegistry $settings) {}
 
@@ -107,8 +115,34 @@ final class DefinitionRegistry
         $positions = [];
         $visiting = [];
         $visited = [];
+        $policies = [];
         foreach ($this->extensions as $id => $extension) {
             $this->visit($id, $visiting, $visited);
+            foreach ($extension->requiredCapabilities as $capability) {
+                if (! isset($this->capabilities[$capability])) {
+                    throw new DefinitionError('Missing extension capability.');
+                }
+            }
+            $implementation = $extension->implementation;
+            if ($extension->kind === ExtensionKind::PolicyDefinitions) {
+                foreach ($implementation->definitions() as $policy) {
+                    if (! $policy instanceof PolicyDefinition || isset($policies[$policy->policyKey])) {
+                        throw new DefinitionError('Invalid or duplicate policy definition.');
+                    }
+                    $policies[$policy->policyKey] = $policy;
+                }
+            }
+            if ($implementation instanceof LockedAdmissionGuard
+                && ($extension->tier !== AdmissionLockTier::AdapterGuard || ! $implementation instanceof SqlConnectionParticipant
+                    || $implementation->tier() !== $extension->tier)) {
+                throw new DefinitionError('Guard requires a matching adapter_guard tier and SQL participant binding.');
+            }
+            if ($extension->kind === ExtensionKind::BudgetScopeContributor && $extension->budgetSchema === null) {
+                throw new DefinitionError('Contributor requires a declared budget namespace and schema.');
+            }
+            if (($implementation instanceof RouteSelectionStrategy || $implementation instanceof OutcomePolicy) && $implementation->key() !== $id) {
+                throw new DefinitionError('Implementation key must match its registered ID.');
+            }
             $position = $extension->kind->value.':'.($extension->tier === null ? '' : $extension->tier->value).':'.$extension->priority;
             if (isset($positions[$position])) {
                 throw new DefinitionError('Extension priority conflict at the declared tier.');
@@ -130,11 +164,22 @@ final class DefinitionRegistry
             }
             $dependencies = $extension->dependencies;
             sort($dependencies, SORT_STRING);
-            $data['extensions'][$id] = [$extension->kind->value, $extension->implementation::class, $extension->version, $dependencies, $extension->priority, $extension->tier?->value];
+            $required = $extension->requiredCapabilities;
+            sort($required, SORT_STRING);
+            $schema = $extension->budgetSchema;
+            $keys = $schema?->keys ?? [];
+            $grants = $schema?->sharedTenants ?? [];
+            sort($keys, SORT_STRING);
+            sort($grants, SORT_STRING);
+            $data['extensions'][$id] = [$extension->kind->value, $implementation::class, $extension->version, $dependencies, $extension->priority, $extension->tier?->value, $required,
+                $schema === null ? null : [$schema->namespace, $schema->version, $keys, $grants]];
         }
         foreach (['panels', 'resolvers', 'extensions'] as $kind) {
             ksort($data[$kind], SORT_STRING);
         }
+        ksort($policies, SORT_STRING);
+        $data['policies'] = $policies;
+        $this->policies = $policies;
         $this->fingerprint = hash('sha256', json_encode($data, JSON_THROW_ON_ERROR));
 
         return $this->fingerprint;
@@ -143,6 +188,13 @@ final class DefinitionRegistry
     public function fingerprint(): string
     {
         return $this->fingerprint ?? throw new DefinitionError('Registry must be frozen before use.');
+    }
+
+    public function policy(string $id): PolicyDefinition
+    {
+        $this->fingerprint();
+
+        return $this->policies[$id] ?? throw new DefinitionError('Unknown policy definition.');
     }
 
     public function hasPanel(string $id): bool

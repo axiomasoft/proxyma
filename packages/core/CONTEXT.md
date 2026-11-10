@@ -227,3 +227,16 @@ Lease inflight не доказывает число физических сок�
 только bounded reconcile/prune в trusted tenant context. Probe — отдельный один
 HEAD через обычный admission с exact scope claim. Facts/windows/health history
 удерживаются консервативно; prune удаляет только безопасную preauthorization history.
+
+**Extension definition** — versioned именованная регистрация одного конечного typed
+порта. Freeze подтверждает dependency DAG, capabilities, priority и фиксированный
+adapter tier; fingerprint включает schemas/grants. Config выбирает только ID
+из trusted PHP providers, не runtime FQCN или mutable authority models.
+
+**Budget scope schema** — namespace/version дополнительных scopes с tenant-bound
+prefix и необязательными точными legacy keys. Shared system scope требует явного
+consumer tenant grant; contributor не удаляет origin и не расширяет limits.
+
+**Attempt observer** — локальный best-effort listener после committed completion.
+Durable факты находятся в attempts/observations. Ошибка listener редактированно
+сообщается, не меняет receipt и не повторяет отправку; общего event outbox нет.

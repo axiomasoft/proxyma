@@ -7,7 +7,7 @@ namespace Proxyma\Application\Admission;
 use DateTimeImmutable;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Extensions\DefinitionRegistry;
-use Proxyma\Contracts\BudgetScopeContributor;
+use Proxyma\Application\Extensions\ExtensionRuntime;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\LockedAdmissionGuard;
 use Proxyma\Contracts\OwnerAuthority;
@@ -106,13 +106,8 @@ final readonly class ReservationService
         if (array_key_exists($request->trafficClass, $this->traffic->classes) || $persistedTraffic) {
             $extra[] = new BudgetConstraint(TrafficSharePolicy::scope($request->url->origin, $request->trafficClass), 1, PHP_INT_MAX, PHP_INT_MAX, true);
         }
-        foreach ($this->definitions->selectExtensions(ExtensionKind::BudgetScopeContributor, $this->contributorIds) as $definition) {
-            $contributor = $definition->implementation;
-            if (! $contributor instanceof BudgetScopeContributor) {
-                throw new AdmissionRejected('invalid_budget_contributor');
-            }
-            $extra = [...$extra, ...$contributor->contribute($request, $route, $request->url->origin)];
-        }
+        $extra = [...$extra, ...(new ExtensionRuntime($this->definitions))->contribute(
+            $request, $route, $tenant, $this->contributorIds, [...$special, ...array_map(static fn ($b) => $b->scopeKey, $extra)])];
         $origin = new BudgetConstraint($request->url->origin->budgetScopeKey(), 1, PHP_INT_MAX, PHP_INT_MAX, true);
         if ($operation->purpose === DemandPurpose::Probe) {
             $extra[] = new BudgetConstraint($request->url->origin->probeScopeKey(), 1, PHP_INT_MAX, PHP_INT_MAX, true);
@@ -176,6 +171,7 @@ final readonly class ReservationService
             $this->locks->guard($definition->id, $definition->implementation, $input->request, $ownerState, $tx);
         }
         $own = $this->demands->resolveBudgets($tenant, $input->request, $input->selection, $input->additionalScopes());
+        (new ExtensionRuntime($this->definitions))->assertSharedBudgets($own, $tenant, $this->contributorIds);
         $demand = $this->demands->byAttempt($tenant, $ticket->operationId, $ticket->physicalAttemptId);
         if ($demand === null || $demand->id !== $ticket->demandId->value || $demand->wire_fingerprint !== $input->request->fingerprint()->hex
             || $demand->intent_hash !== DemandIntent::hash($input->request, $input->selection, $own)) {

@@ -11,6 +11,7 @@ use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\OperationCommands;
 use Proxyma\Application\Admission\ReservationService;
 use Proxyma\Application\Authorization\AuthorizationDenied;
+use Proxyma\Application\Extensions\AttemptObservers;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Application\Routing\RouteSelector;
@@ -44,6 +45,7 @@ use Proxyma\Domain\Execution\ExecutionUnknownAfterAuthorization;
 use Proxyma\Domain\Execution\IdempotencyClass;
 use Proxyma\Domain\Execution\OutboundRequest;
 use Proxyma\Domain\Execution\OutcomeDecision;
+use Proxyma\Domain\Execution\ReadOnlyAttemptObservation;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\ResponseDescriptor;
 use Proxyma\Domain\Execution\RetryAt;
@@ -51,6 +53,7 @@ use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\RouteSelectionContext;
 use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\TransportFailure;
+use Proxyma\Domain\Execution\TransportMetrics;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
 use Proxyma\Domain\Outcomes\AttemptFacts;
@@ -93,6 +96,7 @@ final readonly class OutboundExecutor implements OutboundClient
         private ?Closure $sleepUs = null,
         private ?Closure $monotonicClockNs = null,
         private ?OperationsTelemetry $telemetry = null,
+        private ?AttemptObservers $observers = null,
     ) {}
 
     public function execute(OutboundRequest $request, ExecutionContext $context): ExecutionResult
@@ -597,6 +601,14 @@ final readonly class OutboundExecutor implements OutboundClient
                     return new ExecutionUnknownAfterAuthorization($context->operation->operationId, $physicalAttemptId,
                         $authorizedWire->snapshot->permitId, $sealedWire->request->fingerprint(), $attemptResult->failure);
                 }
+
+                $this->observers?->notify(new ReadOnlyAttemptObservation(
+                    $context->operation->owner->tenantKey, $context->operation->operationId, $physicalAttemptId,
+                    $route->id, $route->kind, $sealedWire->request->targetId, $sealedWire->request->url->origin,
+                    '[redacted]', $sealedWire->request->fingerprint(), $attemptResult->head?->statusCode,
+                    $attemptResult->failure, $resolvedOutcome->classification, $attemptResult->wireBytes, $attemptResult->decodedBytes,
+                    $attemptResult->metrics ?? new TransportMetrics, $this->nowWall(),
+                ));
 
                 if ($attemptResult->response !== null) {
                     $this->closeArtifactIfNeeded($lastDeliveredResponse, $attemptResult->response);

@@ -12,7 +12,7 @@ use Proxyma\Domain\Policy\SettingType;
 final class CoreSettings
 {
     /** @return list<SettingDescriptor> */
-    public static function descriptors(): array
+    public static function descriptors(array $strategyKeys = []): array
     {
         $scopes = [PolicyScope::Global, PolicyScope::Tenant, PolicyScope::Panel, PolicyScope::Entity];
 
@@ -27,7 +27,7 @@ final class CoreSettings
             new SettingDescriptor('routes.denied', SettingType::IdentifierList, [], false, $scopes, SettingMerge::Union, null, null, 'policy.route.edit'),
             new SettingDescriptor('destinations.allowed', SettingType::IdentifierList, null, true, $scopes, SettingMerge::Intersection, null, null, 'policy.destination.edit'),
             new SettingDescriptor('route.strategy', SettingType::Identifier, 'uniform_random', false, $scopes, SettingMerge::Replace, null, null, 'policy.route.edit',
-                allowedValues: ['uniform_random', 'least_recent_authorized', 'budget_aware_random']),
+                allowedValues: array_values(array_unique(['uniform_random', 'least_recent_authorized', 'budget_aware_random', ...$strategyKeys]))),
         ];
     }
 }

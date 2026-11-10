@@ -11,6 +11,7 @@ use Proxyma\Contracts\BudgetScopeContributor;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\WireRequest;
+use Proxyma\Domain\Panels\BudgetScopeSchema;
 use Proxyma\Domain\Panels\ExtensionDefinition;
 use Proxyma\Domain\Panels\ExtensionKind;
 
@@ -50,7 +51,8 @@ trait ReservationFixtures
     protected function contributor(array $constraints, ?\Closure $observe = null): void
     {
         $registry = new DefinitionRegistry($this->app->make(SettingRegistry::class));
-        $registry->registerExtension(new ExtensionDefinition('fixture.extra', ExtensionKind::BudgetScopeContributor, new FixtureBudgetContributor($constraints, $observe)));
+        $registry->registerExtension(new ExtensionDefinition('fixture.extra', ExtensionKind::BudgetScopeContributor, new FixtureBudgetContributor($constraints, $observe),
+            budgetSchema: new BudgetScopeSchema('fixture.extra', keys: array_column($constraints, 'scopeKey'))));
         $registry->freeze();
         $this->app->instance(DefinitionRegistry::class, $registry);
         $this->app['config']->set('proxyma.extensions.budget_contributors', ['fixture.extra']);

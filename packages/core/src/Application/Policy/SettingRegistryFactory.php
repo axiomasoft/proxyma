@@ -13,7 +13,7 @@ final readonly class SettingRegistryFactory
     public function __construct(private Container $container) {}
 
     /** @param array<string, mixed> $configuration */
-    public function make(array $configuration): SettingRegistry
+    public function make(array $configuration, array $strategyKeys = []): SettingRegistry
     {
         self::serializable($configuration);
         if (array_diff(array_keys($configuration), ['approved_providers', 'providers']) !== []) {
@@ -30,7 +30,7 @@ final readonly class SettingRegistryFactory
                 throw new InvalidSettingPatch;
             }
         }
-        $descriptors = CoreSettings::descriptors();
+        $descriptors = CoreSettings::descriptors($strategyKeys);
         foreach ($providers as $id) {
             if (! is_string($id) || ! isset($approved[$id])) {
                 throw new InvalidSettingPatch;

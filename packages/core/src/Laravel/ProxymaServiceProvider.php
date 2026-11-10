@@ -25,7 +25,10 @@ use Proxyma\Application\Execution\OutboundExecutor;
 use Proxyma\Application\Execution\OutcomePolicyRegistry;
 use Proxyma\Application\Execution\ProxyResolver;
 use Proxyma\Application\Execution\WireSealer;
+use Proxyma\Application\Extensions\AttemptObservers;
 use Proxyma\Application\Extensions\DefinitionRegistry;
+use Proxyma\Application\Extensions\ExtensionConfiguration;
+use Proxyma\Application\Extensions\ExtensionRuntime;
 use Proxyma\Application\Maintenance\MaintenanceSchedule;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
@@ -65,6 +68,7 @@ use Proxyma\Domain\Health\HealthReducer;
 use Proxyma\Domain\Health\HealthThresholds;
 use Proxyma\Domain\Outcomes\RetryAfterParser;
 use Proxyma\Domain\Outcomes\TechnicalOutcomeClassifier;
+use Proxyma\Domain\Panels\ExtensionKind;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
 use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
@@ -90,6 +94,7 @@ use Proxyma\Infrastructure\Security\UnconfiguredTenantContextResolver;
 use Proxyma\Infrastructure\Telemetry\OperationsTelemetry;
 use Proxyma\Laravel\Console\ReconcileCommand;
 use Proxyma\Laravel\Console\TransportDoctorCommand;
+use Psr\Log\LoggerInterface;
 
 class ProxymaServiceProvider extends ServiceProvider
 {
@@ -114,6 +119,9 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->alias(DatabaseCatalogQueries::class, RouteAccessChecks::class);
 
         $this->app->bindIf(RandomIndex::class, SecureRandomIndex::class);
+        $this->app->scoped(StrategyRegistry::class, static fn (Application $app) => StrategyRegistry::withExtensions($app->make(RandomIndex::class),
+            array_map(static fn ($definition) => $definition->implementation, $app->make(DefinitionRegistry::class)->selectExtensions(
+                ExtensionKind::Strategy, $app['config']->get('proxyma.extensions.route_strategies', [])))));
         $this->app->bind(CandidateSnapshots::class, static fn (Application $app): CandidateSnapshotQuery => new CandidateSnapshotQuery(
             $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')), $app->make(CatalogAccess::class), $app->make(StrategyRegistry::class),
             $app->make(TrafficSharePolicy::class)));
@@ -128,7 +136,7 @@ class ProxymaServiceProvider extends ServiceProvider
                 throw new InvalidSettingPatch;
             }
 
-            return (new SettingRegistryFactory($app))->make($configuration);
+            return (new SettingRegistryFactory($app))->make($configuration, $app['config']->get('proxyma.extensions.route_strategies', []));
         });
         $this->app->bind(UpdatePolicy::class, static function (Application $app): UpdatePolicy {
             return new UpdatePolicy(
@@ -216,7 +224,8 @@ class ProxymaServiceProvider extends ServiceProvider
             $app->make(DemandRepository::class), $app->make(BudgetRepository::class), $app->make(PermitRepository::class),
             $app->make(DefinitionRegistry::class), $app->make(WireSealer::class),
             $app['config']->get('proxyma.extensions.locked_admission_guards', []), $app->make(QuotaService::class),
-            $app->make(QuotaRepository::class), $app['config']->get('proxyma.health_cooldown_scopes', []), $app->make(OutcomePolicyRegistry::class)));
+            $app->make(QuotaRepository::class), $app['config']->get('proxyma.health_cooldown_scopes', []), $app->make(OutcomePolicyRegistry::class),
+            $app['config']->get('proxyma.extensions.budget_contributors', [])));
         $this->app->bind(ReservationService::class, static function (Application $app): ReservationService {
             return new ReservationService($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(AuthorityLocker::class),
                 $app->make(CatalogAccess::class), $app->make(CatalogQueries::class), $app->make(OwnerAuthority::class), $app->make(DefinitionRegistry::class),
@@ -230,12 +239,16 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bindIf(DestinationResolver::class, DestinationPolicy::class);
         $this->app->bindIf(ProxyResolver::class, static fn (Application $app): ProxyResolver => new ProxyResolver($app->make(DnsResolver::class)));
         $this->app->bindIf(RouteSelector::class, static fn (Application $app): RouteSelector => new RouteSelector(
-            $app->make(CandidateSnapshots::class), $app->make(StrategyRegistry::class)));
+            $app->make(CandidateSnapshots::class), $app->make(StrategyRegistry::class), $app->make(ExtensionRuntime::class),
+            $app['config']->get('proxyma.extensions.route_filters', [])));
         $this->app->bindIf(RetryAfterParser::class, static fn (): RetryAfterParser => new RetryAfterParser);
         $this->app->bindIf(TechnicalOutcomeClassifier::class, static fn (Application $app): TechnicalOutcomeClassifier => new TechnicalOutcomeClassifier(
             $app->make(RetryAfterParser::class)));
         $this->app->singleton(OutcomePolicyRegistry::class, static fn (Application $app): OutcomePolicyRegistry => new OutcomePolicyRegistry(
             $app->make(TechnicalOutcomeClassifier::class), $app->make(RetryAfterParser::class)));
+        $this->app->scoped(AttemptObservers::class, static fn (Application $app) => new AttemptObservers(
+            $app->make(DefinitionRegistry::class), $app->make(ConnectionScope::class), $app->make(LoggerInterface::class),
+            $app['config']->get('proxyma.extensions.observers', [])));
         $this->app->bind(OutboundExecutor::class, static fn (Application $app): OutboundExecutor => new OutboundExecutor(
             $app->make(ConnectionScope::class),
             $app->make(CatalogQueries::class),
@@ -253,6 +266,7 @@ class ProxymaServiceProvider extends ServiceProvider
             $app->make(OutcomePolicyRegistry::class),
             $app->make(CompletionCoordinator::class),
             telemetry: $app->make(OperationsTelemetry::class),
+            observers: $app->make(AttemptObservers::class),
         ));
         $this->app->alias(OutboundExecutor::class, OutboundClient::class);
     }
@@ -260,8 +274,18 @@ class ProxymaServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->app->booted(function (): void {
-            $this->app->make(DefinitionRegistry::class)->freeze();
-            $this->app->make(OutcomePolicyRegistry::class)->freeze();
+            $registry = $this->app->make(DefinitionRegistry::class);
+            $configuration = $this->app->make(ExtensionConfiguration::class);
+            $config = $this->app['config']->get('proxyma.extensions', []);
+            $configuration->register($registry, $config);
+            $registry->freeze();
+            $configuration->validate($registry, $config);
+            $outcomes = $this->app->make(OutcomePolicyRegistry::class);
+            foreach ($registry->selectExtensions(ExtensionKind::OutcomePolicy, $config['outcome_policies'] ?? []) as $definition) {
+                $outcomes->register($definition->id, $definition->implementation, priority: $definition->priority);
+            }
+            $outcomes->freeze();
+            $this->app->make(StrategyRegistry::class);
         });
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 

@@ -29,6 +29,8 @@ final readonly class BudgetConstraintSet
                 $constraint->burst,
                 $constraint->maxInflight,
                 true,
+                $constraint->hourLimit,
+                $constraint->dayLimit,
             );
             $merged[$mandatory->scopeKey] = isset($merged[$mandatory->scopeKey])
                 ? $merged[$mandatory->scopeKey]->intersect($mandatory)

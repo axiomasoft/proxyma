@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Application\Routing;
 
 use InvalidArgumentException;
+use Proxyma\Application\Extensions\ExtensionRuntime;
 use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RouteSelection;
@@ -18,7 +19,8 @@ use Proxyma\Domain\Routing\SelectionResult;
 
 final readonly class RouteSelector
 {
-    public function __construct(private CandidateSnapshots $snapshots, private StrategyRegistry $strategies) {}
+    public function __construct(private CandidateSnapshots $snapshots, private StrategyRegistry $strategies,
+        private ?ExtensionRuntime $extensions = null, private array $filterIds = []) {}
 
     public function select(TenantKey $tenant, Uuid $profileId, EffectivePolicy $policy, WireRequest $request, RouteSelectionContext $context): SelectionResult
     {
@@ -44,6 +46,16 @@ final readonly class RouteSelector
         }
         $candidates = array_values(array_filter($snapshot->candidates, static fn (Candidate $c): bool => $c->eligible()));
         $exclusions = [];
+        if ($this->extensions !== null) {
+            $routes = $this->extensions->filter(array_map(static fn (Candidate $candidate) => $candidate->route, $candidates), $request, $this->filterIds);
+            $ids = array_map(static fn ($route) => $route->id->value, $routes);
+            foreach ($candidates as $candidate) {
+                if (! in_array($candidate->routeId->value, $ids, true)) {
+                    $exclusions[$candidate->routeId->value] = 'route_filter';
+                }
+            }
+            $candidates = array_values(array_filter($candidates, static fn (Candidate $candidate) => in_array($candidate->routeId->value, $ids, true)));
+        }
         $tried = [];
         foreach ($context->triedRouteIds as $id) {
             $tried[$id->value] = true;

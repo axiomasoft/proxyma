@@ -16,8 +16,7 @@ final readonly class StrategyRegistry
     /** @param list<RouteSelectionStrategy>|null $strategies */
     public function __construct(RandomIndex $random, ?array $strategies = null)
     {
-        $strategies ??= array_map(static fn (string $id): SelectionStrategy => new SelectionStrategy($id, $random),
-            ['uniform_random', 'least_recent_authorized', 'budget_aware_random']);
+        $strategies ??= self::defaults($random);
         $indexed = [];
         foreach ($strategies as $strategy) {
             if (isset($indexed[$strategy->key()])) {
@@ -26,6 +25,19 @@ final readonly class StrategyRegistry
             $indexed[$strategy->key()] = $strategy;
         }
         $this->strategies = $indexed;
+    }
+
+    /** @param list<RouteSelectionStrategy> $strategies */
+    public static function withExtensions(RandomIndex $random, array $strategies): self
+    {
+        return new self($random, [...self::defaults($random), ...$strategies]);
+    }
+
+    /** @return list<SelectionStrategy> */
+    private static function defaults(RandomIndex $random): array
+    {
+        return array_map(static fn (string $id): SelectionStrategy => new SelectionStrategy($id, $random),
+            ['uniform_random', 'least_recent_authorized', 'budget_aware_random']);
     }
 
     public function get(string $id): RouteSelectionStrategy

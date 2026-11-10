@@ -99,6 +99,8 @@ return [
     |--------------------------------------------------------------------------
     */
     'extensions' => [
+        'approved_providers' => [],
+        'providers' => [],
         'policy_definitions' => [],
         'route_strategies' => [],
         'outcome_policies' => [],
