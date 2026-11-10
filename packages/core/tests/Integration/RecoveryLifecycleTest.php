@@ -95,7 +95,7 @@ it('late receipt разрешает unknown после release и потери o
     expect($result->receiptPersisted)->toBeTrue()->and($result->healthReducerAllowed)->toBeFalse()
         ->and($this->table('permits')->value('state'))->toBe('completed')->and((int) $this->table('budgets')->sum('inflight'))->toBe(0)
         ->and((int) $this->table('quota_windows')->sum('spent'))->toBe(2)->and($this->table('observations')->count())->toBe(1);
-    expect($this->table('observation_applications')->count())->toBe(0);
+    expect($this->table('observation_applications')->count())->toBe(3);
     expect($this->table('demands')->value('state'))->toBe('expired');
 });
 
@@ -203,7 +203,7 @@ it('receipt rejection не меняет preauthorization, wire mismatch и dupli
     $digestOnly = new LateReceiptClaim($receipt->operationId, $receipt->physicalAttemptId, $receipt->wireFingerprint,
         $receipt->receiptId, $receipt->receiptDigest, $receipt->authorizationHealthEpochs);
     expect($this->completion->recordLateReceipt($digestOnly)->outcome)->toBe(LateReceiptOutcome::IdempotentDuplicate);
-    expect($this->table('observations')->count())->toBe(1)->and($this->table('observation_applications')->count())->toBe(1);
+    expect($this->table('observations')->count())->toBe(1)->and($this->table('observation_applications')->count())->toBe(3);
 });
 
 it('local completion идемпотентна и отвергает другой result при том же receipt digest', function (): void {

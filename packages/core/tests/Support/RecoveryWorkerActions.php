@@ -24,7 +24,7 @@ if ($payload['recovery_action'] === 'reconcile') {
 }
 if ($payload['recovery_action'] === 'complete') {
     $attempt = $db->table('pxm_attempts')->where('operation_id', $payload['operation'])->where('physical_attempt_id', $payload['attempt'])->first();
-    $response = new ResponseDescriptor(200, ['x-fixture' => ['safe']], new DecodedTextBody('fixture'), 7, 7);
+    $response = new ResponseDescriptor($payload['receipt_status'] ?? 200, ['x-fixture' => ['safe'], 'retry-after' => ['120']], new DecodedTextBody('fixture'), 7, 7);
     $receipt = new LateReceiptClaim(new Uuid($payload['operation']), new Uuid($payload['attempt']), new ContentHash($attempt->wire_fingerprint),
         'fixture-receipt', new ContentHash(hash('sha256', 'fixture')), new HealthEpochMap(json_decode($attempt->snapshot, true)['epochs']), $response);
     $result = (new CompletionCoordinator($transactions, $repository, $access, $resolver, new CompletionObservationReducer($scope)))->recordLateReceipt($receipt);

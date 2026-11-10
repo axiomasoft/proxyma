@@ -58,6 +58,8 @@ use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TlsTrustPolicy;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Admission\QueueLimits;
+use Proxyma\Domain\Health\HealthReducer;
+use Proxyma\Domain\Health\HealthThresholds;
 use Proxyma\Domain\Outcomes\RetryAfterParser;
 use Proxyma\Domain\Outcomes\TechnicalOutcomeClassifier;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
@@ -190,6 +192,8 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bind(QuotaRepository::class);
         $this->app->bind(QuotaService::class);
         $this->app->bind(ReconcileRepository::class);
+        $this->app->bind(HealthThresholds::class, static fn (Application $app) => new HealthThresholds(...$app['config']->get('proxyma.health', [])));
+        $this->app->bind(HealthReducer::class);
         $this->app->bind(LockedCompletionReducer::class, CompletionObservationReducer::class);
         $this->app->bind(CompletionCoordinator::class);
         $this->app->alias(CompletionCoordinator::class, Completion::class);
@@ -205,7 +209,7 @@ class ProxymaServiceProvider extends ServiceProvider
             $app->make(DemandRepository::class), $app->make(BudgetRepository::class), $app->make(PermitRepository::class),
             $app->make(DefinitionRegistry::class), $app->make(WireSealer::class),
             $app['config']->get('proxyma.extensions.locked_admission_guards', []), $app->make(QuotaService::class),
-            $app->make(QuotaRepository::class)));
+            $app->make(QuotaRepository::class), $app['config']->get('proxyma.health_cooldown_scopes', [])));
         $this->app->bind(ReservationService::class, static function (Application $app): ReservationService {
             return new ReservationService($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(AuthorityLocker::class),
                 $app->make(CatalogAccess::class), $app->make(CatalogQueries::class), $app->make(OwnerAuthority::class), $app->make(DefinitionRegistry::class),

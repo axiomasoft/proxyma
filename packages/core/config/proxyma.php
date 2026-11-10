@@ -74,6 +74,15 @@ return [
 
     'traffic_shares' => [],
 
+    'health' => [
+        'globalConsecutive' => 5, 'globalBaseSeconds' => 1800, 'globalCapSeconds' => 21600,
+        'routeTargetConsecutive' => 5, 'routeTargetMinSample' => 10, 'routeTargetFailurePercent' => 60,
+        'routeTargetWindowSeconds' => 600, 'routeTargetBaseSeconds' => 300, 'routeTargetCapSeconds' => 3600,
+        'stableDecaySeconds' => 600, 'corroborationWindowSeconds' => 300, 'originCooldownSeconds' => 900,
+    ],
+
+    'health_cooldown_scopes' => [],
+
     // Только пути к CA; secret material хранится через Laravel encrypter, не в config.
     'tls' => [
         'origin_bundles' => [],

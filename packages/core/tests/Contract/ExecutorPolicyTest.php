@@ -821,7 +821,7 @@ it('продлевает исходный origin cooldown при устарев�
         ->and($snapshot['egress_key'])->toBe('nat:fixture')
         ->and($snapshot['policy_revision'])->toBeGreaterThan(0)
         ->and(new DateTimeImmutable($this->table('budgets')->where('scope_key', $this->scopeKey)->value('cooldown_until')))->toBeGreaterThan(new DateTimeImmutable('+80 seconds'))
-        ->and($this->table('observation_applications')->count())->toBe(0);
+        ->and($this->table('observation_applications')->count())->toBe(4);
 });
 
 it('повторно читает текущую политику перед retry и не расширяет запрет direct', function (): void {

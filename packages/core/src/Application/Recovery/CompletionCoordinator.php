@@ -18,6 +18,7 @@ use Proxyma\Domain\Execution\ExecutionDeferred;
 use Proxyma\Domain\Execution\LateReceiptClaim;
 use Proxyma\Domain\Execution\LateReceiptOutcome;
 use Proxyma\Domain\Execution\LateReceiptResult;
+use Proxyma\Domain\Execution\LockedTransactionContext;
 use Proxyma\Domain\Execution\PermitState;
 use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\Uuid;
@@ -38,6 +39,10 @@ final readonly class CompletionCoordinator implements Completion
     {
         $summary = self::summary($result);
         $digest = hash('sha256', json_encode($summary, JSON_THROW_ON_ERROR));
+        if ($result->head?->statusCode === 429) {
+            $summary['cooldown_until'] = (new RetryAfterParser)->parse($result->head->header('retry-after'),
+                DatabaseClock::now($this->transactions->scope->connection))->retryAt->value->format('Y-m-d H:i:s.uP');
+        }
         $this->persist($operationId, $physicalAttemptId, $summary, $receiptDigest->hex ?? $digest, 'local:'.$physicalAttemptId->value, null);
 
         return null;
@@ -108,15 +113,15 @@ final readonly class CompletionCoordinator implements Completion
                 if (isset($snapshot['origin'])) {
                     $summary['origin_value'] = $snapshot['origin'];
                     $summary['origin_scope_key'] = (new SafeUrl($snapshot['origin']))->origin->budgetScopeKey();
-                    foreach (['route_id', 'target_id', 'credential_version', 'policy_revision'] as $key) {
-                        $summary[$key] = $snapshot[$key];
+                    foreach (['route_id', 'target_id', 'credential_version', 'policy_revision', 'endpoint_id', 'egress_key', 'profile_id', 'independence_group', 'probe_token', 'purpose', 'cooldown_budget_ids'] as $key) {
+                        $summary[$key] = $snapshot[$key] ?? null;
                     }
                     $summary['route_owner_tenant_key'] = $snapshot['route_owner_tenant_key'] ?? $tenant->value;
-                    if (($summary['holds_proxy_credential'] ?? false) && isset($snapshot['endpoint_id'])) {
-                        $credentialVersion = $db->table($t['endpoints'])->where('id', $snapshot['endpoint_id'])->value('credential_version');
-                        if ((int) ($credentialVersion ?? 1) !== (int) $snapshot['credential_version']) {
-                            $summary['holds_proxy_credential'] = false;
-                        }
+                    $summary['cooldown_budget_ids'] ??= array_values(array_column(array_filter($state['budgets'],
+                        static fn ($b) => $b->scope_key === $summary['origin_scope_key']), 'id'));
+                    if (($summary['extends_origin_cooldown'] ?? false) && $attempt->result_summary !== null) {
+                        $previous = json_decode($attempt->result_summary, true, flags: JSON_THROW_ON_ERROR);
+                        $summary['cooldown_until'] = $previous['cooldown_until'] ?? $summary['cooldown_until'];
                     }
                     $resultDigest = hash('sha256', json_encode($summary, JSON_THROW_ON_ERROR));
                 }
@@ -143,30 +148,7 @@ final readonly class CompletionCoordinator implements Completion
                         $db->table($t['attempts'])->where('id', $attempt->id)->update(['status' => 'unknown_after_authorization', 'result_summary' => json_encode($summary, JSON_THROW_ON_ERROR)]);
                     }
                     $this->repository->release($permit, $state);
-                    if (($summary['extends_origin_cooldown'] ?? false) && isset($summary['origin_scope_key'], $summary['cooldown_until'])) {
-                        $db->statement("UPDATE {$t['budgets']} SET cooldown_until = GREATEST(cooldown_until, ?::timestamptz), revision = revision + 1
-                            WHERE tenant_key IN (?, ?) AND scope_key = ?", [$summary['cooldown_until'], $tenant->value, TenantKey::SYSTEM, $summary['origin_scope_key']]);
-                    }
-                    if ($status === PermitState::Authorized && ($summary['holds_proxy_credential'] ?? false) === true) {
-                        $snapshot = json_decode($attempt->snapshot, true, flags: JSON_THROW_ON_ERROR);
-                        $epochs = new HealthEpochMap($snapshot['epochs'] ?? []);
-                        $live = new HealthEpochMap($state['epochs']);
-                        if (! $epochs->isStaleComparedTo($live)) {
-                            $version = (int) ($snapshot['credential_version'] ?? $summary['credential_version'] ?? 1);
-                            $db->table($t['route_health'])
-                                ->where('tenant_key', $snapshot['route_owner_tenant_key'] ?? $tenant->value)
-                                ->where('route_id', $permit->route_id)
-                                ->update([
-                                    'state' => 'open',
-                                    'reason_code' => 'credential_hold:'.$version,
-                                    'last_failure_at' => $db->raw('clock_timestamp()'),
-                                    'consecutive_failures' => $db->raw('consecutive_failures + 1'),
-                                    'recent_openings' => $db->raw('recent_openings + 1'),
-                                    'health_epoch' => $db->raw('health_epoch + 1'),
-                                    'state_version' => $db->raw('state_version + 1'),
-                                ]);
-                        }
-                    }
+                    $this->observe($tenant, $attempt->id, Uuid::random(), $summary, $snapshot, $state['epochs'], 'transport_failure', $tx);
 
                     return new LateReceiptResult(LateReceiptOutcome::RejectedInvalidState, PermitState::UnknownAfterAuthorization, false, false);
                 }
@@ -190,12 +172,7 @@ final readonly class CompletionCoordinator implements Completion
                     'receipt_id' => $receiptId->value, 'classification' => 'transport_receipt',
                     'evidence' => json_encode(['result' => $summary, 'epochs' => $epochs->epochs, 'reducer_allowed' => $allowed], JSON_THROW_ON_ERROR),
                     'observed_at' => $db->raw('clock_timestamp()')]);
-                if ($allowed) {
-                    $this->reducer->apply(new CompletionFact($tenant, new Uuid($attempt->id), $receiptId, $observation, $summary, $epochs, $live), $tx);
-                } elseif (($summary['extends_origin_cooldown'] ?? false) === true && isset($summary['origin_scope_key'], $summary['cooldown_until'])) {
-                    $db->statement("UPDATE {$t['budgets']} SET cooldown_until = GREATEST(cooldown_until, ?::timestamptz), revision = revision + 1
-                        WHERE tenant_key IN (?, ?) AND scope_key = ?", [$summary['cooldown_until'], $tenant->value, TenantKey::SYSTEM, $summary['origin_scope_key']]);
-                }
+                $this->reducer->apply(new CompletionFact($tenant, new Uuid($attempt->id), $receiptId, $observation, $summary, $epochs, $live), $tx);
 
                 return new LateReceiptResult(LateReceiptOutcome::TransitionedToCompleted, $next, true, ! $epochs->isStaleComparedTo($live));
             });
@@ -207,13 +184,41 @@ final readonly class CompletionCoordinator implements Completion
         }
     }
 
+    private function observe(TenantKey $tenant, string $attemptId, Uuid $receiptId, array $summary, array $snapshot, array $liveEpochs,
+        string $classification, LockedTransactionContext $tx): void
+    {
+        $db = $this->transactions->scope->connection;
+        $t = PackageSchema::tables();
+        $previous = $db->table($t['observations'])->where('attempt_id', $attemptId)->where('classification', $classification)->first();
+        if ($previous !== null) {
+            if (json_decode($previous->evidence, true, flags: JSON_THROW_ON_ERROR)['result'] != $summary) {
+                throw new AdmissionRejected('receipt_conflict');
+            }
+
+            return;
+        }
+        $epochs = new HealthEpochMap($snapshot['epochs'] ?? []);
+        $live = new HealthEpochMap($liveEpochs);
+        $id = Uuid::random();
+        $db->table($t['observations'])->insert(['id' => $id->value, 'tenant_key' => $tenant->value, 'attempt_id' => $attemptId,
+            'receipt_id' => $receiptId->value, 'classification' => $classification,
+            'evidence' => json_encode(['result' => $summary, 'epochs' => $epochs->epochs, 'reducer_allowed' => ! $epochs->isStaleComparedTo($live)], JSON_THROW_ON_ERROR),
+            'observed_at' => $db->raw('clock_timestamp()')]);
+        $this->reducer->apply(new CompletionFact($tenant, new Uuid($attemptId), $receiptId, $id, $summary, $epochs, $live), $tx);
+    }
+
     private static function summary(AttemptResult $result): array
     {
         $head = $result->head;
 
-        return ['delivered' => $result->wasDelivered(), 'status' => $head?->statusCode, 'failure' => $result->failure?->value,
+        $summary = ['delivered' => $result->wasDelivered(), 'status' => $head?->statusCode, 'failure' => $result->failure?->value,
             'wire_bytes' => $result->wireBytes, 'decoded_bytes' => $result->decodedBytes, 'curl_error' => $result->curlErrorCode,
             'headers_digest' => hash('sha256', json_encode($head?->headers, JSON_THROW_ON_ERROR)),
             'body_hash' => $result->response?->body->contentHash()->hex, 'body_length' => $result->response?->body->byteLength()];
+        if ($head?->statusCode === 429) {
+            $summary['extends_origin_cooldown'] = true;
+        }
+
+        return $summary;
     }
 }

@@ -48,7 +48,8 @@ final class ClaimSend
         private readonly OwnerAuthority $owners, private readonly ReservationCatalogLocks $catalog,
         private readonly DemandRepository $demands, private readonly BudgetRepository $budgets, private readonly PermitRepository $permits,
         private readonly DefinitionRegistry $definitions, private readonly WireSealer $sealer, private readonly array $guardIds = [],
-        private readonly ?QuotaService $quotaService = null, ?QuotaRepository $quotaRepository = null)
+        private readonly ?QuotaService $quotaService = null, ?QuotaRepository $quotaRepository = null,
+        private readonly array $cooldownScopes = [])
     {
         $this->quotas = $quotaRepository ?? new QuotaRepository($transactions->scope);
         $this->pending = new WeakMap;
@@ -203,6 +204,15 @@ final class ClaimSend
             }
         }
         $this->budgets->planSend($snapshots, DatabaseClock::micros(DatabaseClock::now($scope->connection)));
+        $origin = $input->request->url->origin;
+        $cooldownKeys = [$origin->budgetScopeKey()];
+        foreach ($this->cooldownScopes as $dimension) {
+            $cooldownKeys[] = match ($dimension) {
+                'route-origin' => $origin->routeScopeKey($input->route->id),
+                'egress-origin' => $origin->egressScopeKey($input->route->egress->key),
+                default => throw new \InvalidArgumentException('Unsupported health cooldown scope.'),
+            };
+        }
         $safe = ['route_id' => $input->route->id->value, 'endpoint_id' => $input->route->endpointId?->value,
             'credential_version' => $input->selection->credentialVersion, 'fingerprint' => $input->request->fingerprint()->hex,
             'origin' => $input->request->url->origin->value(), 'egress_key' => $input->route->egress->key,
@@ -210,6 +220,11 @@ final class ClaimSend
             'profile_id' => $input->profile->id->value, 'policy_revision' => $input->request->policyRevision,
             'outcome_policy_key' => $input->policy->outcomePolicyKey,
             'route_owner_tenant_key' => $input->route->tenantKey->value,
+            'independence_group' => $input->route->independenceGroup,
+            'probe_token' => $input->operation->probeToken?->value,
+            'purpose' => $input->operation->purpose->value,
+            'cooldown_budget_ids' => array_values(array_map(static fn ($b) => $b->id, array_filter($locked,
+                static fn ($b) => in_array($b->scope_key, $cooldownKeys, true)))),
             'max_distinct_routes' => $distinctLimit,
             'versions' => $evidence['versions'], 'epochs' => $evidence['epochs'], 'quota' => array_keys($quotaPlan), 'dispatch' => 'unknown'];
         try {
