@@ -240,3 +240,22 @@ consumer tenant grant; contributor не удаляет origin и не расши
 **Attempt observer** — локальный best-effort listener после committed completion.
 Durable факты находятся в attempts/observations. Ошибка listener редактированно
 сообщается, не меняет receipt и не повторяет отправку; общего event outbox нет.
+
+**Binding edit version** — непрозрачный optimistic fence UI: fingerprint frozen
+definitions/settings/config и revisions всех policy heads текущего tenant/system.
+Любое изменение этих heads, даже соседней панели, требует перезагрузки формы.
+`BindSubjectPolicyCommand::expectedPolicyVersion` необязателен для прежних callers;
+UI всегда передаёт его вместе с expected binding revision. Проверка проходит внутри
+transaction после system shared lock и tenant policy-set lock; exact receipt replay
+сохраняет прежний результат. Subject resolver вызывается до transaction.
+
+**Typed settings section** — `ProxymaSettingsSection::make($subjectResolver,
+$panel, $slot, $target, $statePath = 'proxyma')` в Filament schema владельца.
+Resolver — trusted PHP `Closure(): SubjectRef`, ancestry подтверждает core registry.
+Владелец передаёт только state этой section в `BindingEditor::save()`;
+`ConfigureProxymaAction::make()` делает это в отдельном modal. Scheduling/date/cursor
+и прочие siblings остаются в форме и command владельца. State включает защищённый
+контекст редактирования; его нельзя собирать из browser tenant/actor/revision.
+Каждое поле имеет режим inherit/set, nullable — отдельный null, optional — disable;
+пустой typed list сохраняется как `set([])`. Inspector читает тот же subset, save
+у него запрещён. Sensitive descriptors не включаются ни в schema, ни в state.

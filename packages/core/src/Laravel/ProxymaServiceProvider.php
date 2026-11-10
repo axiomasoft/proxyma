@@ -16,6 +16,7 @@ use Proxyma\Application\Admission\ReservationService;
 use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Bindings\BindingContext;
+use Proxyma\Application\Bindings\BindingEditVersion;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
 use Proxyma\Application\Bindings\DatabaseBindingQueries;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
@@ -103,6 +104,9 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../../config/proxyma.php', 'proxyma');
 
         $this->app->bindIf(Authorizer::class, DenyAuthorizer::class);
+        $this->app->bind(BindingEditVersion::class, static fn (Application $app): BindingEditVersion => new BindingEditVersion(
+            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
+            $app->make(DefinitionRegistry::class), $app->make(SettingRegistry::class)));
         $this->app->bindIf(TenantContextResolver::class, UnconfiguredTenantContextResolver::class);
         $this->app->bind(CatalogAccess::class, static fn (Application $app): CatalogAccess => new CatalogAccess(
             new ContainerTenantContextResolver($app), new ContainerAuthorizer($app)));
@@ -287,7 +291,10 @@ class ProxymaServiceProvider extends ServiceProvider
             $outcomes->freeze();
             $this->app->make(StrategyRegistry::class);
         });
-        $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
+        $this->loadMigrationsFrom([
+            __DIR__.'/../../database/migrations',
+            __DIR__.'/Migrations',
+        ]);
 
         if ($this->app->runningInConsole()) {
             $this->commands([ReconcileCommand::class, TransportDoctorCommand::class,

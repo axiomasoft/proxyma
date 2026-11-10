@@ -19,6 +19,7 @@ use Proxyma\Domain\Policy\PolicyScope;
 use Proxyma\Domain\Policy\PolicyStorageFailure;
 use Proxyma\Domain\Policy\SettingPatch;
 use Proxyma\Domain\Policy\SubjectPolicyBinding;
+use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Domain\Policy\UnbindSubjectPolicyCommand;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
@@ -80,6 +81,9 @@ final readonly class DatabaseBindingCommands implements BindingCommands
             $result = $this->db->transaction(function () use ($command, $subject, $id, $retire, $patch, $hash): SubjectPolicyBinding {
                 $t = PackageSchema::tables();
                 $tenant = $subject->tenant->value;
+                if ($command instanceof BindSubjectPolicyCommand && $command->expectedPolicyVersion !== null && ! $subject->tenant->isSystem()) {
+                    $this->db->select('SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))', ['proxyma:policy-set:'.TenantKey::SYSTEM]);
+                }
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);
                 $key = CatalogAudit::key($command->actor->idempotencyKey);
                 (new CatalogProvisioner($this->db))->lockBinding($subject, $command->panelKey, $command->slotKey);
@@ -101,6 +105,10 @@ final readonly class DatabaseBindingCommands implements BindingCommands
                         'retired_at' => $version->retired ? 'retired' : null] + (array) $version);
 
                     return $storage->map($snapshot, $subject, $version->policy_revision_id);
+                }
+                if ($command instanceof BindSubjectPolicyCommand && $command->expectedPolicyVersion !== null
+                    && ! hash_equals($command->expectedPolicyVersion, (new BindingEditVersion($this->db, $this->definitions, $this->settings))->current($subject->tenant))) {
+                    throw new PolicyConflict;
                 }
                 if (($row === null ? 0 : (int) $row->revision) !== $command->actor->expectedRevision || ($retire && ($row === null || $row->retired_at !== null || $row->policy_key !== $command->policyKey))) {
                     throw new PolicyConflict;

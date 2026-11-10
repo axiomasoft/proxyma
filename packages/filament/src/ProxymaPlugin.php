@@ -6,6 +6,8 @@ namespace Proxyma\Filament;
 
 use Filament\Contracts\Plugin;
 use Filament\Panel;
+use Proxyma\Filament\Pages\BindingsPage;
+use Proxyma\Filament\Pages\PolicyInspector;
 use Proxyma\Filament\Resources\Pages\Endpoints;
 use Proxyma\Filament\Resources\Pages\RouteProfiles;
 use Proxyma\Filament\Resources\Pages\Routes;
@@ -24,7 +26,7 @@ class ProxymaPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
-        $panel->pages([Endpoints::class, Routes::class, RouteProfiles::class]);
+        $panel->pages([Endpoints::class, Routes::class, RouteProfiles::class, BindingsPage::class, PolicyInspector::class]);
     }
 
     public function boot(Panel $panel): void {}

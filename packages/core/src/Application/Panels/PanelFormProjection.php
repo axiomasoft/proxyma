@@ -6,6 +6,7 @@ namespace Proxyma\Application\Panels;
 
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Bindings\BindingContext;
+use Proxyma\Application\Bindings\BindingEditVersion;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
@@ -13,6 +14,7 @@ use Proxyma\Contracts\BindingQueries;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Panels\PanelFormData;
 use Proxyma\Domain\Panels\SubjectResolutionFailed;
+use Proxyma\Domain\Policy\PolicyConflict;
 use Proxyma\Domain\Policy\SubjectRef;
 
 final readonly class PanelFormProjection
@@ -23,6 +25,7 @@ final readonly class PanelFormProjection
         private BindingQueries $bindings,
         private PolicyResolver $policies,
         private SettingRegistry $settings,
+        private BindingEditVersion $versions,
     ) {}
 
     public function project(SubjectRef $subject, Uuid $targetId, string $panelKey, string $slotKey): PanelFormData
@@ -33,6 +36,7 @@ final readonly class PanelFormProjection
         } catch (SubjectResolutionFailed $failure) {
             return new PanelFormData($panelKey, $slotKey, null, [], $failure->getMessage());
         }
+        $version = $this->versions->current($subject->tenant);
         $binding = $this->bindings->findBinding($subject, $panelKey, $slotKey);
         if (! $slot->inheritDefaults && ($binding === null || $binding->retired)) {
             return new PanelFormData($panelKey, $slotKey, $binding, [], 'Explicit binding required.');
@@ -52,9 +56,15 @@ final readonly class PanelFormProjection
             $field = $policy->explanations[$key];
             $fields[$key] = ['value' => $field->effectiveValue, 'inherited' => $field->inherited,
                 'source' => $field->sourceScope, 'revision' => $field->sourceRevision, 'clamped' => $field->clamped,
+                'minimum' => $field->minimumBound, 'maximum' => $field->maximumBound,
+                'clamped_by' => $field->clampedByScope, 'clamped_revision' => $field->clampedByRevision,
                 'editable' => $editable && $field->editable, 'reason' => $editable ? $field->reason : 'permission_denied'];
         }
 
-        return new PanelFormData($panelKey, $slotKey, $binding, $fields);
+        if (! hash_equals($version, $this->versions->current($subject->tenant))) {
+            throw new PolicyConflict;
+        }
+
+        return new PanelFormData($panelKey, $slotKey, $binding, $fields, editVersion: $version);
     }
 }

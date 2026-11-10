@@ -17,5 +17,6 @@ final readonly class BindSubjectPolicyCommand
         public string $panelKey = 'default',
         public string $slotKey = 'default',
         public SettingPatch $patch = new SettingPatch(1, []),
+        public ?string $expectedPolicyVersion = null,
     ) {}
 }

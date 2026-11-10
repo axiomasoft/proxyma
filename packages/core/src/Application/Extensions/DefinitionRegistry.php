@@ -204,6 +204,14 @@ final class DefinitionRegistry
         return isset($this->panels[$id]);
     }
 
+    /** @return array<string, PanelDefinition> */
+    public function panels(): array
+    {
+        $this->fingerprint();
+
+        return $this->panels;
+    }
+
     public function panel(string $id): PanelDefinition
     {
         $this->fingerprint();
