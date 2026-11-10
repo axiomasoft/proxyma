@@ -112,3 +112,18 @@ barriers: last token, competing classes, duplicate claim, rollover после lo
 reads и lower-limit writer. SQL clock для границ подменяется только функцией в
 изолированной test schema; production clock hooks или debug bypass отсутствуют.
 Реальный HTTP в этом пункте не выполняется.
+
+`AuthorityInterleavingTest` дополнительно проверяет limit writer против reserve,
+send и reconcile в обоих порядках locks. Новый лимит может оказаться ниже уже
+использованного остатка: это запрещает новый расход и сохраняет прежние
+reserved/consumed ledger facts. Inflight должен совпадать с числом ещё не
+освобождённых lease references; counters каждого quota window — с суммой его
+reserved/consumed references. Проверка выполняется после каждого matrix run,
+включая denied prerequisite и retry exhaustion.
+
+PG retry допускается только до физического dispatch. Fault после authorization
+или на deferred COMMIT откатывает finance, send debt, quota transfer и attempt
+fact вместе. Повтор сохраняет тот же bounded request intent; только финальный
+outer commit даёт single-use capability. Non-concurrency SQLSTATE не повторяется.
+Worker/barrier evidence и проверенные source hashes находятся в
+`build/p43-evidence.json`; исторические outputs не обозначают current suite green.

@@ -326,3 +326,57 @@ interval, поэтому SQL wait и commit delay сокращают окно. S
 exactly-once remote effect не обещается. Receipt остаётся независимым фактом даже
 после потери owner. Реальный HTTP transport и replay проверяются в P5.3; здесь
 используется только fixture PhysicalTransport.
+
+## Authority interference checkpoint
+
+`AuthorityInterleavingTest` связывает named pairs с одним SQL worker/barrier
+harness (`tests/Support/ConcurrentWorkers.php`). В каждой строке catalog matrix
+проверяются оба порядка: writer commit до grant/receipt и writer, ожидающий
+ранний lock уже начатого grant/receipt. Commands и admission/recovery repositories
+настоящие; project owner/finance prefix — fixture tables на той же PG Connection.
+
+| Interference | Проверка matrix | Результат при writer-first |
+| --- | --- | --- |
+| Profile update vs reserve/claim | `profile:reserve`, `profile:claim` | `profile_membership_changed`, ноль send/partial spend |
+| Credential rotation vs claim/receipt | `credential:claim`, `credential:receipt` | Claim отвергнут; receipt старого authorization сохраняется |
+| Target retirement vs send/late completion | `target:claim`, `target:receipt` | Новый send запрещён; late receipt не теряется |
+| Budget limit vs reserve/send/reconcile | `budget:reserve`, `budget:claim`, `budget:reconcile` | Zero quota denies; old claim held; reconcile сохраняет consumed |
+| Policy mutation vs reserve | `policy:reserve` | `policy_revision_changed` без permit/subset spend |
+| Probe claim vs normal send | `probe_claim:normal_send` | Только token owner проходит half-open fence; origin общий |
+| Process cancel vs joint finance/network | `process_cancel:joint_claim` | Prefix сериализует cancel; отказ откатывает finance и network |
+| Missing prerequisite / cooldown | `prerequisite:*` | Permit остаётся reserved; finance rollback; concurrent quota writer сохраняет cooldown |
+| External prefix deadlock | `external_prefix:real_pg_deadlock` | Два PG workers, один deadlock retry, два финансовых commits |
+| Retry до outer commit | `claim_before_commit:retry:*` | Один durable claim/charge либо held permit после exhaustion |
+
+Standalone coordinator повторяет только PostgreSQL SQLSTATE `40P01`/`40001`
+в пределах `maxAttempts`. Локализованный message не определяет retry. Любой иной
+SQLSTATE, включая constraint `23514`, не повторяется. Framework rollback и при
+необходимости оставшийся PDO transaction завершаются до следующей попытки.
+Caller-owned transaction самостоятельно не повторяется. Monotonic sample остаётся
+полученным до первого BEGIN, поэтому retry не продлевает latestStart. Closure
+содержит только SQL; физическая отправка выполняется после успешного outer commit.
+Уже committed latch запрещает retry даже при concurrency SQLSTATE из afterCommit
+callback: authorization остаётся charged, а отсутствие receipt трактуется
+консервативно как unknown, без повторной физической отправки.
+
+После каждого matrix run сверяются ledger↔counter continuity для inflight и
+hour/day quota, одна authorization на attempt, operation authorization count,
+receipt ownership и отсутствие ложного completed. Сохранённый cooldown не может
+исчезнуть или сократиться. Trace в `build/p43-matrix-trace.jsonl` содержит case,
+worker OS/PG PIDs, barrier events, lock table names, retries и duration; wire,
+credentials и SQL bindings в trace отсутствуют.
+
+Барьер подтверждает ожидаемую lock table; ожидание общего catalog advisory mutex
+не подменяет ожидание profile row. Это проверяется отдельным сценарием с удержанным
+advisory lock. Harness закрывает оба своих PDO при `finish`, даже если PHPUnit
+сохраняет test object; fixture disconnect выполняется после удаления схемы.
+Необработанная ошибка worker выдаёт только тип, SQLSTATE и место ошибки без SQL
+bindings; startup failure имеет отдельную отрицательную проверку.
+
+Существующие `GcraReservationTest`, `DemandFifoTest`, `ClaimSendFenceTest`,
+`QuotaBoundaryTest`, `CompletionReconcileTest` сохраняют дополнительные сценарии:
+shared egress/provisioning, FIFO cancellation, fresh-clock CAS и late start,
+last quota unit/UTC rollover, crash checkpoints и completion↔expiry. Общий
+`make test-concurrency` проверяет их вместе с matrix одной acceptance-командой.
+Health interpretation позднего 429 относится к P6; этот checkpoint проверяет
+receipt persistence, stale-epoch fence и сохранение уже materialized cooldown.

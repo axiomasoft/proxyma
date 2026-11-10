@@ -11,6 +11,7 @@ use Illuminate\Database\DatabaseTransactionRecord;
 use Illuminate\Database\Events\TransactionRolledBack;
 use InvalidArgumentException;
 use LogicException;
+use PDOException;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Contracts\ClaimActivationAuthority;
 use Proxyma\Contracts\TransactionCoordinator as CoordinatorContract;
@@ -95,11 +96,27 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
             return $this->locked($this->scope->connection, $operation, $sample);
         }
 
-        try {
-            return $this->scope->connection->transaction(fn (): mixed => $this->locked($this->scope->connection, $operation, $sample), $maxAttempts);
-        } catch (Throwable $exception) {
-            $this->flushRollbackCleanup();
-            throw $exception;
+        // Один sample ограничивает все retries; SQLSTATE не зависит от языка PG message.
+        for ($attempt = 1; ; $attempt++) {
+            $root = null;
+            try {
+                return $this->scope->connection->transaction(function () use ($operation, $sample, &$root): mixed {
+                    $root = $this->scope->root();
+
+                    return $this->locked($this->scope->connection, $operation, $sample);
+                }, 1);
+            } catch (Throwable $exception) {
+                $committed = $root !== null && isset($this->latches[$root]) && $this->latches[$root]->isCommitted();
+                $pdo = $this->scope->connection->getPdo();
+                if ($this->transactionLevel() === 0 && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                $this->flushRollbackCleanup();
+                $state = $exception instanceof PDOException ? (string) ($exception->errorInfo[0] ?? $exception->getCode()) : '';
+                if ($committed || $attempt >= $maxAttempts || ! in_array($state, ['40P01', '40001'], true)) {
+                    throw $exception;
+                }
+            }
         }
     }
 

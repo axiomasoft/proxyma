@@ -147,12 +147,41 @@ it('reserve держит ранний catalog или policy lock до завер
     $intent = $this->demandOperation();
     $input = $this->reservationInput($intent, $head === null ? [] : ['tenant_db:tenant:acme' => 1]);
     $this->reservations->enqueue($input, $this->work);
+    $blocked = [];
+    $started = hrtime(true);
     $results = gcraWorkers($this, [gcraWorker($this, $intent, 'one', head: $head?->value), gcraWorker($this, $intent, 'two', $kind, $head?->value)], ordered: true,
-        beforeRelease: function () use ($kind): void {
-            $q = $this->observer->prepare("SELECT query FROM pg_stat_activity WHERE application_name = ? AND wait_event_type = 'Lock'");
-            $q->execute(['proxyma-p33-'.$this->workerSchema.'-two']);
-            expect(strtolower($q->fetchColumn()))->toContain($kind === 'catalog' ? 'pxm_route_profiles' : 'pxm_policy_heads');
+        beforeRelease: function () use ($kind, &$blocked): void {
+            $q = $this->observer->prepare("SELECT writer.pid AS writer_pid, reserver.pid AS reserve_pid, writer.query
+                FROM pg_stat_activity writer JOIN pg_stat_activity reserver ON reserver.pid = ANY(pg_blocking_pids(writer.pid))
+                WHERE writer.application_name = ? AND reserver.application_name = ? AND writer.wait_event_type = 'Lock'");
+            $q->execute(['proxyma-p33-'.$this->workerSchema.'-two', 'proxyma-p33-'.$this->workerSchema.'-one']);
+            $wait = $q->fetch(PDO::FETCH_ASSOC);
+            expect($wait)->not->toBeFalse();
+            $blocked = ['writer_pid' => (int) $wait['writer_pid'], 'reserve_pid' => (int) $wait['reserve_pid']];
+            if ($kind === 'catalog') {
+                expect(strtolower($wait['query']))->toContain('pxm_route_profiles');
+
+                return;
+            }
+            // Policy-set mutex precedes head rows; prove this exact conflicting key and owner.
+            $q = $this->observer->prepare("WITH policy_key AS (SELECT hashtextextended(?, 0) AS value)
+                SELECT waiting.mode AS writer_mode, held.mode AS reserve_mode
+                FROM pg_locks waiting JOIN pg_locks held USING (locktype, database, classid, objid, objsubid)
+                CROSS JOIN policy_key
+                WHERE waiting.pid = ? AND held.pid = ? AND waiting.locktype = 'advisory'
+                    AND NOT waiting.granted AND held.granted AND waiting.objsubid = 1
+                    AND waiting.classid = ((policy_key.value >> 32) & 4294967295)::oid
+                    AND waiting.objid = (policy_key.value & 4294967295)::oid");
+            $q->execute(['proxyma:policy-set:'.$this->tenant->value, $blocked['writer_pid'], $blocked['reserve_pid']]);
+            $modes = $q->fetch(PDO::FETCH_ASSOC);
+            expect($modes)->toBe(['writer_mode' => 'ExclusiveLock', 'reserve_mode' => 'ShareLock']);
+            $blocked += $modes;
         });
+    expect((int) $results[0]['pid'])->toBe($blocked['reserve_pid'])->and((int) $results[1]['pid'])->toBe($blocked['writer_pid']);
     expect($results[0]['status'])->toBe('reserved')->and($results[1]['status'])->toBe('edited')->and($results[1]['revision'])->toBe(2)
         ->and($this->table('permits')->count())->toBe(1);
+    file_put_contents(dirname(__DIR__, 4).'/build/p43-r3-gcra-lock-trace.jsonl', json_encode([
+        'case' => $kind.':reserve_holds_early_lock', 'schema' => $this->workerSchema, 'run_os_pid' => getmypid(),
+        'blocked' => $blocked, 'results' => $results, 'duration_ns' => hrtime(true) - $started,
+    ], JSON_THROW_ON_ERROR)."\n", FILE_APPEND | LOCK_EX);
 })->with(['catalog', 'policy']);

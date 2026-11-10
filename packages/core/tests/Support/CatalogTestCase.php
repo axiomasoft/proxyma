@@ -69,14 +69,20 @@ abstract class CatalogTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        if (isset($this->db, $this->fixtureSchema)) {
-            while ($this->db->transactionLevel() > 0) {
-                $this->db->rollBack();
+        try {
+            if (isset($this->db, $this->fixtureSchema)) {
+                while ($this->db->transactionLevel() > 0) {
+                    $this->db->rollBack();
+                }
+                $this->db->statement('SET search_path TO public');
+                $this->db->statement('DROP SCHEMA '.$this->fixtureSchema.' CASCADE');
             }
-            $this->db->statement('SET search_path TO public');
-            $this->db->statement('DROP SCHEMA '.$this->fixtureSchema.' CASCADE');
+        } finally {
+            if (isset($this->db)) {
+                $this->db->disconnect();
+            }
+            parent::tearDown();
         }
-        parent::tearDown();
     }
 
     protected function actor(int $revision = 0, ?string $key = null, string $reason = 'fixture change'): CatalogMutationActor
