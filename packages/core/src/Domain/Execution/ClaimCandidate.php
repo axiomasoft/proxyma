@@ -8,12 +8,13 @@ use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
 use LogicException;
+use Proxyma\Contracts\ClaimActivationAuthority;
 
 /**
  * Inert, non-serializable claim candidate returned by claimSendLocked inside a transaction.
  * Cannot be passed to PhysicalTransport directly; must be activated after outermost commit.
  */
-final class ClaimCandidate
+final class ClaimCandidate implements \JsonSerializable
 {
     public readonly DateTimeImmutable $authorizedAt;
 
@@ -39,6 +40,7 @@ final class ClaimCandidate
         public readonly ContentHash $wireFingerprint,
         DateTimeImmutable $authorizedAt,
         DateTimeImmutable $expiresAt,
+        private ?ClaimActivationAuthority $activationAuthority = null,
     ) {
         $utc = new DateTimeZone('UTC');
         $normalizedAuth = $authorizedAt->setTimezone($utc);
@@ -70,6 +72,7 @@ final class ClaimCandidate
         ContentHash $wireFingerprint,
         DateTimeImmutable $authorizedAt,
         DateTimeImmutable $expiresAt,
+        ?ClaimActivationAuthority $activationAuthority = null,
     ): self {
         return new self(
             latch: $latch,
@@ -79,6 +82,7 @@ final class ClaimCandidate
             wireFingerprint: $wireFingerprint,
             authorizedAt: $authorizedAt,
             expiresAt: $expiresAt,
+            activationAuthority: $activationAuthority,
         );
     }
 
@@ -89,6 +93,12 @@ final class ClaimCandidate
         }
 
         return $this->monotonicSampledBeforeTxNs + max(0, $this->authorizedDurationNs - $totalTimeoutWithCleanupMarginNs);
+    }
+
+    /** @internal A manually constructed latch has no grant authority. */
+    public function activationAuthority(): ClaimActivationAuthority
+    {
+        return $this->activationAuthority ?? throw new LogicException('Candidate has no local SQL activation authority.');
     }
 
     public function invalidateOnRollback(): void
@@ -137,5 +147,15 @@ final class ClaimCandidate
     public function __clone(): void
     {
         throw new LogicException('ClaimCandidate cannot be cloned.');
+    }
+
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('ClaimCandidate cannot be reconstructed.');
+    }
+
+    public function jsonSerialize(): never
+    {
+        throw new LogicException('ClaimCandidate cannot be serialized.');
     }
 }

@@ -58,6 +58,11 @@ final readonly class WireBody
         throw new LogicException('WireBody cannot be serialized.');
     }
 
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('WireBody cannot be reconstructed.');
+    }
+
     /**
      * @return array{hash: string, length: int}
      */

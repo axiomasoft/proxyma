@@ -26,14 +26,36 @@ final readonly class ReservationCatalogLocks
         $db = $this->scope->connection;
         $t = PackageSchema::tables();
         $versions = ['policy' => $input->policy->effectiveRevision];
+        $owners = array_unique([$tenant->value, TenantKey::SYSTEM]);
+        sort($owners, SORT_STRING);
+        foreach ($owners as $owner) {
+            $db->select('SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))', ['proxyma:policy-set:'.$owner]);
+        }
+        $livePolicy = PolicyAuthoritySnapshot::read($db, $input->policy);
+        if ($input->policyState !== $livePolicy) {
+            $heads = static fn ($state) => array_filter($state['versions'] ?? [], static fn ($key) => str_starts_with($key, 'head:'), ARRAY_FILTER_USE_KEY);
+            if ($heads($input->policyState) !== $heads($livePolicy)
+                && array_keys($heads($input->policyState)) === array_keys($heads($livePolicy))) {
+                throw new AdmissionRejected('policy_revision_changed');
+            }
+            throw new AdmissionRejected('policy_or_binding_changed');
+        }
         $heads = [];
+        foreach ($input->policyState['heads'] as [$owner, $key, $revision]) {
+            $heads[$key."\0".$owner] = [new TenantKey($owner), $key, $revision];
+        }
         foreach ($input->policy->layerRevisions as $layer => $revision) {
             [$kind, $key] = array_pad(explode(':', $layer, 2), 2, '');
             if (! in_array($kind, ['global_db', 'tenant_db', 'panel_db', 'ordered_entity_ancestry'], true)) {
                 continue;
             }
             $owner = $kind === 'global_db' ? TenantKey::system() : $tenant;
-            $heads[$key."\0".$owner->value] = [$owner, $key, $revision];
+            if (isset($heads[$key."\0".$owner->value]) && $heads[$key."\0".$owner->value][2] !== $revision) {
+                throw new AdmissionRejected('policy_revision_changed');
+            }
+            if ($kind !== 'ordered_entity_ancestry') {
+                $heads[$key."\0".$owner->value] = [$owner, $key, $revision];
+            }
         }
         ksort($heads, SORT_STRING);
         foreach ($heads as [$owner, $key, $revision]) {
@@ -65,6 +87,16 @@ final readonly class ReservationCatalogLocks
             throw new AdmissionRejected('route_revision_changed');
         }
         $versions['route:'.$route->id] = (int) $route->revision;
+        if (! $input->route->tenantKey->equals($tenant)) {
+            $grant = $input->route->accessGrant;
+            $liveGrant = $grant === null ? null : $db->table($t['shared_route_grants'])->where('id', $grant->id->value)
+                ->where('tenant_key', $input->route->tenantKey->value)->where('consumer_tenant_key', $tenant->value)
+                ->where('route_id', $route->id)->whereNull('retired_at')->first();
+            if ($liveGrant === null || (int) $liveGrant->revision !== $grant->revision) {
+                throw new AdmissionRejected('shared_grant_changed');
+            }
+            $versions['grant:'.$grant->id->value] = (int) $grant->revision;
+        }
         $epochs = [];
         foreach ([['route_health', AuthorityLockTier::RouteHealth], ['route_target_health', AuthorityLockTier::RouteTargetHealth]] as [$name, $tier]) {
             $query = $db->table($t[$name])->where('tenant_key', $route->tenant_key)->where('route_id', $route->id);

@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Execution;
 
+use Closure;
 use LogicException;
 
 /**
  * Single-use, non-serializable send capability accepted by PhysicalTransport::sendOnce.
  * Minted exclusively after the outermost SQL transaction commits via CommitLatch + ClaimCandidate.
  */
-final class AuthorizedWireRequest
+final class AuthorizedWireRequest implements \JsonSerializable
 {
     private bool $consumed = false;
 
@@ -18,8 +19,13 @@ final class AuthorizedWireRequest
         public readonly WireRequest $wire,
         public readonly AuthorizedWireSnapshot $snapshot,
         public readonly int $latestStartMonotonicNs,
+        private readonly Closure $assertOutsideTransaction,
+        private readonly Closure $clock,
+        private readonly Closure $onLate,
+        public readonly ?SealedWire $prepared,
     ) {}
 
+    /** @internal Low-level latch primitive; application callers use ClaimSend::activate. */
     public static function activate(
         ClaimCandidate $candidate,
         CommitLatch $latch,
@@ -28,6 +34,12 @@ final class AuthorizedWireRequest
         AuthorizedWireSnapshot $snapshot,
         ?int $nowMonotonicNs = null,
     ): self {
+        $authority = $candidate->activationAuthority();
+        $authority->assertActivation($candidate, $snapshot);
+        $assertOutsideTransaction = $authority->assertOutsideTransaction(...);
+        $clock = $authority->nowMonotonicNs(...);
+        $onLate = fn () => $authority->lateRefusal($candidate);
+        $prepared = $authority->preparedWire($candidate);
         if (! $wire->operationId->equals($candidate->operationId) || ! $wire->physicalAttemptId->equals($candidate->physicalAttemptId)) {
             throw new LogicException('WireRequest identity does not match the ClaimCandidate.');
         }
@@ -47,22 +59,29 @@ final class AuthorizedWireRequest
             $candidate->conservativeLatestStartNs($wire->timeouts->totalWithCleanupMarginNs()),
         );
 
-        $currentNs = $nowMonotonicNs ?? hrtime(true);
+        $currentNs = $clock();
         if ($currentNs > $latestStartNs) {
+            $onLate();
             throw new LogicException('Authorized send window expired before capability activation.');
         }
 
-        return new self($wire, $snapshot, $latestStartNs);
+        return new self($wire, $snapshot, $latestStartNs, $assertOutsideTransaction, $clock, $onLate, $prepared);
     }
 
     public function consume(?int $nowMonotonicNs = null): void
     {
+        ($this->assertOutsideTransaction)();
+        if ($nowMonotonicNs !== null) {
+            throw new LogicException('Sealed capability does not accept a caller clock.');
+        }
         if ($this->consumed) {
             throw new LogicException('Authorized wire capability was already consumed.');
         }
 
-        $currentNs = $nowMonotonicNs ?? hrtime(true);
+        $this->consumed = true;
+        $currentNs = ($this->clock)();
         if ($currentNs > $this->latestStartMonotonicNs) {
+            ($this->onLate)();
             throw new LogicException('Authorized wire capability expired before physical send.');
         }
 
@@ -85,6 +104,16 @@ final class AuthorizedWireRequest
     public function __clone(): void
     {
         throw new LogicException('AuthorizedWireRequest cannot be cloned.');
+    }
+
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('AuthorizedWireRequest cannot be reconstructed.');
+    }
+
+    public function jsonSerialize(): never
+    {
+        throw new LogicException('AuthorizedWireRequest cannot be serialized.');
     }
 
     /**

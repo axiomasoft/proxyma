@@ -205,7 +205,7 @@ final class PolicyResolver implements PolicyResolverContract
                     editableScope: $editableScope ?? $loaded['default_editable_scope'],
                     editableScopeId: $editableScopeId ?? $loaded['default_editable_scope_id'],
                     editableHeadId: $loaded['editable_head_id'],
-                );
+                )->withAuthorityVersions($loaded['policy_versions']);
             }
         }
 
@@ -240,7 +240,7 @@ final class PolicyResolver implements PolicyResolverContract
             $cache->put($cacheKey, $effective, $tenant, $transactionLevel);
         }
 
-        return $effective;
+        return $effective->withAuthorityVersions($loaded['policy_versions']);
     }
 
     /**

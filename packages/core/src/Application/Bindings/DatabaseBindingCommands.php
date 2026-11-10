@@ -80,6 +80,7 @@ final readonly class DatabaseBindingCommands implements BindingCommands
             $result = $this->db->transaction(function () use ($command, $subject, $id, $retire, $patch, $hash): SubjectPolicyBinding {
                 $t = PackageSchema::tables();
                 $tenant = $subject->tenant->value;
+                $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);
                 $key = CatalogAudit::key($command->actor->idempotencyKey);
                 (new CatalogProvisioner($this->db))->lockBinding($subject, $command->panelKey, $command->slotKey);
                 $storage = new BindingStorage($this->db);
@@ -105,11 +106,11 @@ final readonly class DatabaseBindingCommands implements BindingCommands
                     throw new PolicyConflict;
                 }
                 $profile = $retire ? $row->profile_id : $command->routeProfileId?->value;
+                $headId = $id->value;
+                $head = $this->db->table($t['policy_heads'])->where('tenant_key', $tenant)->where('id', $headId)->lockForUpdate()->first();
                 if ($profile !== null && $this->db->table($t['route_profiles'])->where('tenant_key', $tenant)->where('id', $profile)->whereNull('retired_at')->lockForUpdate()->first() === null) {
                     throw new InvalidSettingPatch;
                 }
-                $headId = $id->value;
-                $head = $this->db->table($t['policy_heads'])->where('tenant_key', $tenant)->where('id', $headId)->lockForUpdate()->first();
                 $previous = $row === null ? new SettingPatch(1, []) : $storage->map($row, $subject)->patch;
                 $next = $retire ? $previous : $this->settings->apply($previous, $patch, PolicyScope::Entity);
                 $revision = $command->actor->expectedRevision + 1;

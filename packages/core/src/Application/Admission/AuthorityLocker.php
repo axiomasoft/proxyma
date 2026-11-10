@@ -31,9 +31,13 @@ final class AuthorityLocker
     /** @var WeakMap<DatabaseTransactionRecord, LockPosition> */
     private WeakMap $positions;
 
+    /** @var WeakMap<LockedOwnerState, array{DatabaseTransactionRecord, OwnerSnapshot}> */
+    private WeakMap $owners;
+
     public function __construct(private readonly ConnectionScope $scope)
     {
         $this->positions = new WeakMap;
+        $this->owners = new WeakMap;
     }
 
     public function enter(AuthorityLockTier $tier, string $stableKey, LockedTransactionContext $transaction): void
@@ -68,8 +72,23 @@ final class AuthorityLocker
             throw new AdmissionRejected('owner_deadline');
         }
 
-        return new LockedOwnerState($state->owner, $state->purpose, min($snapshot->deadlineAt, $state->deadlineAt),
+        $validated = new LockedOwnerState($state->owner, $state->purpose, min($snapshot->deadlineAt, $state->deadlineAt),
             $state->pinnedVersions, $state->probeToken, $state->adapterHealthId, $state->adapterHealthEpoch);
+        $this->owners[$validated] = [$this->scope->root(), $snapshot];
+        $this->scope->current()->addCallbackForRollback(function () use ($validated): void {
+            unset($this->owners[$validated]);
+        });
+
+        return $validated;
+    }
+
+    public function assertOwnerState(LockedOwnerState $state, OwnerSnapshot $snapshot, LockedTransactionContext $tx): void
+    {
+        $this->scope->assertActive($tx);
+        $registered = $this->owners[$state] ?? null;
+        if ($registered === null || $registered[0] !== $this->scope->root() || $registered[1] != $snapshot) {
+            throw new AdmissionRejected('unverified_owner_state');
+        }
     }
 
     /**

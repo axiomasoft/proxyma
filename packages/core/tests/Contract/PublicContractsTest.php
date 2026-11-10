@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__.'/../Support/InMemoryTransactionCoordinator.php';
+
 use Proxyma\Contracts\Admission;
 use Proxyma\Contracts\LockedAdmissionGuard;
 use Proxyma\Contracts\OwnerAuthority;
@@ -75,7 +77,7 @@ use Proxyma\Domain\Policy\RouteSubsetEnforcer;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
-use Proxyma\Laravel\DatabaseTransactionCoordinator;
+use Proxyma\Tests\Support\InMemoryTransactionCoordinator as DatabaseTransactionCoordinator;
 
 it('validates Uuid, ContentHash, Duration, RetryAt, TenantKey, and SubjectChain with negative scenarios', function (): void {
     $id1 = Uuid::random();

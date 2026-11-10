@@ -38,6 +38,7 @@ interface TransactionCoordinator
      */
     public function run(Closure $operation, int $maxAttempts = 3): mixed;
 
+    /** @internal Issuing an inert candidate never substitutes for durable ClaimSend authorization. */
     public function issueCandidate(
         Uuid $permitId,
         Uuid $operationId,

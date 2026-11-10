@@ -253,8 +253,8 @@ released lease запрещены DB guard. Rollback миграции с нов�
 
 Fixed-window accounting относится к P4.1: пока materialized quota windows
 существуют, этот путь возвращает typed `quota_accounting_required`, а не обходит
-quota. Reservation ещё не выдаёт wire capability: полная live send revalidation,
-final claim CAS и продвижение `send_tat` принадлежат следующему этапу.
+quota. Reservation выдаёт только расписание и lease references. Wire capability появляется
+после отдельного final claim CAS и успешного outer commit.
 
 `MultiScopeReservationTest.php` проверяет simultaneous origin/route/egress/probe/
 system leases, zero partial spend, immutable replay, EXTRA constraints, integer
@@ -262,3 +262,67 @@ overflow, cancel и stale catalog/policy. `GcraReservationTest.php` исполь
 независимые PHP/PG workers и наблюдаемые SQL barriers: capacity contention,
 duplicate reserve, shared egress разных routes и реальные catalog/policy command
 writers, ожидающие ранние locks до commit reservation.
+
+
+## Sealed send и final CAS
+
+До enqueue вызывается `WireSealer::seal`: caller уже подготовил DNS addresses,
+TLS trust, immutable body и credential material. Сервис не выполняет resolver I/O.
+`proxyma.wire.digest_key` должен содержать отдельный стабильный секрет длиной не
+менее 32 bytes (`PROXYMA_WIRE_DIGEST_KEY`); отсутствие ключа даёт configuration
+hold. Значение не включается в debug или evidence. Ключ одинаков для workers;
+ротация требует нового physical attempt. Sealed request передаётся в
+`ReservationService::prepare`, enqueue и reserve. Изменение URL, method, prepared
+headers, body, route, endpoint/credential version, pinned addresses или TLS меняет
+полное намерение. Body bytes неизменны; raw headers скрыты, digest keyed.
+
+`ClaimSend::claim` выполняет preflight и владеет standalone transaction. Для
+caller-owned пути `ClaimSend::prepare(permit, input, wire)` вызывается до BEGIN;
+он измеряет DB interval вместе с предшествующим monotonic sample.
+`claimSendLocked` требует
+зарегистрированный context той же Connection/PDO и бросает typed rejection при
+отказе, чтобы предшествующее finance изменение откатилось вместе с network.
+Перед caller transaction нужно разрешить scoped coordinator/ConnectionScope,
+чтобы monotonic sample предшествовал BEGIN. Supplied owner state принимается
+только после `AuthorityLocker::owner` в этом outer transaction; rolled back
+savepoint инвалидирует его. Затем берутся operation root, policy heads, profile,
+endpoint, route, health, target, declared adapter guards, полный набор budgets,
+demand и permit. Operation writers начинают с этого же root. Receipt persistence
+не требует повторного owner prefix.
+
+Policy commands и binding commands используют exclusive policy-set mutex;
+reserve/claim берут shared mutex до отсортированных policy heads. Bounded snapshot
+включает появление нового head или binding. Binding writer блокирует head раньше
+profile. Отсутствующие authority rows дают hold, send не выполняет UPSERT.
+
+Final UPDATE использует один `clock_timestamp()` в materialized CTE после всех
+locked reads. CAS проверяет owner generation/token/status/deadline, operation
+attempt bound, актуальные revisions/health epochs, membership, demand identity и
+lifecycle, immutable wire fingerprint, срок permit с total timeout + cleanup,
+все reservation references и отдельную send eligibility каждого budget. GCRA
+сравнивается как integer/numeric microseconds. Permit authorization, advancement
+`send_tat`, reserved→spent references, operation attempt count и immutable attempt
+fact сохраняются одной transaction; inflight остаётся lease до completion/reaping.
+Fixed-window quotas пока дают `quota_accounting_required` (их accounting — P4.1).
+
+Claim возвращает inert `ClaimCandidate`. `ClaimSend::activate` использует только
+успешный outer CommitLatch при transactionLevel=0. Savepoint release, rollback и
+commit failure не дают отправки. Прямой latch без local SQL provenance и
+реконструкция committed IDs не создают capability. Production coordinator больше
+не принимает synthetic transaction drivers; illustrative driver существует только
+в tests. Внутренние factory/provenance ports не являются consumer extensions.
+
+Transport получает `AuthorizedWireRequest` с неизменными prepared material и
+snapshot. `consume()` повторно проверяет отсутствие SQL transaction и monotonic
+latestStart непосредственно перед bytes; caller clock override запрещён. Candidate
+и capability однократные, не клонируются и не восстанавливаются serialization/JSON.
+latestStart консервативно выводится из sample до outer BEGIN и DB authorization
+interval, поэтому SQL wait и commit delay сокращают окно. Scheduler freeze после
+проверки нельзя атомарно связать с socket send.
+
+Поздний отказ на activation/consume сохраняет `unknown_after_authorization` и
+`dispatch_outcome=not_dispatched` без возврата send debt или повторного claim.
+При аварии остаётся durable authorized/unknown identity для reconciliation;
+exactly-once remote effect не обещается. Receipt остаётся независимым фактом даже
+после потери owner. Реальный HTTP transport и replay проверяются в P5.3; здесь
+используется только fixture PhysicalTransport.

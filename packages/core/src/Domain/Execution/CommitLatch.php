@@ -7,9 +7,10 @@ namespace Proxyma\Domain\Execution;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use LogicException;
+use Proxyma\Contracts\ClaimActivationAuthority;
 
 /**
- * Outermost SQL transaction commit latch.
+ * @internal Outermost SQL transaction commit latch, not a public capability factory.
  * Savepoint releases never mark this latch committed; rollback permanently invalidates it.
  */
 final class CommitLatch
@@ -48,6 +49,7 @@ final class CommitLatch
         DateTimeImmutable $authorizedAt,
         DateTimeImmutable $expiresAt,
         int $currentTransactionLevel,
+        ?ClaimActivationAuthority $activationAuthority = null,
     ): ClaimCandidate {
         if ($currentTransactionLevel < 1) {
             throw new LogicException('ClaimCandidate can only be issued inside an active SQL transaction.');
@@ -65,6 +67,7 @@ final class CommitLatch
             wireFingerprint: $wireFingerprint,
             authorizedAt: $authorizedAt,
             expiresAt: $expiresAt,
+            activationAuthority: $activationAuthority,
         );
     }
 
@@ -114,5 +117,10 @@ final class CommitLatch
     public function __clone(): void
     {
         throw new LogicException('CommitLatch cannot be cloned.');
+    }
+
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('CommitLatch cannot be reconstructed.');
     }
 }

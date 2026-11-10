@@ -251,6 +251,6 @@ it('supplied owner state не обходит live operation root при composab
     $stale = new LockedOwnerState($input->operation->owner, $input->operation->purpose, $input->operation->deadlineAt, ['operation' => 1]);
     $this->table('operations')->where('id', $ticket->operationId->value)->update(['status' => 'cancelled', 'revision' => 2]);
     expect(fn () => $this->app->make(TransactionCoordinator::class)->run(fn ($tx) => $this->reservations->reserveLocked($ticket, $input, $tx, $stale)))
-        ->toThrow(AdmissionRejected::class, 'operation_owner_lost');
+        ->toThrow(AdmissionRejected::class, 'unverified_owner_state');
     expect($this->table('permits')->count())->toBe(0)->and($this->table('reservations')->count())->toBe(0);
 });

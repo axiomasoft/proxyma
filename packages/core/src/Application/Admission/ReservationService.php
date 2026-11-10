@@ -39,6 +39,7 @@ use Proxyma\Domain\Policy\BudgetConstraintSet;
 use Proxyma\Domain\Policy\EffectivePolicy;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
+use Proxyma\Infrastructure\Admission\PolicyAuthoritySnapshot;
 use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
 use Proxyma\Infrastructure\Database\BudgetRepository;
 use Proxyma\Infrastructure\Database\DatabaseClock;
@@ -103,7 +104,8 @@ final readonly class ReservationService
         $snapshot = $this->owners->snapshot($operation->owner) ?? throw new AdmissionRejected('owner_lost');
 
         return new ReservationInput($request, $operation, $selection, $route, $profile, $target, $policy, $snapshot, $set->byScopeKey,
-            $work->canStart(new Duration($request->timeouts->totalTimeoutMs + $request->timeouts->cleanupMarginMs)));
+            $work->canStart(new Duration($request->timeouts->totalTimeoutMs + $request->timeouts->cleanupMarginMs)),
+            PolicyAuthoritySnapshot::capture($this->transactions->scope->connection, $policy));
     }
 
     public function enqueue(ReservationInput $input, WorkBudget $work): DemandTicket|DemandWait
@@ -133,6 +135,7 @@ final readonly class ReservationService
             throw new AdmissionRejected('reservation_cost_or_work_conflict');
         }
         $ownerState ??= $this->locks->owner($this->owners, $owner, $input->ownerSnapshot, $tx);
+        $this->locks->assertOwnerState($ownerState, $input->ownerSnapshot, $tx);
         if (! $ownerState->owner->matchesIdentityAndToken($owner)) {
             throw new AdmissionRejected('owner_lost');
         }

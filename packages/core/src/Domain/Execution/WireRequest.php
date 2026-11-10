@@ -30,6 +30,7 @@ final readonly class WireRequest
         public ?WireBody $body = null,
         public IdempotencyClass $idempotency = IdempotencyClass::ReadOnly,
         public DemandPurpose $purpose = DemandPurpose::Ordinary,
+        public ?ContentHash $sealDigest = null,
     ) {
         if (! in_array($method, self::METHODS, true)) {
             throw new InvalidArgumentException("Unsupported wire HTTP method '{$method}'.");
@@ -70,6 +71,8 @@ final readonly class WireRequest
             ],
             'idempotency' => $idempotency->value,
             'purpose' => $purpose->value,
+            'deadline' => $this->deadlineAt->format('Y-m-d\TH:i:s.uP'),
+            'seal' => $sealDigest?->hex,
         ], JSON_THROW_ON_ERROR));
     }
 
@@ -84,5 +87,10 @@ final readonly class WireRequest
     public function __serialize(): array
     {
         throw new LogicException('WireRequest cannot be serialized.');
+    }
+
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('WireRequest cannot be reconstructed.');
     }
 }

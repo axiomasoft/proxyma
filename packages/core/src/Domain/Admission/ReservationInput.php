@@ -19,7 +19,7 @@ final readonly class ReservationInput
     /** @param array<string, BudgetConstraint> $constraints */
     public function __construct(public WireRequest $request, public OperationCorrelation $operation, public RouteSelection $selection,
         public Route $route, public RouteProfile $profile, public Target $target, public EffectivePolicy $policy,
-        public OwnerSnapshot $ownerSnapshot, public array $constraints, public bool $workFits) {}
+        public OwnerSnapshot $ownerSnapshot, public array $constraints, public bool $workFits, public array $policyState = []) {}
 
     /** @return list<string> */
     public function additionalScopes(): array

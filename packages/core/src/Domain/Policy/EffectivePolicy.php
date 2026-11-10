@@ -77,6 +77,7 @@ final readonly class EffectivePolicy
         public int $effectiveRevision,
         public ContentHash $policyHash,
         public int $schemaVersion = 1,
+        public array $authorityVersions = [],
     ) {
         if (! $tenantKey->equals($subjectChain->tenant)) {
             throw new InvalidArgumentException('EffectivePolicy tenantKey must match SubjectChain tenant.');
@@ -122,6 +123,11 @@ final readonly class EffectivePolicy
         }
 
         return $this->values[$key];
+    }
+
+    public function withAuthorityVersions(array $versions): self
+    {
+        return new self(...[...get_object_vars($this), 'authorityVersions' => $versions]);
     }
 
     public function isDisabled(string $key): bool

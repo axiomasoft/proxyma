@@ -30,7 +30,7 @@ final readonly class PreparedHeaders
     /**
      * @param  array<string, string>  $headers
      */
-    public function __construct(array $headers = [])
+    public function __construct(array $headers = [], ?string $digestKey = null)
     {
         $normalized = [];
         foreach ($headers as $name => $value) {
@@ -43,12 +43,16 @@ final readonly class PreparedHeaders
                 throw new InvalidArgumentException("Invalid or transport-owned request header '{$name}'.");
             }
 
+            if (array_key_exists($lower, $normalized)) {
+                throw new InvalidArgumentException('Duplicate normalized request header.');
+            }
             $normalized[$lower] = $value;
         }
 
         ksort($normalized, SORT_STRING);
         $this->headers = $normalized;
-        $this->digest = ContentHash::of('headers:v1:'.json_encode($normalized, JSON_THROW_ON_ERROR));
+        $canonical = 'headers:v1:'.json_encode($normalized, JSON_THROW_ON_ERROR);
+        $this->digest = $digestKey === null ? ContentHash::of($canonical) : new ContentHash(hash_hmac('sha256', $canonical, $digestKey));
     }
 
     /**
@@ -80,6 +84,11 @@ final readonly class PreparedHeaders
     public function __serialize(): array
     {
         throw new LogicException('PreparedHeaders cannot be serialized because they may contain sensitive credentials.');
+    }
+
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('PreparedHeaders cannot be reconstructed.');
     }
 
     /**

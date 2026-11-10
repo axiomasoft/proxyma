@@ -47,6 +47,7 @@ final readonly class UpdatePolicy implements PolicyCommands
             $savedRevision = $this->db->transaction(function () use ($command, $patch, $hash): PolicyRevision {
                 $t = PackageSchema::tables();
                 $tenant = $command->tenant->value;
+                $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy:'.$tenant.':'.$command->scopeKey()]);
                 $key = CatalogAudit::key((string) $command->actor->idempotencyKey);
                 $receipt = $this->db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant)->where('idempotency_key', $key)->first();

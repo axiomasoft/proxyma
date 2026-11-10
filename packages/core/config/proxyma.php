@@ -68,6 +68,10 @@ return [
         'maxOperationMs' => 3600000,
     ],
 
+    'wire' => [
+        'digest_key' => env('PROXYMA_WIRE_DIGEST_KEY', ''),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Registered Extension Contracts

@@ -7,6 +7,7 @@ namespace Proxyma\Laravel;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Admission\AuthorityLocker;
+use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\OperationCommands;
 use Proxyma\Application\Admission\ReservationService;
@@ -15,6 +16,7 @@ use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
 use Proxyma\Application\Bindings\DatabaseBindingQueries;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
+use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
@@ -146,6 +148,12 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bind(BudgetRepository::class);
         $this->app->bind(PermitRepository::class);
         $this->app->bind(ReservationCatalogLocks::class);
+        $this->app->scoped(WireSealer::class, static fn (Application $app) => new WireSealer($app->make(ConnectionScope::class), (string) $app['config']->get('proxyma.wire.digest_key', '')));
+        $this->app->scoped(ClaimSend::class, static fn (Application $app) => new ClaimSend($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class),
+            $app->make(AuthorityLocker::class), $app->make(OwnerAuthority::class), $app->make(ReservationCatalogLocks::class),
+            $app->make(DemandRepository::class), $app->make(BudgetRepository::class), $app->make(PermitRepository::class),
+            $app->make(DefinitionRegistry::class), $app->make(WireSealer::class),
+            $app['config']->get('proxyma.extensions.locked_admission_guards', [])));
         $this->app->bind(ReservationService::class, static function (Application $app): ReservationService {
             return new ReservationService($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(AuthorityLocker::class),
                 $app->make(CatalogAccess::class), $app->make(CatalogQueries::class), $app->make(OwnerAuthority::class), $app->make(DefinitionRegistry::class),

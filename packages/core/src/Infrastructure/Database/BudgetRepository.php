@@ -83,6 +83,29 @@ final readonly class BudgetRepository
         }
     }
 
+    /** All scopes are validated before the first send-debt update. */
+    public function planSend(array $snapshots, int $nowUs): array
+    {
+        $plan = [];
+        foreach ($snapshots as $id => $snapshot) {
+            if ((int) $snapshot['row']->inflight < 1 || (int) $snapshot['row']->inflight > $snapshot['cap']
+                || $snapshot['gcra']->eligibleAt($snapshot['send'], $nowUs) > $nowUs) {
+                throw new AdmissionRejected('send_budget_unavailable');
+            }
+            $plan[$id] = $snapshot['gcra']->advance($snapshot['send'], $nowUs, 1);
+        }
+
+        return $plan;
+    }
+
+    public function applySend(array $plan): void
+    {
+        foreach ($plan as $id => $tat) {
+            $this->scope->connection->table(PackageSchema::tables()['budgets'])->where('id', $id)
+                ->update(['send_tat' => DatabaseClock::instant($tat)->format('Y-m-d H:i:s.uP')]);
+        }
+    }
+
     public function release(array $references, array $lockedBudgets): void
     {
         $byId = array_column($lockedBudgets, null, 'id');
