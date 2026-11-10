@@ -60,6 +60,8 @@ def test_roots():
 
 
 def suite_files(name):
+    if name == 'filament':
+        return sorted((ROOT / 'packages/filament/tests').rglob('*Test.php'))
     if name == 'transport':
         contract = ROOT / 'packages/core/tests/Contract'
         names = (

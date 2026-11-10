@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -12,6 +13,33 @@ SPEC.loader.exec_module(RIG)
 
 
 class TestRigDiscoveryTest(unittest.TestCase):
+    def test_filament_dispatches_package_tests_without_running_them(self):
+        with patch.object(sys, 'argv', ['test-rig.py', 'suite', 'filament']), patch.object(RIG, 'test') as run_test:
+            RIG.main()
+
+        paths = [ROOT / call.args[0] for call in run_test.call_args_list]
+        self.assertEqual({
+            ROOT / 'packages/filament/tests' / name for name in (
+                'BindingEditorTest.php', 'CatalogAuthorizationTest.php', 'EmbeddedSettingsTest.php',
+                'OperationsPagesTest.php', 'RouteProfilesTest.php',
+            )
+        }, set(paths))
+        self.assertEqual(paths, sorted(set(paths)))
+        self.assertTrue(all(path.is_file() for path in paths))
+
+    def test_empty_filament_package_fails_without_dispatching_other_roots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for other in ('tests/Filament', 'packages/core/tests/Filament'):
+                decoy = root / other / 'OtherTest.php'
+                decoy.parent.mkdir(parents=True)
+                decoy.write_text('<?php')
+
+            with patch.object(RIG, 'ROOT', root), patch.object(sys, 'argv', ['test-rig.py', 'suite', 'filament']), patch.object(RIG, 'test') as run_test:
+                with self.assertRaisesRegex(ValueError, 'zero test files'):
+                    RIG.main()
+                run_test.assert_not_called()
+
     def test_transport_dispatches_existing_contract_files_without_running_them(self):
         with patch.object(sys, 'argv', ['test-rig.py', 'suite', 'transport']), patch.object(RIG, 'test') as run_test:
             RIG.main()

@@ -223,6 +223,21 @@ receipt и retired target не теряют исходную атрибуцию.
 с конечными reason labels без URL/tenant; correlation UUID хранится в redacted log.
 Lease inflight не доказывает число физических сокетов.
 
+**Reviewed operator probe** — `ReviewedProbe` принимает actor/reason/idempotency key,
+policy revision, точные profile/route/target/endpoint revisions и полный набор
+health scope IDs/epochs/state versions. `ProbeCoordinator` сравнивает их под
+обычными catalog/health locks до CAS. Durable audit и receipt фиксируются вместе
+с claim, до outbound I/O. Receipt означает `probe_requested`, а не HTTP success;
+повтор возвращает тот же operation UUID без новой отправки, в том числе после
+unknown/crash. Результат проверяется по Attempts. UI не предлагает retry unknown.
+UI reset и quota update используют `ResetHealth` и `QuotaService::configure`,
+с доверенными tenant/actor, причиной, точной revision и command key.
+Operator lists требуют `operations.{budgets|health|attempts|audit}.{list|read}`;
+каждая строка повторно авторизуется, выборка до 25 строк по `(tenant_key,id)`.
+Budget scope отображается как dimension + fingerprint без origin/secret payload.
+Fixed UTC calendar quotas отделены от двух GCRA debts и inflight leases;
+next eligible — advisory. Списки не перечисляют global/shared tenant state.
+
 **Maintenance opt-in** — scheduler по умолчанию пуст; явное включение регистрирует
 только bounded reconcile/prune в trusted tenant context. Probe — отдельный один
 HEAD через обычный admission с exact scope claim. Facts/windows/health history

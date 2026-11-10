@@ -13,9 +13,11 @@ use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\ReservationInput;
 use Proxyma\Domain\Execution\DemandPurpose;
+use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthScope;
 use Proxyma\Domain\Health\ProbeClaim;
 use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
+use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Health\ProbeClaimRecord;
@@ -26,15 +28,15 @@ final readonly class ProbeCoordinator
     public function __construct(private TransactionCoordinator $transactions, private AuthorityLocker $locks,
         private OwnerAuthority $owners, private CatalogAccess $access, private ReservationCatalogLocks $catalog) {}
 
-    public function claim(ReservationInput $input, int $leaseSeconds = 60): ProbeClaim
+    public function claim(ReservationInput $input, int $leaseSeconds = 60, ?ProbeReview $review = null): ProbeClaim
     {
         $scope = $this->transactions->scope;
         $scope->assertOutsideTransaction();
         if ($input->operation->purpose !== DemandPurpose::Probe || $leaseSeconds < 1 || $leaseSeconds > 300) {
             throw new InvalidArgumentException('Probe purpose and lease in 1..300 seconds are required.');
         }
-        $this->access->authorize($input->operation->owner->tenantKey, 'health.probe.claim', $input->route->id);
-        $claim = $this->transactions->run(function ($tx) use ($input, $scope, $leaseSeconds): ?ProbeClaim {
+        $this->access->authorize($input->operation->owner->tenantKey, 'health.probe.claim', $input->route->id, $review?->actor->actor);
+        $claim = $this->transactions->run(function ($tx) use ($input, $scope, $leaseSeconds, $review): ?ProbeClaim {
             $owner = $this->locks->owner($this->owners, $input->operation->owner, $input->ownerSnapshot, $tx);
             if ($owner->purpose !== DemandPurpose::Probe || $owner->probeToken?->value !== $input->operation->probeToken->value) {
                 throw new AdmissionRejected('probe_owner_conflict');
@@ -44,6 +46,15 @@ final readonly class ProbeCoordinator
                 throw new AdmissionRejected('probe_intent_conflict');
             }
             $evidence = $this->catalog->lock($input, $tx, probeClaim: true);
+            if ($review !== null) {
+                $receipt = $scope->connection->table(PackageSchema::tables()['catalog_command_receipts'])
+                    ->where('tenant_key', $input->operation->owner->tenantKey->value)
+                    ->where('idempotency_key', CatalogAudit::key($review->actor->idempotencyKey))->exists();
+                if ($receipt) {
+                    throw new AdmissionRejected('probe_command_already_claimed');
+                }
+                $review->assertMatches(['versions' => $evidence['versions'] + ['policy_hash' => $input->policy->policyHash->hex], 'epochs' => $evidence['epochs']]);
+            }
             $repository = new ProbeClaims($scope);
             $token = $input->operation->probeToken;
             if ($repository->find($token->value) !== null) {
@@ -121,6 +132,25 @@ final readonly class ProbeCoordinator
                 if ($changed !== 1) {
                     throw new AdmissionRejected('probe_cas_lost');
                 }
+            }
+            if ($review !== null) {
+                $first = array_key_first($blocked);
+                [$name, $id] = explode(':', $first, 2);
+                $row = $blocked[$first];
+                $t = PackageSchema::tables();
+                $tenant = $input->operation->owner->tenantKey->value;
+                $auditId = Uuid::random()->value;
+                $key = CatalogAudit::key($review->actor->idempotencyKey);
+                $result = json_encode(['status' => 'probe_requested', 'operation_id' => $input->operation->operationId->value,
+                    'diagnose_before_any_new_attempt' => true, 'scope_epochs' => $review->epochs, 'scope_versions' => $review->versions], JSON_THROW_ON_ERROR);
+                $scope->connection->table($t['audit_events'])->insert(['id' => $auditId, 'tenant_key' => $tenant,
+                    'actor_type' => $review->actor->actor->type, 'actor_id' => hash('sha256', $review->actor->actorId),
+                    'reason' => hash('sha256', $review->actor->reason), 'ability' => 'health.probe.execute',
+                    'entity_type' => $name, 'entity_id' => $id, 'previous_revision' => $row->state_version,
+                    'revision' => (int) $row->state_version + 1, 'idempotency_key' => $key, 'command_hash' => $review->hash,
+                    'result' => $result]);
+                $scope->connection->table($t['catalog_command_receipts'])->insert(['tenant_key' => $tenant,
+                    'audit_event_id' => $auditId, 'idempotency_key' => $key, 'command_hash' => $review->hash, 'result' => $result]);
             }
 
             return $claim;

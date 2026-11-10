@@ -8,6 +8,7 @@ use Proxyma\Application\Admission\OperationCommands;
 use Proxyma\Application\Admission\ReservationService;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Health\ProbeCoordinator;
+use Proxyma\Application\Health\ProbeReview;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\OutboundClient;
 use Proxyma\Contracts\PolicyResolver;
@@ -35,7 +36,7 @@ final readonly class BoundedProbe
         private PolicyResolver $policies, private OperationCommands $operations, private ReservationService $reservations,
         private ProbeCoordinator $probes, private OutboundClient $outbound) {}
 
-    public function run(SubjectChain $subjects, Uuid $profileId, Uuid $routeId, Uuid $targetId, int $seconds = 30): ExecutionResult
+    public function run(SubjectChain $subjects, Uuid $profileId, Uuid $routeId, Uuid $targetId, int $seconds = 30, ?ProbeReview $review = null): ExecutionResult
     {
         $this->scope->assertOutsideTransaction();
         if ($seconds < 16 || $seconds > 60) {
@@ -76,7 +77,7 @@ final readonly class BoundedProbe
             }
         };
         $input = $this->reservations->prepare($request, $operation, $selection, $policy, $work);
-        $this->probes->claim($input, $seconds);
+        $this->probes->claim($input, $seconds, $review);
 
         return $this->outbound->execute(new OutboundRequest($id, $targetId, 'HEAD', $url, $timeouts, sendLimit: 1),
             new ExecutionContext($operation, $subjects, Duration::seconds($seconds), $deadline));
