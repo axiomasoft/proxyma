@@ -74,6 +74,12 @@ return [
 
     'traffic_shares' => [],
 
+    // Только пути к CA; secret material хранится через Laravel encrypter, не в config.
+    'tls' => [
+        'origin_bundles' => [],
+        'proxy_bundles' => [],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Registered Extension Contracts

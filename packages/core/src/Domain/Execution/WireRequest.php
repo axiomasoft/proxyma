@@ -9,7 +9,7 @@ use DateTimeZone;
 use InvalidArgumentException;
 use LogicException;
 
-final readonly class WireRequest
+final readonly class WireRequest implements \JsonSerializable
 {
     private const array METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -84,6 +84,16 @@ final readonly class WireRequest
     public function fingerprint(): ContentHash
     {
         return $this->wireFingerprint;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->__debugInfo();
+    }
+
+    public function __debugInfo(): array
+    {
+        return ['operation_id' => $this->operationId->value, 'fingerprint' => $this->wireFingerprint->hex];
     }
 
     /**

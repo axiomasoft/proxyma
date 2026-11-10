@@ -11,4 +11,6 @@ use Proxyma\Domain\Execution\Uuid;
 interface TlsTrustPolicy
 {
     public function tlsConfigurationFor(CanonicalOrigin $origin, Uuid $targetId): TlsTrustConfiguration;
+
+    public function proxyConfigurationFor(string $originalHost): TlsTrustConfiguration;
 }

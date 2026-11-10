@@ -11,7 +11,15 @@ use Proxyma\Domain\Catalog\Route;
 final readonly class SealedWire
 {
     public function __construct(public WireRequest $request, public Route $route, public ResolvedUrl $destination,
-        public TlsTrustConfiguration $tls, public ?ResolvedSecret $credential = null) {}
+        public TlsTrustConfiguration $tls, public ?ResolvedSecret $credential = null, public ?TlsTrustConfiguration $proxyTls = null) {}
+
+    public function connectionReuseKey(): string
+    {
+        return hash('sha256', json_encode([$this->route->tenantKey->value, $this->route->id->value,
+            $this->route->revision, $this->route->accessGrant?->id->value, $this->route->endpointId?->value, $this->route->endpointRevision,
+            $this->route->credentialVersion, $this->credential?->reference, $this->destination->url->origin->value(),
+            $this->destination->address, $this->tls, $this->proxyTls], JSON_THROW_ON_ERROR));
+    }
 
     public function __serialize(): array
     {

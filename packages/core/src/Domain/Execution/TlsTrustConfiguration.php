@@ -13,6 +13,7 @@ final readonly class TlsTrustConfiguration
         public bool $verifyHost = true,
         public ?string $caBundlePath = null,
         public ?ContentHash $pinnedCertificateSha256 = null,
+        public ?ContentHash $caBundleSha256 = null,
     ) {
         if (! $verifyPeer || ! $verifyHost) {
             throw new InvalidArgumentException('Peer and host TLS verification cannot be disabled in Proxyma.');

@@ -30,17 +30,18 @@ final readonly class PreparedHeaders
     /**
      * @param  array<string, string>  $headers
      */
-    public function __construct(array $headers = [], ?string $digestKey = null)
+    public function __construct(#[\SensitiveParameter] array $headers = [], #[\SensitiveParameter] ?string $digestKey = null)
     {
         $normalized = [];
         foreach ($headers as $name => $value) {
             $lower = strtolower($name);
             if (
                 preg_match('/^[a-z0-9!#$%&\'*+.^_`|~-]+$/D', $lower) !== 1
+                || preg_match('//u', $value) !== 1
                 || preg_match('/[\r\n\x00]/', $value) === 1
                 || in_array($lower, self::FORBIDDEN_TRANSPORT_HEADERS, true)
             ) {
-                throw new InvalidArgumentException("Invalid or transport-owned request header '{$name}'.");
+                throw new InvalidArgumentException('Invalid or transport-owned request header.');
             }
 
             if (array_key_exists($lower, $normalized)) {

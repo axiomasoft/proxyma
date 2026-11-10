@@ -7,6 +7,7 @@ namespace Proxyma\Infrastructure\Database;
 use Illuminate\Database\Connection;
 use Proxyma\Infrastructure\Audit\CatalogCommandReceiptRecord;
 use Proxyma\Infrastructure\Eloquent;
+use Proxyma\Infrastructure\Secrets\EncryptedSecretRecord;
 use Proxyma\Infrastructure\Security\SharedRouteGrantRecord;
 use RuntimeException;
 
@@ -17,6 +18,7 @@ final class PackageSchema
     public static function tables(): array
     {
         $models = [
+            'encrypted_secrets' => EncryptedSecretRecord::class,
             'endpoints' => Eloquent\EndpointRecord::class,
             'routes' => Eloquent\RouteRecord::class,
             'route_profiles' => Eloquent\RouteProfileRecord::class,

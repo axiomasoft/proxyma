@@ -18,6 +18,7 @@ use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
 use Proxyma\Application\Bindings\DatabaseBindingQueries;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
+use Proxyma\Application\Catalog\RotateCredentials;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\PolicyResolver;
@@ -43,8 +44,10 @@ use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
 use Proxyma\Contracts\RandomIndex;
 use Proxyma\Contracts\RouteAccessChecks;
+use Proxyma\Contracts\SecretResolver;
 use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\TlsTrustPolicy;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
@@ -60,6 +63,8 @@ use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
+use Proxyma\Infrastructure\Http\TlsTrust;
+use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
@@ -145,6 +150,13 @@ class ProxymaServiceProvider extends ServiceProvider
 
             return new ConnectionScope($app['db']->connection(is_string($connection) && $connection !== '' ? $connection : 'pgsql'), $app['db.transactions']);
         });
+        $this->app->bind(EncryptedSecretStore::class, static fn (Application $app) => new EncryptedSecretStore(
+            $app->make(ConnectionScope::class), $app['encrypter'], $app->make(CatalogAccess::class), new ContainerTenantContextResolver($app)));
+        $this->app->bindIf(SecretResolver::class, EncryptedSecretStore::class);
+        $this->app->bind(RotateCredentials::class);
+        $this->app->bindIf(TlsTrustPolicy::class, static fn (Application $app) => new TlsTrust(
+            $app->make(ConnectionScope::class), $app['config']->get('proxyma.tls.origin_bundles', []),
+            $app['config']->get('proxyma.tls.proxy_bundles', [])));
         $this->app->scoped(\Proxyma\Application\Admission\TransactionCoordinator::class);
         $this->app->alias(\Proxyma\Application\Admission\TransactionCoordinator::class, TransactionCoordinator::class);
         $this->app->scoped(AuthorityLocker::class);

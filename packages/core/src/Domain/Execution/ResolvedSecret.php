@@ -11,18 +11,18 @@ use Proxyma\Domain\Catalog\CredentialRef;
 /**
  * Runtime-only resolved secret material for transport binding; never serialized or logged.
  */
-final readonly class ResolvedSecret
+final readonly class ResolvedSecret implements \JsonSerializable
 {
     public function __construct(
         public CredentialRef $reference,
-        public ?string $username,
-        private string $secretValue,
+        #[\SensitiveParameter] public ?string $username,
+        #[\SensitiveParameter] private string $secretValue,
     ) {
-        if ($secretValue === '' || preg_match('/[\r\n\x00]/', $secretValue) === 1) {
+        if ($secretValue === '' || preg_match('//u', $secretValue) !== 1 || preg_match('/[\x00-\x1f\x7f]/', $secretValue) === 1) {
             throw new InvalidArgumentException('Resolved secret value must be non-empty and free of control characters.');
         }
 
-        if ($username !== null && ($username === '' || preg_match('/[\r\n\x00:]/', $username) === 1)) {
+        if ($username !== null && ($username === '' || preg_match('//u', $username) !== 1 || preg_match('/[\x00-\x1f\x7f:]/', $username) === 1)) {
             throw new InvalidArgumentException('Resolved username must not be empty or contain colons/control characters.');
         }
     }
@@ -30,6 +30,21 @@ final readonly class ResolvedSecret
     public function revealSecret(): string
     {
         return $this->secretValue;
+    }
+
+    public function encodedUserInfo(): string
+    {
+        return rawurlencode($this->username ?? '').':'.rawurlencode($this->secretValue);
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->__debugInfo();
+    }
+
+    public function __unserialize(array $data): void
+    {
+        throw new LogicException('ResolvedSecret cannot be reconstructed.');
     }
 
     /**

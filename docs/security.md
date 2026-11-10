@@ -1,5 +1,89 @@
 # Tenant isolation, permissions и audit
 
+## Credentials и TLS trust
+
+`RotateCredentials::handle(endpointId, tenant, username, password, actor)` —
+явная замена секрета, без UI refill. Нужны trusted tenant/actor, ability
+`catalog.endpoint.rotate-credentials`, expected revision и idempotency key.
+Первое удостоверение имеет version 1; каждая замена увеличивает credential version,
+endpoint revision и revisions связанных активных routes. Encrypted payload,
+authority updates, audit и replay receipt сохраняются одной SQL transaction.
+Ошибка audit откатывает всё. Replay повторно проверяет permission и возвращает
+исходный результат; другой payload с тем же key отклоняется. Idempotency command
+hash использует keyed HMAC, чтобы пароль нельзя было угадывать по обычному digest.
+
+Default `SecretResolver` — `EncryptedSecretStore`, использующий Laravel encrypter
+и настроенный `APP_KEY`. В БД остаются только ciphertext и случайная opaque UUID
+reference/version; в config, audit и receipts plaintext не попадает. Payload связан
+с tenant/reference/version и проверяется после decrypt. Resolver проверяет trusted
+tenant и `catalog.credential.resolve` для endpoint; старый reference, другая version,
+retired endpoint и отсутствующий secret не разрешают отправку. Повреждённый ciphertext
+и неизвестный encryption key дают безопасное исключение без previous/SQL bindings.
+Prepared secret доступен только в памяти. Resolve, encrypt, TLS bundle reads и DNS
+должны завершиться до SQL transaction; guard проверяет также raw PDO transaction.
+Final CAS под endpoint/route locks сверяет reference/version и revisions, без
+повторного secret resolution. После уже сохранённого claim rotation не отзывает bytes.
+
+`ResolvedSecret::encodedUserInfo()` кодирует username/password отдельно через
+percent encoding; raw credentials не добавляются к URL назначения. Transport должен
+использовать proxy auth только на proxy, никогда в origin headers. Control bytes,
+невалидный UTF-8 и двоеточие в Basic username запрещены. Пустой username представлен
+`null`; пустой пароль запрещён. Форма редактирования всегда пустая: отсутствие
+замены не вызывает rotation. Чтение каталога возвращает reference, но не secret.
+
+Raw exceptions, transport options и request objects не передаются logger.
+`SecretRedactor::context()` принимает diagnostic/log context и известные resolved
+secrets: убирает sensitive keys, objects, exception message/trace/previous, userinfo,
+URL query, raw/percent/base64 варианты credentials. Provider header/body secrets
+нужно скрывать целиком sensitive key либо регистрировать отдельно в perimeter.
+Это явная граница диагностики, а не глобальный перехват сторонних logger adapters.
+JSON request содержит только operation ID/fingerprint; PHP serialization runtime
+secret/request/capability запрещена. Запрещены dumps через reflection/var_export,
+свободные previews и debug clients на secret/provider traffic.
+
+`TlsTrustPolicy` по умолчанию возвращает system roots с обязательными peer и hostname
+verification. `proxyma.tls.origin_bundles` и `proxyma.tls.proxy_bundles` — отдельные
+maps original hostname → CA PEM path. Lookup нормализует DNS/IDNA/IP host и никогда
+не подменяет его pinned address или target key. Проверяются PEM и читаемость;
+невалидный настроенный bundle закрывает отправку без fallback. Bundle hash входит
+в sealed fingerprint. Bundles развёртываются по immutable paths; transport P5.3
+обязан проверить hash до использования и сохранить исходные Host/SNI/hostname.
+`verifyPeer=false` и `verifyHost=false` невозможны. Agelto в будущем подставит
+собственный wrapper над `SourceTlsTrust`; core не знает provider или закупки.
+
+Connection reuse допускается только при совпадении `SealedWire::connectionReuseKey()`:
+tenant/shared grant identity, route/endpoint revisions, credential reference/version, origin/pinned address,
+origin/proxy trust. После rotation старый connection уничтожается, новый credential
+не передаётся через authenticated connection прежнего поколения. До реализации
+pool в P5.3 transport должен использовать fresh connection и запретить reuse.
+Нельзя кешировать resolved secret между worker jobs/tenant contexts.
+
+### Runbook: смена encryption key и аварийное восстановление
+
+1. Остановить новые claims, дождаться bounded in-flight attempts; неизвестные
+   результаты передать reconciliation, не переотправлять.
+2. Создать защищённый encrypted backup БД и ключей; доступ и экспорт ограничить
+   операторами. Не экспортировать decrypted значения в файлы, plan, logs или CLI args.
+3. Установить новый `APP_KEY`, прежний оставить в Laravel `APP_PREVIOUS_KEYS`;
+   заменить workers/config cache через обычный защищённый deployment. Не хранить
+   credentials в config cache. При смене ключа не переиспользовать старые command keys.
+4. Для каждого активного endpoint разрешённый maintenance worker вне transaction
+   resolve/decrypt старое значение и вызывает `RotateCredentials` с новым idempotency
+   key и current expected revision. В SQL transaction попадает уже новый ciphertext.
+   Это также отзывает старую credential version и connection reuse identity.
+5. Проверить отсутствие ciphertext, требующих прежнего key, и очистить pools/workers;
+   только затем убрать previous key. Backup recovery требует ключей соответствующего
+   поколения. При утрате ключа — восстановить защищённый key backup либо заменить
+   provider credentials; plaintext recovery из ciphertext не предусмотрен.
+6. Возобновить claims. При компрометации credentials сначала отозвать их у provider,
+   затем выполнить rotation и обработать ранее авторизованные неизвестные attempts.
+
+Проверки P5.2: `SecretRotationTest` покрывает encrypted-at-rest, isolation, audit
+rollback/replay, stale prepared secret, encoding и secret scanning; `TlsPolicyTest`
+проверяет roots, normalized hosts, fail-closed bundle, неизменяемую verification и
+раздельный proxy trust. Реальные expired/wrong-host/unknown-CA handshakes и protocol
+matrix относятся к P5.3; наличие policy test не доказывает physical transport.
+
 Граница доверия — application ports `CatalogCommands`, `CatalogQueries`,
 `SharedRouteCommands`, `RouteAccessChecks`. Скрытая кнопка, UUID, Eloquent scope
 или созданный вручную domain object не подтверждают доступ. Core не импортирует
