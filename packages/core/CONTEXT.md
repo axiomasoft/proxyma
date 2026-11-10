@@ -101,3 +101,6 @@ tenant, panel или entity. Scope принадлежит определённо
 
 **Completion fact** — проверенный результат одной авторизованной попытки,
 связанный с исходным wire и неизменным receipt identity.
+# Destination preparation
+
+`DestinationPolicy` checks the exact target origin and revision and validates every DNS answer outside a transaction. `ResolvedUrl` returned by that policy pins the complete address set and original host; the wire sealer rejects descriptors constructed directly. A redirect requires a new policy resolution and a new authorization. PHP-configured exact target, host and address exceptions are trusted authority and must only include isolated fixture addresses when used by the test rig. Actual HTTP and proxy transport protocol qualification remains in P5.2.

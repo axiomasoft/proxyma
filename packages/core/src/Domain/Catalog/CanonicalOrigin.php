@@ -94,6 +94,10 @@ final readonly class CanonicalOrigin
 
     public static function normalizeHost(string $host): string
     {
+        if (str_contains($host, '%') || str_contains($host, '\\') || preg_match('/^[0-9.]+$/D', $host) && filter_var($host, FILTER_VALIDATE_IP) === false
+            || (filter_var($host, FILTER_VALIDATE_IP) === false && preg_match('/^(?:0x[0-9a-f]+|[0-9]+)(?:\.|$)/i', $host))) {
+            throw new InvalidArgumentException('Ambiguous host.');
+        }
         $host = rtrim(strtolower(trim($host, '[]')), '.');
         if ($host === '') {
             throw new InvalidArgumentException('Origin host must not be empty.');
@@ -103,9 +107,9 @@ final readonly class CanonicalOrigin
             return strtolower((string) inet_ntop((string) inet_pton($host)));
         }
 
-        if (preg_match('/[^\x00-\x7f]/', $host) === 1) {
-            $ascii = idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46);
-            if (! is_string($ascii) || $ascii === '') {
+        if (preg_match('/[^\x00-\x7f]/', $host) === 1 || str_contains($host, 'xn--')) {
+            $ascii = idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII | IDNA_USE_STD3_RULES, INTL_IDNA_VARIANT_UTS46, $info);
+            if (! is_string($ascii) || $ascii === '' || ($info['errors'] ?? 0) !== 0) {
                 throw new InvalidArgumentException('Origin host is not a valid IDNA name.');
             }
             $host = strtolower($ascii);

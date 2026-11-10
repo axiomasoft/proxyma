@@ -48,6 +48,7 @@ use Proxyma\Tests\Support\FixtureWorkBudget;
 require dirname(__DIR__, 4).'/vendor/autoload.php';
 require __DIR__.'/DemandFixtures.php';
 require __DIR__.'/SelectionFixtures.php';
+require __DIR__.'/DestinationFixtures.php';
 $payload = json_decode($argv[1], true, flags: JSON_THROW_ON_ERROR);
 $schema = $payload['schema'];
 if (preg_match('/^pxm_t_[a-f0-9]{16}$/D', $schema) !== 1 || ! in_array($payload['label'], ['one', 'two'], true)) {
@@ -119,7 +120,7 @@ $request = new WireRequest($operation->operationId, new Uuid($payload['attempt']
     new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 8, maxDistinctRoutes: 8), $deadline,
     idempotency: IdempotencyClass::from($payload['idempotency'] ?? 'read_only'), purpose: $operation->purpose, trafficClass: $payload['class']);
 $route = $catalog->findRoute($tenant, new Uuid($payload['route']));
-$wire = $sealer->seal($request, $route, new ResolvedUrl($request->url, '192.0.2.1'), new TlsTrustConfiguration);
+$wire = $sealer->seal($request, $route, \Proxyma\Tests\Support\fixtureDestination($scope, $request), new TlsTrustConfiguration);
 $selection = new RouteSelection($route->id, $route->kind, new Uuid($root->profile_id), $route->endpointId, $route->credentialVersion, $route->egress);
 $policy = selectionPolicy($tenant, new Uuid($root->profile_id), new Uuid($root->target_id), trafficKey: $payload['class']);
 $input = $service->prepare($wire->request, $operation, $selection, $policy, new FixtureWorkBudget);

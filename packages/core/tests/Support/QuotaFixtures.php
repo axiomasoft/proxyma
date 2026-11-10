@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Proxyma\Tests\Support;
 
+require_once __DIR__.'/DestinationFixtures.php';
+
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Application\Admission\ReservationService;
@@ -78,7 +80,7 @@ trait QuotaFixtures
         $intent ??= $this->quotaIntent($class);
         $policy = \selectionPolicy($this->tenant, $this->catalog['profile'], $this->catalog['target'], trafficKey: $class);
         $input = $this->reservations->prepare($intent['request'], $intent['operation'], $intent['route'], $policy, $this->work);
-        $wire = $this->sealer->seal($input->request, $input->route, new ResolvedUrl($input->request->url, '192.0.2.1'), new TlsTrustConfiguration);
+        $wire = $this->sealer->seal($input->request, $input->route, fixtureDestination($this->transactions->scope, $input->request), new TlsTrustConfiguration);
         $input = $this->reservations->prepare($wire->request, $intent['operation'], $intent['route'], $policy, $this->work);
         $ticket = $this->reservations->enqueue($input, $this->work);
 

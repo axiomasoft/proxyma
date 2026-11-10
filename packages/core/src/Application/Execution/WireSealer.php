@@ -28,7 +28,8 @@ final readonly class WireSealer
         ?ResolvedSecret $credential = null): SealedWire
     {
         $this->scope->assertOutsideTransaction();
-        if ($request->url->hash()->hex !== $destination->url->hash()->hex
+        if (! $destination->isPolicyVerified() || $request->url->hash()->hex !== $destination->url->hash()->hex
+            || ($destination->targetId !== null && ! $destination->targetId->equals($request->targetId))
             || ($credential !== null && ($route->endpointId === null || $credential->reference->version !== $route->credentialVersion))) {
             throw new AdmissionRejected('wire_preparation_conflict');
         }
@@ -44,7 +45,7 @@ final readonly class WireSealer
     /** Pure validation: all DNS, secret and body preparation has already finished. */
     public function verify(SealedWire $wire): void
     {
-        if ($wire->request->sealDigest?->hex !== $this->digest($wire->route, $wire->destination, $wire->tls, $wire->credential)->hex
+        if (! $wire->destination->isPolicyVerified() || $wire->request->sealDigest?->hex !== $this->digest($wire->route, $wire->destination, $wire->tls, $wire->credential)->hex
             || $wire->request->url->hash()->hex !== $wire->destination->url->hash()->hex
             || $wire->request->headers->digest->hex !== (new PreparedHeaders($wire->request->headers->reveal(), $this->digestKey))->digest->hex) {
             throw new AdmissionRejected('wire_seal_conflict');
@@ -57,6 +58,7 @@ final readonly class WireSealer
             $route->tenantKey->value, $route->id->value, $route->revision, $route->kind->value, $route->endpointId?->value,
             $route->endpointRevision, $route->credentialVersion, $route->egress->key,
             $destination->url->hash()->hex, $destination->address, $destination->addresses,
+            $destination->targetId?->value, $destination->targetRevision, $destination->destinationPolicyKey, $destination->originalHost, $destination->port,
             $tls->verifyPeer, $tls->verifyHost, $tls->caBundlePath, $tls->pinnedCertificateSha256?->hex,
             $credential?->reference->reference, $credential?->reference->version, $credential?->username, $credential?->revealSecret(),
         ], JSON_THROW_ON_ERROR), $this->digestKey));

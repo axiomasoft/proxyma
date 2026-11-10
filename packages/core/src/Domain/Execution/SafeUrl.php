@@ -12,7 +12,9 @@ final readonly class SafeUrl
 {
     public CanonicalOrigin $origin;
 
-    public function __construct(private string $value)
+    private string $value;
+
+    public function __construct(string $value)
     {
         if ($value === '' || strlen($value) > 8192 || preg_match('/[\x00-\x20\x7f]/', $value) === 1) {
             throw new InvalidArgumentException('URL must be bounded and free of whitespace or control bytes.');
@@ -24,6 +26,17 @@ final readonly class SafeUrl
         }
 
         $this->origin = CanonicalOrigin::fromUrl($value);
+        $host = str_contains($this->origin->host, ':') ? '['.$this->origin->host.']' : $this->origin->host;
+        $defaultPort = $this->origin->scheme === 'http' ? 80 : 443;
+        $port = $this->origin->port === $defaultPort ? '' : ':'.$this->origin->port;
+        $path = $parts['path'] ?? '/';
+        if ($path === '') {
+            $path = '/';
+        }
+        if (str_contains($path, '\\') || preg_match('/%(?![0-9a-fA-F]{2})/', $value)) {
+            throw new InvalidArgumentException('URL contains an ambiguous path or escape.');
+        }
+        $this->value = $this->origin->scheme.'://'.$host.$port.$path.(isset($parts['query']) ? '?'.$parts['query'] : '');
     }
 
     public function reveal(): string

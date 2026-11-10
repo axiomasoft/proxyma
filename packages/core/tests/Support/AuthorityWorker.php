@@ -70,6 +70,7 @@ require dirname(__DIR__, 4).'/vendor/autoload.php';
 require __DIR__.'/DemandFixtures.php';
 require __DIR__.'/SelectionFixtures.php';
 require __DIR__.'/TransactionFixtures.php';
+require __DIR__.'/DestinationFixtures.php';
 set_exception_handler(static function (Throwable $error): void {
     // Fatal output must identify a failed connection without exposing SQL bindings or secrets.
     fwrite(STDERR, json_encode(['error_type' => $error::class, 'sqlstate' => $error instanceof PDOException ? ($error->errorInfo[0] ?? (string) $error->getCode()) : null,
@@ -208,7 +209,7 @@ try {
                 new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 8, maxDistinctRoutes: 8), $deadline, purpose: $operation->purpose);
             $route = $catalog->findRoute($tenant, new Uuid($payload['route']));
             $credential = $route->endpointId === null ? null : new ResolvedSecret(new CredentialRef('fixture:proxy', 1), 'fixture', 'fixture-proxy-secret');
-            $wire = $sealer->seal($request, $route, new ResolvedUrl($request->url, '192.0.2.1'), new TlsTrustConfiguration, $credential);
+            $wire = $sealer->seal($request, $route, \Proxyma\Tests\Support\fixtureDestination($scope, $request), new TlsTrustConfiguration, $credential);
             $selection = new RouteSelection($route->id, $route->kind, new Uuid($root->profile_id), $route->endpointId, $route->credentialVersion, $route->egress);
             $policy = selectionPolicy($tenant, new Uuid($root->profile_id), new Uuid($root->target_id));
             $input = $service->prepare($wire->request, $operation, $selection, $policy, new FixtureWorkBudget);

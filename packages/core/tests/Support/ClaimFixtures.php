@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Proxyma\Tests\Support;
 
+require_once __DIR__.'/DestinationFixtures.php';
+
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Execution\WireSealer;
@@ -58,7 +60,7 @@ trait ClaimFixtures
         }
         $input = $this->reservationInput($intent);
         $credential = isset($this->proxyEndpoint) ? new ResolvedSecret(new CredentialRef('fixture:proxy', 1), 'fixture', 'fixture-proxy-secret') : null;
-        $wire = $this->sealer->seal($intent['request'], $input->route, new ResolvedUrl($intent['request']->url, '192.0.2.1'), new TlsTrustConfiguration, $credential);
+        $wire = $this->sealer->seal($intent['request'], $input->route, fixtureDestination($this->transactions->scope, $intent['request']), new TlsTrustConfiguration, $credential);
         $intent['request'] = $wire->request;
         $input = $this->reservationInput($intent);
         $ticket = $this->reservations->enqueue($input, $this->work);
