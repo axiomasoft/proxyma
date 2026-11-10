@@ -90,6 +90,7 @@ trait ClaimFixtures
             'policyRevision' => $request->policyRevision, 'method' => $request->method, 'url' => $request->url, 'timeouts' => $request->timeouts,
             'deadlineAt' => $request->deadlineAt, 'headers' => $request->headers, 'body' => $request->body,
             'idempotency' => $request->idempotency, 'purpose' => $request->purpose, 'sealDigest' => $request->sealDigest,
+            'trafficClass' => $request->trafficClass,
         ], $changes));
     }
 }

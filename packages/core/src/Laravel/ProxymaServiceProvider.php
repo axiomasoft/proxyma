@@ -10,7 +10,9 @@ use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\OperationCommands;
+use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Application\Admission\ReservationService;
+use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
@@ -49,6 +51,7 @@ use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PermitRepository;
+use Proxyma\Infrastructure\Database\QuotaRepository;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
@@ -78,7 +81,8 @@ class ProxymaServiceProvider extends ServiceProvider
 
         $this->app->bindIf(RandomIndex::class, SecureRandomIndex::class);
         $this->app->bind(CandidateSnapshots::class, static fn (Application $app): CandidateSnapshotQuery => new CandidateSnapshotQuery(
-            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')), $app->make(CatalogAccess::class), $app->make(StrategyRegistry::class)));
+            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')), $app->make(CatalogAccess::class), $app->make(StrategyRegistry::class),
+            $app->make(TrafficSharePolicy::class)));
 
         $this->app->singleton(PolicyResolutionCache::class, static fn (): PolicyResolutionCache => new PolicyResolutionCache);
 
@@ -147,19 +151,24 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bind(DemandQueue::class);
         $this->app->bind(BudgetRepository::class);
         $this->app->bind(PermitRepository::class);
+        $this->app->bind(TrafficSharePolicy::class, static fn (Application $app) => new TrafficSharePolicy($app['config']->get('proxyma.traffic_shares', [])));
+        $this->app->bind(QuotaRepository::class);
+        $this->app->bind(QuotaService::class);
         $this->app->bind(ReservationCatalogLocks::class);
         $this->app->scoped(WireSealer::class, static fn (Application $app) => new WireSealer($app->make(ConnectionScope::class), (string) $app['config']->get('proxyma.wire.digest_key', '')));
         $this->app->scoped(ClaimSend::class, static fn (Application $app) => new ClaimSend($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class),
             $app->make(AuthorityLocker::class), $app->make(OwnerAuthority::class), $app->make(ReservationCatalogLocks::class),
             $app->make(DemandRepository::class), $app->make(BudgetRepository::class), $app->make(PermitRepository::class),
             $app->make(DefinitionRegistry::class), $app->make(WireSealer::class),
-            $app['config']->get('proxyma.extensions.locked_admission_guards', [])));
+            $app['config']->get('proxyma.extensions.locked_admission_guards', []), $app->make(QuotaService::class),
+            $app->make(QuotaRepository::class)));
         $this->app->bind(ReservationService::class, static function (Application $app): ReservationService {
             return new ReservationService($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(AuthorityLocker::class),
                 $app->make(CatalogAccess::class), $app->make(CatalogQueries::class), $app->make(OwnerAuthority::class), $app->make(DefinitionRegistry::class),
                 $app->make(DemandQueue::class), $app->make(DemandRepository::class), $app->make(BudgetRepository::class),
                 $app->make(PermitRepository::class), $app->make(ReservationCatalogLocks::class),
-                $app->make(QueueLimits::class), $app['config']->get('proxyma.extensions.budget_contributors', []), $app['config']->get('proxyma.extensions.locked_admission_guards', []));
+                $app->make(QueueLimits::class), $app['config']->get('proxyma.extensions.budget_contributors', []), $app['config']->get('proxyma.extensions.locked_admission_guards', []),
+                quotaRepository: $app->make(QuotaRepository::class), traffic: $app->make(TrafficSharePolicy::class));
         });
     }
 

@@ -53,7 +53,7 @@ final readonly class PermitRepository
 
     /** The root, catalog, budgets, demand and permit are already locked in protocol order. */
     public function authorize(stdClass $permit, ReservationInput $input, LockedOwnerState $owner, array $snapshots,
-        array $safeSnapshot): stdClass
+        array $safeSnapshot, array $quotaPlan = []): stdClass
     {
         $t = PackageSchema::tables();
         $db = $this->scope->connection;
@@ -107,6 +107,15 @@ final readonly class PermitRepository
                 ." AND (h.state NOT IN ('closed','half_open') OR (h.state='half_open' AND
                     (h.probe_token IS DISTINCT FROM ?::uuid OR h.probe_until <= n.t))))";
             $bindings[] = $owner->probeToken?->value;
+        }
+        $checks[] = "(SELECT count(*) FROM {$t['quota_reservations']} q WHERE q.permit_id=p.id)=?";
+        $bindings[] = count($quotaPlan);
+        foreach ($quotaPlan as $window) {
+            $checks[] = "EXISTS (SELECT 1 FROM {$t['quota_reservations']} r JOIN {$t['quota_windows']} q ON q.id=r.window_id
+                WHERE r.permit_id=p.id AND r.window_id=? AND r.state='reserved' AND r.cost=1
+                AND q.starts_at<=n.t AND q.ends_at>=n.t+(?::bigint*interval '1 microsecond')
+                AND q.reserved>=1 AND q.spent<=?::bigint-q.reserved AND q.spent<=q.quota_limit-q.reserved)";
+            array_push($bindings, $window['id'], $required, $window['limit']);
         }
         $extra = implode(' AND ', $checks);
         $row = $db->selectOne("WITH instant AS MATERIALIZED (SELECT clock_timestamp() AS t)

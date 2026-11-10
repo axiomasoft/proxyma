@@ -72,6 +72,8 @@ return [
         'digest_key' => env('PROXYMA_WIRE_DIGEST_KEY', ''),
     ],
 
+    'traffic_shares' => [],
+
     /*
     |--------------------------------------------------------------------------
     | Registered Extension Contracts

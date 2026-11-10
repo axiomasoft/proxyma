@@ -33,6 +33,7 @@ final class PackageSchema
             'attempts' => Eloquent\AttemptRecord::class,
             'budgets' => Eloquent\BudgetRecord::class,
             'quota_windows' => Eloquent\QuotaWindowRecord::class,
+            'quota_reservations' => Eloquent\QuotaReservationRecord::class,
             'reservations' => Eloquent\ReservationRecord::class,
             'route_health' => Eloquent\RouteHealthRecord::class,
             'profile_health' => Eloquent\ProfileHealthRecord::class,

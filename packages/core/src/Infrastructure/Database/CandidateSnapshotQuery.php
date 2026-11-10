@@ -7,6 +7,7 @@ namespace Proxyma\Infrastructure\Database;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use InvalidArgumentException;
+use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Routing\StrategyRegistry;
@@ -23,7 +24,8 @@ use Proxyma\Infrastructure\Security\SharedRouteStorage;
 
 final readonly class CandidateSnapshotQuery implements CandidateSnapshots
 {
-    public function __construct(private Connection $db, private CatalogAccess $access, private StrategyRegistry $strategies) {}
+    public function __construct(private Connection $db, private CatalogAccess $access, private StrategyRegistry $strategies,
+        private TrafficSharePolicy $traffic = new TrafficSharePolicy) {}
 
     public function load(TenantKey $tenant, Uuid $profileId, Uuid $targetId, EffectivePolicy $policy): CandidateSnapshot
     {
@@ -163,6 +165,7 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
             }
             $keys = array_keys($policy->budgets);
             $keys[] = $targetValue->origin->budgetScopeKey();
+            $keys[] = TrafficSharePolicy::scope($targetValue->origin, $policy->trafficKey);
             foreach ($authorizedIds as $id) {
                 $route = $checked[$id]['route'];
                 $keys[] = $targetValue->origin->routeScopeKey($id);
@@ -173,7 +176,17 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
                 ->whereIn('b.tenant_key', array_values(array_unique([$tenant->value, TenantKey::SYSTEM])))
                 ->whereIn('b.scope_key', array_values(array_unique($keys)))
                 ->select(['b.*'])->selectRaw('extract(epoch from b.tat) as tat_epoch, extract(epoch from b.send_tat) as send_tat_epoch')
-                ->selectRaw("EXISTS (SELECT 1 FROM {$quota} q WHERE q.tenant_key = b.tenant_key AND q.budget_id = b.id AND q.starts_at <= clock_timestamp() AND q.ends_at > clock_timestamp() AND q.reserved + q.spent >= q.quota_limit) AS quota_exhausted")
+                ->selectRaw("(SELECT q.reserved+q.spent FROM {$quota} q WHERE q.budget_id=b.id AND q.policy_key=b.quota_policy_key AND q.window_kind='hour'
+                    AND q.starts_at<=clock_timestamp() AND q.ends_at>clock_timestamp()) AS hour_used,
+                    (SELECT q.reserved+q.spent FROM {$quota} q WHERE q.budget_id=b.id AND q.policy_key=b.quota_policy_key AND q.window_kind='day'
+                    AND q.starts_at<=clock_timestamp() AND q.ends_at>clock_timestamp()) AS day_used")
+                ->selectRaw("EXISTS (SELECT 1 FROM {$quota} q WHERE q.tenant_key = b.tenant_key AND q.budget_id = b.id AND q.policy_key=b.quota_policy_key
+                    AND ((q.window_kind='hour' AND b.hour_limit IS NOT NULL) OR (q.window_kind='day' AND b.day_limit IS NOT NULL))
+                    AND q.starts_at <= clock_timestamp() AND q.ends_at > clock_timestamp() AND q.spent >= q.quota_limit-q.reserved) AS quota_exhausted")
+                ->selectRaw("((b.hour_limit IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {$quota} q WHERE q.budget_id=b.id AND q.window_kind='hour'
+                    AND q.policy_key=b.quota_policy_key AND q.starts_at<=clock_timestamp() AND q.ends_at>clock_timestamp())) OR
+                    (b.day_limit IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {$quota} q WHERE q.budget_id=b.id AND q.window_kind='day'
+                    AND q.policy_key=b.quota_policy_key AND q.starts_at<=clock_timestamp() AND q.ends_at>clock_timestamp()))) AS quota_missing")
                 ->get();
             foreach ($budgetRows as $row) {
                 $budgets[$row->scope_key][$row->tenant_key] = $row;
@@ -201,6 +214,12 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
                     }
                 }
                 $special = [$targetValue->origin->budgetScopeKey(), $targetValue->origin->routeScopeKey($id), $targetValue->origin->egressScopeKey($route->egress)];
+                if (array_key_exists($policy->trafficKey, $this->traffic->classes) || isset($budgets[TrafficSharePolicy::scope($targetValue->origin, $policy->trafficKey)])) {
+                    $special[] = TrafficSharePolicy::scope($targetValue->origin, $policy->trafficKey);
+                    if (! isset($budgets[TrafficSharePolicy::scope($targetValue->origin, $policy->trafficKey)])) {
+                        $reasons[] = 'required_budget_missing';
+                    }
+                }
                 $scopes = $special;
                 foreach ($policy->budgets as $key => $constraint) {
                     if (str_starts_with($key, 'route-origin:') || str_starts_with($key, 'egress-origin:') || str_starts_with($key, 'origin:')) {
@@ -219,6 +238,26 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
                     foreach ($budgets[$key] ?? [] as $owner => $budget) {
                         $budgetVersions[$owner.':'.$key] = (int) $budget->revision;
                         $constraint = $policy->budgets[$key] ?? null;
+                        foreach (['hour', 'day'] as $period) {
+                            $limit = $budget->{$period.'_limit'};
+                            $narrow = $period === 'hour' ? $constraint?->hourLimit : $constraint?->dayLimit;
+                            if ($narrow !== null) {
+                                $limit = $limit === null ? $narrow : min((int) $limit, $narrow);
+                            }
+                            if ($period === 'hour' && $budget->traffic_class !== null) {
+                                $parent = $budgets[$targetValue->origin->budgetScopeKey()][$owner] ?? null;
+                                if ($parent !== null) {
+                                    $derived = TrafficSharePolicy::hourlyLimit((int) $parent->emission_interval_us,
+                                        min((int) $budget->traffic_percent, $this->traffic->classes[$policy->trafficKey] ?? 0));
+                                    $limit = $limit === null ? $derived : min((int) $limit, $derived);
+                                }
+                            }
+                            if ($limit !== null && $budget->{$period.'_used'} === null) {
+                                $reasons[] = 'quota_materialization_missing';
+                            } elseif ($limit !== null && (int) $budget->{$period.'_used'} >= $limit) {
+                                $reasons[] = 'quota_exhausted';
+                            }
+                        }
                         $maxInflight = min((int) $budget->max_inflight, $constraint === null ? PHP_INT_MAX : $constraint->maxInflight);
                         $interval = max((int) $budget->emission_interval_us, $constraint === null ? 0 : $constraint->emissionIntervalUs);
                         $burst = min((int) $budget->burst, $constraint === null ? PHP_INT_MAX : $constraint->burst);
@@ -234,6 +273,9 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
                         if ($budget->quota_exhausted) {
                             $reasons[] = 'quota_exhausted';
                             $ready = false;
+                        }
+                        if ($budget->quota_missing) {
+                            $reasons[] = 'quota_materialization_missing';
                         }
                     }
                 }

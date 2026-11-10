@@ -7,6 +7,7 @@ namespace Proxyma\Application\Policy;
 use Closure;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
+use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Bindings\BindingContext;
@@ -21,6 +22,7 @@ use Proxyma\Domain\Execution\BlockedReason;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\ExecutionBlocked;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
+use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthEpochMap;
 use Proxyma\Domain\Panels\SubjectResolutionFailed;
@@ -2507,11 +2509,20 @@ final class PolicyResolver implements PolicyResolverContract
 
         foreach ($budgetRows as $bRow) {
             $bScopeKey = (string) $bRow->scope_key;
+            if ($bRow->traffic_class !== null) {
+                $origin = $targetRow === null ? null : (new SafeUrl($targetRow->canonical_origin))->origin;
+                if ($bRow->traffic_class !== $trafficKey || $origin === null
+                    || $bScopeKey !== TrafficSharePolicy::scope($origin, $trafficKey)) {
+                    continue;
+                }
+            }
             $constraint = new BudgetConstraint(
                 scopeKey: $bScopeKey,
                 emissionIntervalUs: (int) $bRow->emission_interval_us,
                 burst: (int) $bRow->burst,
                 maxInflight: (int) $bRow->max_inflight,
+                hourLimit: $bRow->hour_limit === null ? null : (int) $bRow->hour_limit,
+                dayLimit: $bRow->day_limit === null ? null : (int) $bRow->day_limit,
                 mandatory: (bool) $bRow->mandatory,
             );
             $policyVersions['budget:'.(string) $bRow->tenant_key.':'.$bScopeKey] = (int) $bRow->revision;

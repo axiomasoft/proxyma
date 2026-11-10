@@ -251,9 +251,8 @@ cost, wire body/headers, route либо sealed scope set отклоняется.
 `send_tat` не отматываются. Изменение reservation intent/reference и возрождение
 released lease запрещены DB guard. Rollback миграции с новой историей запрещён.
 
-Fixed-window accounting относится к P4.1: пока materialized quota windows
-существуют, этот путь возвращает typed `quota_accounting_required`, а не обходит
-quota. Reservation выдаёт только расписание и lease references. Wire capability появляется
+Fixed UTC hour/day accounting выполняется вместе с rate/concurrency через
+отдельный quota ledger; подробности и provisioning API описаны в `budgets.md`. Reservation выдаёт только расписание и lease references. Wire capability появляется
 после отдельного final claim CAS и успешного outer commit.
 
 `MultiScopeReservationTest.php` проверяет simultaneous origin/route/egress/probe/
@@ -303,7 +302,8 @@ lifecycle, immutable wire fingerprint, срок permit с total timeout + cleanu
 сравнивается как integer/numeric microseconds. Permit authorization, advancement
 `send_tat`, reserved→spent references, operation attempt count и immutable attempt
 fact сохраняются одной transaction; inflight остаётся lease до completion/reaping.
-Fixed-window quotas пока дают `quota_accounting_required` (их accounting — P4.1).
+Fixed UTC quotas проверяются этим же CAS; stale window вызывает NeedsReplan
+с release старой reservation после outer rollback.
 
 Claim возвращает inert `ClaimCandidate`. `ClaimSend::activate` использует только
 успешный outer CommitLatch при transactionLevel=0. Savepoint release, rollback и

@@ -24,7 +24,7 @@ it('мигрирует независимый core дважды и откаты�
         expect($tables)->toContain($name);
     }
     $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
-    expect($this->db->table('migrations')->count())->toBe(7);
+    expect($this->db->table('migrations')->count())->toBe(8);
     $migration = require dirname(__DIR__, 2).'/database/migrations/2026_11_09_000001_create_pxm_authority_tables.php';
     $this->app['config']->set('proxyma.connection', 'configured-authority');
     expect($migration->getConnection())->toBe('configured-authority');
@@ -162,7 +162,7 @@ it('проверяет положительные costs, ownership, health и о
     $this->rejectedSql(fn () => $this->table('budgets')->insert(['tenant_key' => 'acme', 'scope_key' => 'origin:x', 'emission_interval_us' => 0, 'burst' => 1, 'max_inflight' => 1]));
     $budgetId = Uuid::random()->value;
     $this->table('budgets')->insert(['id' => $budgetId, 'tenant_key' => 'acme', 'scope_key' => 'origin:quota', 'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => 1]);
-    $window = ['tenant_key' => 'acme', 'budget_id' => $budgetId, 'starts_at' => '2030-01-01T00:00:00Z', 'ends_at' => '2030-01-02T00:00:00Z', 'quota_limit' => 2];
+    $window = ['tenant_key' => 'acme', 'budget_id' => $budgetId, 'starts_at' => '2030-01-01T00:00:00Z', 'ends_at' => '2030-01-02T00:00:00Z', 'window_kind' => 'day', 'quota_limit' => 2];
     $this->rejectedSql(fn () => $this->table('quota_windows')->insert(array_replace($window, ['ends_at' => $window['starts_at']])));
     $this->rejectedSql(fn () => $this->table('quota_windows')->insert($window + ['reserved' => 2, 'spent' => 1]));
     $this->table('quota_windows')->insert($window);

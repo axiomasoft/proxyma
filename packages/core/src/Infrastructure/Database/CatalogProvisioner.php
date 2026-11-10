@@ -59,11 +59,16 @@ final readonly class CatalogProvisioner
             $existing = (clone $query)->lockForUpdate()->first();
             $mandatory = $budget->mandatory || (bool) ($existing->mandatory ?? false);
             $values = ['emission_interval_us' => $budget->emissionIntervalUs, 'burst' => $budget->burst, 'max_inflight' => $budget->maxInflight, 'mandatory' => $mandatory];
+            $values['hour_limit'] = $budget->hourLimit ?? $existing?->hour_limit;
+            $values['day_limit'] = $budget->dayLimit ?? $existing?->day_limit;
             if ($existing === null) {
                 $this->db->table($t['budgets'])->insert(['tenant_key' => $tenant->value, 'scope_key' => $key] + $values);
-            } elseif ((int) $existing->emission_interval_us !== $budget->emissionIntervalUs || (int) $existing->burst !== $budget->burst || (int) $existing->max_inflight !== $budget->maxInflight || (bool) $existing->mandatory !== $mandatory) {
+            } elseif ((int) $existing->emission_interval_us !== $budget->emissionIntervalUs || (int) $existing->burst !== $budget->burst || (int) $existing->max_inflight !== $budget->maxInflight || (bool) $existing->mandatory !== $mandatory
+                || $existing->hour_limit !== $values['hour_limit'] || $existing->day_limit !== $values['day_limit']) {
                 $query->update($values + ['revision' => $existing->revision + 1, 'updated_at' => $this->db->raw('clock_timestamp()')]);
             }
+            $materialized = (clone $query)->first();
+            QuotaRepository::provisionWindows($this->db, $materialized, DatabaseClock::now($this->db), reconcileHistory: true);
         }
     }
 }

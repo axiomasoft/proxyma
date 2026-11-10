@@ -52,14 +52,6 @@ final readonly class BudgetRepository
         return $result;
     }
 
-    /** @param list<string> $ids */
-    public function assertNoConfiguredQuotas(array $ids): void
-    {
-        if ($this->scope->connection->table(PackageSchema::tables()['quota_windows'])->whereIn('budget_id', $ids)->exists()) {
-            throw new AdmissionRejected('quota_accounting_required');
-        }
-    }
-
     /** @return array<string, int> */
     public function planReserve(array $snapshots, int $slotUs, int $cost): array
     {
@@ -114,7 +106,7 @@ final readonly class BudgetRepository
                 continue;
             }
             $budget = $byId[$reference->budget_id] ?? throw new AdmissionRejected('reservation_budget_missing');
-            if ($reference->quota_window_id !== null || (int) $budget->inflight < 1) {
+            if ((int) $budget->inflight < 1) {
                 throw new AdmissionRejected('reservation_accounting_conflict');
             }
         }

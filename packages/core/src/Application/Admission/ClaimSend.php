@@ -31,6 +31,7 @@ use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\PermitRepository;
+use Proxyma\Infrastructure\Database\QuotaRepository;
 use WeakMap;
 
 final class ClaimSend
@@ -41,11 +42,15 @@ final class ClaimSend
     /** @var WeakMap<SealedWire, array<string, int>> */
     private WeakMap $startBounds;
 
+    private readonly QuotaRepository $quotas;
+
     public function __construct(private readonly TransactionCoordinator $transactions, private readonly AuthorityLocker $locks,
         private readonly OwnerAuthority $owners, private readonly ReservationCatalogLocks $catalog,
         private readonly DemandRepository $demands, private readonly BudgetRepository $budgets, private readonly PermitRepository $permits,
-        private readonly DefinitionRegistry $definitions, private readonly WireSealer $sealer, private readonly array $guardIds = [])
+        private readonly DefinitionRegistry $definitions, private readonly WireSealer $sealer, private readonly array $guardIds = [],
+        private readonly ?QuotaService $quotaService = null, ?QuotaRepository $quotaRepository = null)
     {
+        $this->quotas = $quotaRepository ?? new QuotaRepository($transactions->scope);
         $this->pending = new WeakMap;
         $this->startBounds = new WeakMap;
     }
@@ -57,6 +62,8 @@ final class ClaimSend
         $this->sealer->verify($wire);
         $sample = $this->transactions->nowMonotonicNs();
         $now = DatabaseClock::now($this->transactions->scope->connection);
+        $this->quotaService?->assertWindow($permit->permitId->value, intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000),
+            $input->operation->owner->tenantKey, $input->operation->operationId);
         $expires = min($permit->expiresAt, $input->operation->deadlineAt, $input->request->deadlineAt, $input->ownerSnapshot->deadlineAt);
         $remaining = DatabaseClock::micros($expires) - DatabaseClock::micros($now)
             - intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000);
@@ -120,6 +127,7 @@ final class ClaimSend
         }
         $own = $this->demands->resolveBudgets($tenant, $input->request, $input->selection, $input->additionalScopes());
         $locked = $this->demands->lockBudgets($own, $tx);
+        $this->quotas->lockWindows($locked, $scheduled->permitId->value);
         $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$scheduled->ticket->demandId->value], $tx)[0];
         $permit = $this->locks->rows(AuthorityLockTier::Permit, $tenant, [$scheduled->permitId->value], $tx)[0];
         if ($permit->state !== PermitState::Reserved->value) {
@@ -129,7 +137,7 @@ final class ClaimSend
         if ($permit->reservation_intent === null || $permit->demand_id !== $demand->id || $permit->operation_id !== $root->id
             || $permit->wire_fingerprint !== $wire->request->fingerprint()->hex || (int) $permit->cost !== 1
             || $permit->route_id !== $input->route->id->value || $permit->target_id !== $input->target->id->value
-            || $demand->intent_hash !== DemandIntent::hash($input->request, $input->selection, $own)) {
+            || $demand->intent_hash !== DemandIntent::hash($input->request, $input->selection, $own) || $demand->traffic_class !== $input->request->trafficClass) {
             throw new AdmissionRejected('claim_fingerprint_conflict');
         }
         $stored = json_decode($permit->reservation_evidence, true, flags: JSON_THROW_ON_ERROR);
@@ -152,7 +160,24 @@ final class ClaimSend
         if ($expected !== $actual || array_filter($references, static fn ($r) => $r->state !== 'reserved' || (int) $r->cost !== 1 || $r->quota_window_id !== null) !== []) {
             throw new AdmissionRejected('reservation_accounting_conflict');
         }
-        $this->budgets->assertNoConfiguredQuotas(array_column($locked, 'id'));
+        $this->quotaService?->assertWindow($permit->id, intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000), $tenant, $input->operation->operationId);
+        $quotaPlan = $this->quotas->plan($locked, $input->constraints, new DateTimeImmutable($permit->not_before), $input->request->trafficClass, $input->request->url->origin->budgetScopeKey());
+        $quotaRefs = $this->quotas->references($permit->id);
+        $expectedQuotas = array_keys($quotaPlan);
+        $actualQuotas = array_column($quotaRefs, 'window_id');
+        sort($actualQuotas);
+        if ($expectedQuotas !== $actualQuotas || count($quotaPlan) !== count($stored['quota'] ?? [])
+            || array_filter($quotaRefs, static fn ($ref) => $ref->state !== 'reserved' || (int) $ref->cost !== 1) !== []) {
+            throw new AdmissionRejected('quota_ledger_conflict');
+        }
+        if ($quotaPlan !== [] && $this->quotaService === null) {
+            throw new AdmissionRejected('quota_service_required');
+        }
+        foreach ($quotaPlan as $id => $window) {
+            if (($stored['quota'][$id]['limit'] ?? null) !== $window['limit']) {
+                throw new AdmissionRejected('quota_configuration_changed');
+            }
+        }
         $snapshots = $this->budgets->read($locked, $input->constraints);
         $limits = json_decode($permit->reservation_limits, true, flags: JSON_THROW_ON_ERROR);
         foreach ($snapshots as $id => $snapshot) {
@@ -164,9 +189,15 @@ final class ClaimSend
         $this->budgets->planSend($snapshots, DatabaseClock::micros(DatabaseClock::now($scope->connection)));
         $safe = ['route_id' => $input->route->id->value, 'endpoint_id' => $input->route->endpointId?->value,
             'credential_version' => $input->selection->credentialVersion, 'fingerprint' => $input->request->fingerprint()->hex,
-            'versions' => $evidence['versions'], 'epochs' => $evidence['epochs'], 'dispatch' => 'unknown'];
-        $authorized = $this->permits->authorize($permit, $input, $ownerState, $snapshots, $safe);
+            'versions' => $evidence['versions'], 'epochs' => $evidence['epochs'], 'quota' => array_keys($quotaPlan), 'dispatch' => 'unknown'];
+        try {
+            $authorized = $this->permits->authorize($permit, $input, $ownerState, $snapshots, $safe, $quotaPlan);
+        } catch (AdmissionRejected $rejected) {
+            $this->quotaService?->assertWindow($permit->id, intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000), $tenant, $input->operation->operationId);
+            throw $rejected;
+        }
         $at = new DateTimeImmutable($authorized->authorized_at);
+        $this->quotas->consume($permit->id, $at);
         $this->budgets->applySend($this->budgets->planSend($snapshots, DatabaseClock::micros($at)));
         $candidate = $this->transactions->issueCandidate(new Uuid($permit->id), $input->request->operationId,
             $input->request->physicalAttemptId, $input->request->fingerprint(), $at, new DateTimeImmutable($authorized->expires_at), $tx);

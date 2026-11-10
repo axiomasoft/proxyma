@@ -46,17 +46,22 @@ use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\PermitRepository;
+use Proxyma\Infrastructure\Database\QuotaRepository;
 
 final readonly class ReservationService
 {
+    private QuotaRepository $quotas;
+
     /** @param list<string> $contributorIds
      * @param  list<string>  $guardIds
      */
     public function __construct(private TransactionCoordinator $transactions, private AuthorityLocker $locks, private CatalogAccess $access,
         private CatalogQueries $catalog, private OwnerAuthority $owners, private DefinitionRegistry $definitions, private DemandQueue $queue,
         private DemandRepository $demands, private BudgetRepository $budgets, private PermitRepository $permits, private ReservationCatalogLocks $catalogLocks,
-        private QueueLimits $limits = new QueueLimits, private array $contributorIds = [], private array $guardIds = [], private int $maxInlineWaitUs = 1000000)
+        private QueueLimits $limits = new QueueLimits, private array $contributorIds = [], private array $guardIds = [], private int $maxInlineWaitUs = 1000000,
+        ?QuotaRepository $quotaRepository = null, private TrafficSharePolicy $traffic = new TrafficSharePolicy)
     {
+        $this->quotas = $quotaRepository ?? new QuotaRepository($transactions->scope, $traffic);
         if ($maxInlineWaitUs < 0 || $maxInlineWaitUs > 5000000) {
             throw new AdmissionRejected('invalid_reservation_wait_bound');
         }
@@ -69,7 +74,7 @@ final readonly class ReservationService
         $this->access->authorize($tenant, 'execution.reservation.create', $operation->operationId);
         if (! $operation->operationId->equals($request->operationId) || ! $tenant->equals($policy->tenantKey)
             || ! $request->targetId->equals($policy->targetId) || $request->policyRevision !== $policy->effectiveRevision
-            || $selection->profileId === null || $request->purpose !== $operation->purpose
+            || $selection->profileId === null || $request->purpose !== $operation->purpose || $request->trafficClass !== $policy->trafficKey
             || $request->timeouts->totalTimeoutMs > $policy->timeouts->totalTimeoutMs
             || $request->timeouts->readTimeoutMs > $policy->timeouts->readTimeoutMs
             || $request->timeouts->connectTimeoutMs > $policy->timeouts->connectTimeoutMs) {
@@ -89,6 +94,13 @@ final readonly class ReservationService
             throw new AdmissionRejected('reservation_policy_mismatch');
         }
         $extra = array_values($policy->budgets);
+        $trafficScope = TrafficSharePolicy::scope($request->url->origin, $request->trafficClass);
+        $persistedTraffic = $this->transactions->scope->connection->table(PackageSchema::tables()['budgets'])
+            ->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))->where('scope_key', $trafficScope)
+            ->where('traffic_class', $request->trafficClass)->exists();
+        if (array_key_exists($request->trafficClass, $this->traffic->classes) || $persistedTraffic) {
+            $extra[] = new BudgetConstraint(TrafficSharePolicy::scope($request->url->origin, $request->trafficClass), 1, PHP_INT_MAX, PHP_INT_MAX, true);
+        }
         foreach ($this->definitions->selectExtensions(ExtensionKind::BudgetScopeContributor, $this->contributorIds) as $definition) {
             $contributor = $definition->implementation;
             if (! $contributor instanceof BudgetScopeContributor) {
@@ -178,6 +190,8 @@ final readonly class ReservationService
             $all = [...$all, ...$set];
         }
         $locked = $this->demands->lockBudgets($all, $tx);
+        $ownIds = array_flip(array_column($own, 'id'));
+        $this->quotas->lockWindows(array_values(array_filter($locked, static fn ($row) => isset($ownIds[$row->id]))));
         $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$demand->id], $tx)[0];
         $intent = hash('sha256', json_encode([$demand->intent_hash, $input->request->fingerprint()->hex, $input->selection->routeId->value,
             $cost, $this->ids($own), $input->policy->policyHash->hex, $input->constraints,
@@ -198,6 +212,11 @@ final readonly class ReservationService
         $nowUs = DatabaseClock::micros($now);
         $availability = $this->budgets->availability($snapshots, $nowUs);
         $ownSnapshots = array_intersect_key($snapshots, array_flip(array_column($own, 'id')));
+        $quotaPlan = $this->quotas->plan(array_column($ownSnapshots, 'row'), $input->constraints, $now, $input->request->trafficClass, $input->request->url->origin->budgetScopeKey());
+        $this->quotas->assertAvailable($quotaPlan);
+        foreach ($this->quotas->availability($locked, $now) as $id => $ready) {
+            $availability[$id] = max($availability[$id], $ready);
+        }
         $slotUs = max(array_intersect_key($availability, $ownSnapshots));
         foreach ($ownSnapshots as $snapshot) {
             if ((int) $snapshot['row']->inflight >= $snapshot['cap']) {
@@ -230,7 +249,17 @@ final readonly class ReservationService
         if ($slotUs > DatabaseClock::micros($expires) - $requiredUs) {
             throw new AdmissionRejected('reservation_deadline');
         }
-        $this->budgets->assertNoConfiguredQuotas(array_column($own, 'id'));
+        foreach ($quotaPlan as $window) {
+            $expires = min($expires, new DateTimeImmutable($window['ends']));
+        }
+        if ($slotUs + $requiredUs >= DatabaseClock::micros($expires)) {
+            throw new ReservationDeferred(new DemandWait('quota_window_wait', new RetryAt($expires)));
+        }
+        $evidence['quota'] = array_map(static function ($row) {
+            unset($row['reserved'], $row['spent']);
+
+            return $row;
+        }, $quotaPlan);
         $plan = $this->budgets->planReserve($ownSnapshots, $slotUs, $cost);
         $evidence['versions']['operation:'.$root->id] = (int) $root->revision;
         $effective = [];
@@ -249,6 +278,7 @@ final readonly class ReservationService
             'wire_fingerprint' => $input->request->fingerprint()->hex, 'cost' => $cost, 'not_before' => DatabaseClock::instant($slotUs)->format('Y-m-d H:i:s.uP'),
             'expires_at' => $expires->format('Y-m-d H:i:s.uP'), 'reservation_intent' => $intent,
             'reservation_evidence' => json_encode($evidence, JSON_THROW_ON_ERROR), 'reservation_limits' => json_encode($effective, JSON_THROW_ON_ERROR)], $own);
+        $this->quotas->reserve($permit, $quotaPlan);
         if ($demand->state === 'active') {
             $this->demands->state($demand, 'admitted');
         }
@@ -268,8 +298,11 @@ final readonly class ReservationService
             $row = $db->table($t['permits'])->where('tenant_key', $tenant->value)->where('operation_id', $operationId->value)->where('id', $permitId->value)->first()
                 ?? throw new AdmissionRejected('permit_missing');
             $references = $this->permits->references($row->id);
-            $budgets = $db->table($t['budgets'])->whereIn('id', array_column($references, 'budget_id'))->get()->all();
+            $quotaReferences = $this->quotas->references($row->id);
+            $budgetIds = array_unique([...array_column($references, 'budget_id'), ...array_column($quotaReferences, 'budget_id')]);
+            $budgets = $db->table($t['budgets'])->whereIn('id', $budgetIds)->get()->all();
             $locked = $this->demands->lockBudgets($budgets, $tx);
+            $this->quotas->lockWindows($locked, $row->id);
             $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$row->demand_id], $tx)[0];
             $row = $this->locks->rows(AuthorityLockTier::Permit, $tenant, [$row->id], $tx)[0];
             $state = PermitState::from($row->state);
@@ -277,6 +310,7 @@ final readonly class ReservationService
                 return;
             }
             $next = $state->transitionTo(PermitState::CancelledBeforeSend);
+            $this->quotas->release($row->id);
             $this->budgets->release($references, $locked);
             $db->table($t['permits'])->where('id', $row->id)->update(['state' => $next->value]);
             $this->demands->state($demand, 'cancelled');

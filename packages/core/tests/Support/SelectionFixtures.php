@@ -14,11 +14,11 @@ use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
-function selectionPolicy(TenantKey $tenant, Uuid $profile, Uuid $target, string $strategy = 'uniform_random', bool $allowDirect = true, array $budgets = [], array $denied = [], array $layerRevisions = []): EffectivePolicy
+function selectionPolicy(TenantKey $tenant, Uuid $profile, Uuid $target, string $strategy = 'uniform_random', bool $allowDirect = true, array $budgets = [], array $denied = [], array $layerRevisions = [], string $trafficKey = 'default'): EffectivePolicy
 {
     return new EffectivePolicy(
         tenantKey: $tenant, subjectChain: new SubjectChain(new SubjectRef($tenant, 'document', 'fixture')),
-        targetId: $target, destinationPolicyKey: 'default', trafficKey: 'default', routeProfileId: $profile,
+        targetId: $target, destinationPolicyKey: 'default', trafficKey: $trafficKey, routeProfileId: $profile,
         routeProfileKey: 'default', routeProfileRevision: null, allowedProfileKeys: null,
         timeouts: new RequestTimeoutPolicy(1000, 3000, 5000, maxAttempts: 3, maxDistinctRoutes: 3), retryDelaysDisabled: false,
         allowDirectRoute: $allowDirect, strategyKey: $strategy, outcomePolicyKey: 'default', deniedRoutes: $denied,

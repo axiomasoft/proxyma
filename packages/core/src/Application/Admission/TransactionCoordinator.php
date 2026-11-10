@@ -8,6 +8,7 @@ use Closure;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseTransactionRecord;
+use Illuminate\Database\Events\TransactionRolledBack;
 use InvalidArgumentException;
 use LogicException;
 use Proxyma\Application\Execution\WireSealer;
@@ -29,7 +30,9 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Throwable;
 use WeakMap;
+use WeakReference;
 
 final class TransactionCoordinator implements ClaimActivationAuthority, CoordinatorContract
 {
@@ -45,6 +48,9 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
     /** @var WeakMap<DatabaseTransactionRecord, array<string, ClaimCandidate>> */
     private WeakMap $claims;
 
+    /** @var list<Closure():void> */
+    private array $rollbackCleanup = [];
+
     /** @var Closure(): int */
     private readonly Closure $clock;
 
@@ -55,6 +61,13 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
         $this->authorizations = new WeakMap;
         $this->claims = new WeakMap;
         $this->clock = $monotonicClock ?? static fn (): int => hrtime(true);
+        $weak = WeakReference::create($this);
+        $scope->connection->getEventDispatcher()?->listen(TransactionRolledBack::class, static function ($event) use ($weak): void {
+            $coordinator = $weak->get();
+            if ($coordinator !== null && $event->connection === $coordinator->scope->connection && $coordinator->transactionLevel() === 0) {
+                $coordinator->flushRollbackCleanup();
+            }
+        });
     }
 
     public function connectionName(): string
@@ -82,7 +95,33 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
             return $this->locked($this->scope->connection, $operation, $sample);
         }
 
-        return $this->scope->connection->transaction(fn (): mixed => $this->locked($this->scope->connection, $operation, $sample), $maxAttempts);
+        try {
+            return $this->scope->connection->transaction(fn (): mixed => $this->locked($this->scope->connection, $operation, $sample), $maxAttempts);
+        } catch (Throwable $exception) {
+            $this->flushRollbackCleanup();
+            throw $exception;
+        }
+    }
+
+    /** @internal Cleanup runs after manager teardown and outer rollback, never under caller locks. */
+    public function afterRootRollback(Closure $cleanup): void
+    {
+        $this->scope->root()->addCallbackForRollback(function () use ($cleanup): void {
+            $this->rollbackCleanup[] = $cleanup;
+        });
+    }
+
+    public function flushRollbackCleanup(): void
+    {
+        if ($this->rollbackCleanup === []) {
+            return;
+        }
+        $this->scope->assertOutsideTransaction();
+        $pending = $this->rollbackCleanup;
+        $this->rollbackCleanup = [];
+        foreach ($pending as $cleanup) {
+            $cleanup();
+        }
     }
 
     /**

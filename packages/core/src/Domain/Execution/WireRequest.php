@@ -31,7 +31,11 @@ final readonly class WireRequest
         public IdempotencyClass $idempotency = IdempotencyClass::ReadOnly,
         public DemandPurpose $purpose = DemandPurpose::Ordinary,
         public ?ContentHash $sealDigest = null,
+        public string $trafficClass = 'default',
     ) {
+        if (preg_match('/^[a-z][a-z0-9_.:-]{0,63}$/D', $trafficClass) !== 1) {
+            throw new InvalidArgumentException('Invalid traffic class.');
+        }
         if (! in_array($method, self::METHODS, true)) {
             throw new InvalidArgumentException("Unsupported wire HTTP method '{$method}'.");
         }
@@ -73,6 +77,7 @@ final readonly class WireRequest
             'purpose' => $purpose->value,
             'deadline' => $this->deadlineAt->format('Y-m-d\TH:i:s.uP'),
             'seal' => $sealDigest?->hex,
+            'traffic_class' => $trafficClass,
         ], JSON_THROW_ON_ERROR));
     }
 

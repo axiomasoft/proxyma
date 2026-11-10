@@ -100,7 +100,7 @@ final readonly class DemandRepository
         $scopeKeys = array_map(static fn ($budget) => $budget->tenant_key.':'.$budget->id, $budgets);
         sort($scopeKeys, SORT_STRING);
         $db->table($t['demands'])->insert(['id' => $id->value, 'tenant_key' => $tenant->value, 'operation_id' => $request->operationId->value,
-            'profile_id' => $profile->value, 'target_id' => $request->targetId->value, 'purpose' => $purpose, 'cost' => 1,
+            'profile_id' => $profile->value, 'target_id' => $request->targetId->value, 'purpose' => $purpose, 'cost' => 1, 'traffic_class' => $request->trafficClass,
             'deadline' => $deadline->format('Y-m-d H:i:s.uP'), 'expires_at' => $expires->format('Y-m-d H:i:s.uP'), 'physical_attempt_id' => $request->physicalAttemptId->value,
             'wire_fingerprint' => $request->fingerprint()->hex, 'intent_hash' => $intent, 'scope_hash' => hash('sha256', implode(',', $scopeKeys))]);
         foreach ($budgets as $budget) {
