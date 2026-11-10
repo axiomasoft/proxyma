@@ -175,3 +175,43 @@ Protocol qualification и actual socket crash checkpoints описаны в `doc
 по исходному origin из authorization snapshot. Не зависит от burst/GCRA и проверяется
 в admission и финальном send CAS. Даже stale epoch не отменяет консервативное
 продление; атрибуция новому egress или изменённой цели запрещена.
+
+**Cooldown snapshot** — authorization закрепляет origin, egress, endpoint/version,
+profile revision и точный состав маршрутов, health epochs и зарегистрированную
+WAF-интерпретацию policy. HTTP 429 продлевает исходный origin budget и явно
+настроенные route-origin/egress-origin budgets через max; 403 открывает pair
+только при закреплённом opt-in WAF. Retry-After ограничен 1..86400 секундами
+от DB clock, fallback — 60 секунд. Registry и текущий catalog при receipt
+не меняют интерпретацию. Отдельный healthy route не освобождает origin.
+
+**Compound probe claim** — `ProbeCoordinator::claim(ReservationInput, leaseSeconds)`
+переводит непустой точный набор due unknown/open scopes в half_open одной CAS
+транзакцией. Token закрепляет operation, route, target, sorted scope/epoch set,
+purpose probe и lease 1..300 секунд, ограниченный сроком owner/operation.
+Повтор token запрещён; один claim допускает ровно одну physical attempt.
+Перед reserve/send проверяется весь набор, а completion восстанавливает только
+его scopes при сохранении всего владения. Потеря одного epoch или истечение
+lease ограждает весь старый probe. Claim при обнаружении expired lease сначала
+открывает circuit с backoff 30..300 секунд; новый token выдаётся после backoff.
+Пустой набор, постоянный hold и отсутствующая health row не дают probe authority.
+
+Probe отправляется через обычные reservation, common origin/route/egress budgets,
+обязательный `origin.probeScopeKey()` budget и `ClaimSend`; `OutboundExecutor`
+использует ровно закреплённый маршрут и выполняет не более одной отправки probe.
+Boot provider не запускает outbound I/O и не регистрирует probe scheduler.
+
+**Credential hold identity** — route health хранит исходный endpoint и credential
+version. Success, probe и таймер не снимают hold. Matching credential rotation
+снимает только этот hold, продвигает epoch и возвращает unknown для нового probe.
+NULL credential version означает implicit version 1: первая установка secret
+через rotation продвигает её до 2. `ResetHealth::handle(scope, id, tenant, actor)`
+требует permission `health.reset`, reason, expected state_version и idempotency key;
+аудируемый reset тоже возвращает unknown, повтор возвращает прежний outcome,
+конфликт ключа отвергается. Reset не очищает quota cooldown.
+Удаление credential у существующего endpoint запрещено: переход на endpoint без
+credential требует новой identity, чтобы не переиспользовать implicit version 1.
+
+Authorization facts, reservation references и budgets сохраняются как минимум
+до late receipt horizon. Текущий pruner консервативно сохраняет все authorized
+attempts и связанные исходные scopes даже после retention horizon; неизвестный
+receipt и retired target не теряют исходную атрибуцию.

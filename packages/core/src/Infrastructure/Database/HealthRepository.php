@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use DateTimeImmutable;
+use Proxyma\Application\Health\CooldownService;
 use Proxyma\Domain\Execution\CompletionFact;
 use Proxyma\Domain\Execution\LockedTransactionContext;
 use Proxyma\Domain\Execution\Uuid;
@@ -15,6 +16,7 @@ use Proxyma\Domain\Health\HealthSignal;
 use Proxyma\Domain\Health\HealthSignals;
 use Proxyma\Domain\Health\HealthSnapshot;
 use Proxyma\Domain\Health\TargetAvailability;
+use Proxyma\Infrastructure\Health\ProbeClaims;
 
 final readonly class HealthRepository
 {
@@ -30,14 +32,11 @@ final readonly class HealthRepository
         $signals = HealthSignals::fromSummary($s);
         $owner = $s['route_owner_tenant_key'] ?? $fact->tenant->value;
         if (($s['extends_origin_cooldown'] ?? false) && isset($s['origin_scope_key'], $s['cooldown_until'])) {
-            $ids = $s['cooldown_budget_ids'] ?? [];
             if ($this->dedup($fact, 'origin_cooldown', 1)) {
-                foreach ($ids as $id) {
-                    $db->update("UPDATE {$t['budgets']} SET cooldown_until = GREATEST(cooldown_until, ?::timestamptz), revision = revision + 1 WHERE id = ?",
-                        [$s['cooldown_until'], $id]);
-                }
+                (new CooldownService($this->scope))->extend($s);
             }
         }
+        $probeOwned = (new ProbeClaims($this->scope))->ownsCompletion($fact);
         foreach (HealthScope::cases() as $scope) {
             foreach ($fact->authorizationEpochs->epochs as $key => $epoch) {
                 if (! str_starts_with($key, $scope->value.':')) {
@@ -49,6 +48,9 @@ final readonly class HealthRepository
                     continue;
                 }
                 $eligible = (int) $row->health_epoch === $epoch;
+                if (($s['purpose'] ?? null) === 'probe' && (! $probeOwned || ! isset($s['probe_epochs'][$key]))) {
+                    $eligible = false;
+                }
                 if ($scope !== HealthScope::Target && $row->route_id !== ($s['route_id'] ?? null)) {
                     $eligible = false;
                 }
@@ -94,6 +96,10 @@ final readonly class HealthRepository
                     'open_until' => $next->openUntil?->format('Y-m-d H:i:s.uP'), 'stable_since' => $next->stableSince?->format('Y-m-d H:i:s.uP'), 'probe_token' => null, 'probe_until' => null];
                 if ($scope === HealthScope::Target) {
                     $attrs['availability'] = $next->availability->value;
+                }
+                if ($scope === HealthScope::Route && $signal === HealthSignal::CredentialHold) {
+                    $attrs['credential_endpoint_id'] = $s['endpoint_id'];
+                    $attrs['credential_version'] = $s['credential_version'] ?? 1;
                 }
                 $db->table($t[$scope->value])->where('id', $row->id)->update($attrs);
             }

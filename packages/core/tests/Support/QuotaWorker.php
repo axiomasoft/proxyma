@@ -14,6 +14,7 @@ use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
+use Proxyma\Application\Health\ProbeCoordinator;
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Contracts\Authorizer;
@@ -127,6 +128,20 @@ $wire = $sealer->seal($request, $route, \Proxyma\Tests\Support\fixtureDestinatio
 $selection = new RouteSelection($route->id, $route->kind, new Uuid($root->profile_id), $route->endpointId, $route->credentialVersion, $route->egress);
 $policy = selectionPolicy($tenant, new Uuid($root->profile_id), new Uuid($root->target_id), trafficKey: $payload['class']);
 $input = $service->prepare($wire->request, $operation, $selection, $policy, new FixtureWorkBudget);
+if ($payload['mode'] === 'probe_claim') {
+    echo json_encode(['ready' => true, 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()], JSON_THROW_ON_ERROR)."\n";
+    flush();
+    $pdo->prepare('SELECT pg_advisory_lock_shared(hashtextextended(?,0))')->execute(['fixture:probe-start:'.$schema]);
+    try {
+        $claim = (new ProbeCoordinator($transactions, $locks, $owners, $access, $catalogLocks))->claim($input, 30);
+        $status = 'claimed';
+    } catch (AdmissionRejected $rejected) {
+        $status = $rejected->reason;
+    }
+    echo json_encode(['status' => $status, 'token' => $claim->token->value ?? null,
+        'epochs' => $claim->epochs->epochs ?? [], 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()], JSON_THROW_ON_ERROR);
+    exit;
+}
 $demand = $demands->byAttempt($tenant, $operation->operationId, $request->physicalAttemptId);
 $ticket = $demands->ticket($demand, $request->url->origin->budgetScopeKey());
 if (($payload['recovery_action'] ?? null) === 'crash') {

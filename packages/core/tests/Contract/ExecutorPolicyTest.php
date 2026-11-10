@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Application\Execution\DestinationPolicy;
 use Proxyma\Application\Execution\OutboundExecutor;
@@ -106,6 +107,11 @@ function makeExecutorForTest(
     array $secrets = [],
 ): OutboundExecutor {
     return (function () use ($script, $outcomes, $privateTargets, $dnsRecords, $secrets): OutboundExecutor {
+        if ($outcomes !== null) {
+            $this->app->instance(OutcomePolicyRegistry::class, $outcomes);
+            $this->app->forgetInstance(ClaimSend::class);
+            $this->claims = $this->app->make(ClaimSend::class);
+        }
         $scope = $this->transactions->scope;
         $dns = new DnsResolver($scope, static fn (string $host): array => $dnsRecords[$host] ?? ['93.184.216.34']);
         $destinations = new DestinationPolicy($dns, $privateTargets, [80, 443, 8080, 8443]);

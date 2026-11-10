@@ -60,6 +60,9 @@ final readonly class PermitRepository
         $required = intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000);
         $ownerRef = $input->operation->owner;
         $deadline = min($owner->deadlineAt, $input->ownerSnapshot->deadlineAt, $input->request->deadlineAt);
+        if (isset($safeSnapshot['probe_until'])) {
+            $deadline = min($deadline, new DateTimeImmutable($safeSnapshot['probe_until']));
+        }
         $checks = [];
         $bindings = [$permit->id, $ownerRef->tenantKey->value, $input->request->fingerprint()->hex,
             $input->request->operationId->value, $input->request->physicalAttemptId->value, $input->route->id->value,

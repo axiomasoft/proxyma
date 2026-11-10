@@ -7,6 +7,7 @@ namespace Proxyma\Infrastructure\Database;
 use Illuminate\Database\Connection;
 use Proxyma\Infrastructure\Audit\CatalogCommandReceiptRecord;
 use Proxyma\Infrastructure\Eloquent;
+use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretRecord;
 use Proxyma\Infrastructure\Security\SharedRouteGrantRecord;
 use RuntimeException;
@@ -48,6 +49,7 @@ final class PackageSchema
             'audit_events' => Eloquent\AuditEventRecord::class,
             'shared_route_grants' => SharedRouteGrantRecord::class,
             'catalog_command_receipts' => CatalogCommandReceiptRecord::class,
+            'probe_claims' => ProbeClaimRecord::class,
         ];
 
         return array_map(static fn (string $model): string => (new $model)->getTable(), $models);

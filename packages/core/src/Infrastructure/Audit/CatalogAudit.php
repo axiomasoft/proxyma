@@ -15,6 +15,9 @@ use Proxyma\Infrastructure\Database\PackageSchema;
 final readonly class CatalogAudit
 {
     private const array Fields = [
+        'route_health' => ['id', 'tenant_key', 'state', 'health_epoch', 'state_version', 'revision'],
+        'route_target_health' => ['id', 'tenant_key', 'state', 'health_epoch', 'state_version', 'revision'],
+        'target_health' => ['id', 'tenant_key', 'state', 'health_epoch', 'state_version', 'revision'],
         'budgets' => ['id', 'tenant_key', 'scope_key', 'emission_interval_us', 'burst', 'max_inflight', 'mandatory', 'revision', 'hour_limit', 'day_limit', 'quota_policy_key', 'traffic_class', 'traffic_parent_id', 'traffic_percent'],
         'endpoints' => ['id', 'tenant_key', 'protocol', 'host', 'port', 'credential_ref', 'credential_version', 'revision', 'retired_at'],
         'routes' => ['id', 'tenant_key', 'route_key', 'kind', 'endpoint_id', 'enabled', 'egress_key', 'conservative_pool', 'independence_group', 'shared_grant', 'credential_version', 'endpoint_revision', 'revision', 'retired_at'],

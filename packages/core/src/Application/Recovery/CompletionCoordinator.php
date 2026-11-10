@@ -7,6 +7,7 @@ namespace Proxyma\Application\Recovery;
 use Illuminate\Database\QueryException;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Authorization\CatalogAccess;
+use Proxyma\Application\Health\CooldownService;
 use Proxyma\Contracts\Completion;
 use Proxyma\Contracts\LockedCompletionReducer;
 use Proxyma\Contracts\TenantContextResolver;
@@ -24,11 +25,11 @@ use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthEpochMap;
 use Proxyma\Domain\Outcomes\ResolvedOutcome;
-use Proxyma\Domain\Outcomes\RetryAfterParser;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
+use Proxyma\Infrastructure\Health\ProbeClaims;
 
 final readonly class CompletionCoordinator implements Completion
 {
@@ -39,10 +40,6 @@ final readonly class CompletionCoordinator implements Completion
     {
         $summary = self::summary($result);
         $digest = hash('sha256', json_encode($summary, JSON_THROW_ON_ERROR));
-        if ($result->head?->statusCode === 429) {
-            $summary['cooldown_until'] = (new RetryAfterParser)->parse($result->head->header('retry-after'),
-                DatabaseClock::now($this->transactions->scope->connection))->retryAt->value->format('Y-m-d H:i:s.uP');
-        }
         $this->persist($operationId, $physicalAttemptId, $summary, $receiptDigest->hex ?? $digest, 'local:'.$physicalAttemptId->value, null);
 
         return null;
@@ -76,12 +73,6 @@ final readonly class CompletionCoordinator implements Completion
     {
         $summary = $receipt->verifiedResponse === null ? ['delivered' => true, 'verified_digest_only' => true]
             : self::summary(AttemptResult::delivered($receipt->verifiedResponse));
-        if ($receipt->verifiedResponse?->statusCode === 429) {
-            $advice = (new RetryAfterParser)->parse($receipt->verifiedResponse->header('retry-after'),
-                DatabaseClock::now($this->transactions->scope->connection));
-            $summary['extends_origin_cooldown'] = true;
-            $summary['cooldown_until'] = $advice->retryAt->value->format('Y-m-d H:i:s.uP');
-        }
 
         return $this->persist($receipt->operationId, $receipt->physicalAttemptId, $summary, $receipt->receiptDigest->hex, $receipt->receiptId, $receipt->wireFingerprint);
     }
@@ -107,19 +98,18 @@ final readonly class CompletionCoordinator implements Completion
                     ?? throw new AdmissionRejected('authorization_missing');
                 $permit = array_column($state['permits'], null, 'id')[$attempt->permit_id];
                 $snapshot = json_decode($attempt->snapshot, true, flags: JSON_THROW_ON_ERROR);
+                $summary = (new CooldownService($scope))->attribute($summary, $snapshot, DatabaseClock::now($db));
                 if (($summary['status'] ?? null) === 407 && isset($snapshot['endpoint_id'])) {
                     $summary['holds_proxy_credential'] = true;
                 }
                 if (isset($snapshot['origin'])) {
                     $summary['origin_value'] = $snapshot['origin'];
                     $summary['origin_scope_key'] = (new SafeUrl($snapshot['origin']))->origin->budgetScopeKey();
-                    foreach (['route_id', 'target_id', 'credential_version', 'policy_revision', 'endpoint_id', 'egress_key', 'profile_id', 'independence_group', 'probe_token', 'purpose', 'cooldown_budget_ids'] as $key) {
+                    foreach (['route_id', 'target_id', 'credential_version', 'policy_revision', 'endpoint_id', 'egress_key', 'profile_id', 'independence_group', 'probe_token', 'probe_epochs', 'purpose', 'cooldown_budget_ids', 'health_interpretation', 'profile_route_set'] as $key) {
                         $summary[$key] = $snapshot[$key] ?? null;
                     }
                     $summary['route_owner_tenant_key'] = $snapshot['route_owner_tenant_key'] ?? $tenant->value;
-                    $summary['cooldown_budget_ids'] ??= array_values(array_column(array_filter($state['budgets'],
-                        static fn ($b) => $b->scope_key === $summary['origin_scope_key']), 'id'));
-                    if (($summary['extends_origin_cooldown'] ?? false) && $attempt->result_summary !== null) {
+                    if (isset($summary['cooldown_until']) && $attempt->result_summary !== null) {
                         $previous = json_decode($attempt->result_summary, true, flags: JSON_THROW_ON_ERROR);
                         $summary['cooldown_until'] = $previous['cooldown_until'] ?? $summary['cooldown_until'];
                     }
@@ -168,13 +158,17 @@ final readonly class CompletionCoordinator implements Completion
                 $live = new HealthEpochMap($state['epochs']);
                 $observation = Uuid::random();
                 $allowed = ! $epochs->isStaleComparedTo($live);
+                $fact = new CompletionFact($tenant, new Uuid($attempt->id), $receiptId, $observation, $summary, $epochs, $live);
+                if (($summary['purpose'] ?? null) === 'probe') {
+                    $allowed = $allowed && (new ProbeClaims($scope))->ownsCompletion($fact);
+                }
                 $db->table($t['observations'])->insert(['id' => $observation->value, 'tenant_key' => $tenant->value, 'attempt_id' => $attempt->id,
                     'receipt_id' => $receiptId->value, 'classification' => 'transport_receipt',
                     'evidence' => json_encode(['result' => $summary, 'epochs' => $epochs->epochs, 'reducer_allowed' => $allowed], JSON_THROW_ON_ERROR),
                     'observed_at' => $db->raw('clock_timestamp()')]);
-                $this->reducer->apply(new CompletionFact($tenant, new Uuid($attempt->id), $receiptId, $observation, $summary, $epochs, $live), $tx);
+                $this->reducer->apply($fact, $tx);
 
-                return new LateReceiptResult(LateReceiptOutcome::TransitionedToCompleted, $next, true, ! $epochs->isStaleComparedTo($live));
+                return new LateReceiptResult(LateReceiptOutcome::TransitionedToCompleted, $next, true, $allowed);
             });
         } catch (QueryException $error) {
             if ($error->getCode() === '23505' && str_contains($error->getMessage(), 'pxm_receipt_key_unique')) {
@@ -215,6 +209,7 @@ final readonly class CompletionCoordinator implements Completion
             'wire_bytes' => $result->wireBytes, 'decoded_bytes' => $result->decodedBytes, 'curl_error' => $result->curlErrorCode,
             'headers_digest' => hash('sha256', json_encode($head?->headers, JSON_THROW_ON_ERROR)),
             'body_hash' => $result->response?->body->contentHash()->hex, 'body_length' => $result->response?->body->byteLength()];
+        $summary['_retry_after'] = substr($head?->header('retry-after') ?? '', 0, 512);
         if ($head?->statusCode === 429) {
             $summary['extends_origin_cooldown'] = true;
         }

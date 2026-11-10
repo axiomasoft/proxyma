@@ -5,6 +5,8 @@ declare(strict_types=1);
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Application\Admission\TransactionCoordinator;
+use Proxyma\Application\Health\ProbeCoordinator;
+use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
@@ -14,7 +16,10 @@ use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
+use Proxyma\Domain\Execution\AttemptResult;
+use Proxyma\Domain\Execution\DecodedTextBody;
 use Proxyma\Domain\Execution\DemandPurpose;
+use Proxyma\Domain\Execution\ResponseDescriptor;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\ScheduledPermit;
 use Proxyma\Domain\Execution\Uuid;
@@ -173,9 +178,14 @@ it('probe и traffic share не исключают обязательные orig
     $this->quota->configure($this->tenant, $probe, 1, 1, 1);
     $this->quota->configureTrafficShare($this->tenant, $this->originBudget, CanonicalOrigin::of('https', 'example.test'), 'background', 2);
     $intent = $this->quotaIntent('background', DemandPurpose::Probe);
+    $this->table('route_health')->update(['state' => 'unknown']);
+    $this->app->make(ProbeCoordinator::class)->claim($this->reservationInput($intent));
     [$permit,$input,$wire] = $this->quotaPrepared('background', $intent);
     $this->claims->claim($permit, $input, $wire);
     expect($this->table('quota_reservations')->where('state', 'consumed')->count())->toBe(5);
+    $this->app->make(CompletionCoordinator::class)->record($input->operation->operationId,
+        $input->request->physicalAttemptId, AttemptResult::delivered(new ResponseDescriptor(
+            200, [], new DecodedTextBody('fixture'), 7, 7)));
     [$wait] = $this->quotaPrepared('background');
     expect($wait)->toBeInstanceOf(DemandWait::class)->and($this->table('quota_windows')->where('spent', 1)->count())->toBe(5);
 });

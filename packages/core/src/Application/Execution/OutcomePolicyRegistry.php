@@ -123,6 +123,16 @@ final class OutcomePolicyRegistry
         return $this->resolveEntry($key)['policy'];
     }
 
+    /** Interpretation is copied into authorization; completion never re-reads this registry. */
+    public function healthInterpretation(string $key): array
+    {
+        $entry = $this->resolveEntry($key);
+        $security = $this->highestSecurityEntry($key);
+
+        return ['key' => $key, 'revision' => 1,
+            'waf_rate_signal' => $entry['wafRateSignal'] || ($security['wafRateSignal'] ?? false)];
+    }
+
     public function evaluate(
         string $policyKey,
         AttemptFacts $facts,

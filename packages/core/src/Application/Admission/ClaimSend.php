@@ -6,6 +6,7 @@ namespace Proxyma\Application\Admission;
 
 use DateTimeImmutable;
 use LogicException;
+use Proxyma\Application\Execution\OutcomePolicyRegistry;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Contracts\LockedAdmissionGuard;
@@ -32,6 +33,7 @@ use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
+use Proxyma\Infrastructure\Health\ProbeClaims;
 use WeakMap;
 
 final class ClaimSend
@@ -49,7 +51,7 @@ final class ClaimSend
         private readonly DemandRepository $demands, private readonly BudgetRepository $budgets, private readonly PermitRepository $permits,
         private readonly DefinitionRegistry $definitions, private readonly WireSealer $sealer, private readonly array $guardIds = [],
         private readonly ?QuotaService $quotaService = null, ?QuotaRepository $quotaRepository = null,
-        private readonly array $cooldownScopes = [])
+        private readonly array $cooldownScopes = [], private readonly ?OutcomePolicyRegistry $outcomes = null)
     {
         $this->quotas = $quotaRepository ?? new QuotaRepository($transactions->scope);
         $this->pending = new WeakMap;
@@ -66,6 +68,11 @@ final class ClaimSend
         $this->quotaService?->assertWindow($permit->permitId->value, intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000),
             $input->operation->owner->tenantKey, $input->operation->operationId);
         $expires = min($permit->expiresAt, $input->operation->deadlineAt, $input->request->deadlineAt, $input->ownerSnapshot->deadlineAt);
+        if ($input->operation->probeToken !== null) {
+            $probe = (new ProbeClaims($this->transactions->scope))->find($input->operation->probeToken->value)
+                ?? throw new AdmissionRejected('probe_ownership_lost');
+            $expires = min($expires, new DateTimeImmutable($probe->expires_at));
+        }
         $remaining = DatabaseClock::micros($expires) - DatabaseClock::micros($now)
             - intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000);
         if ($remaining <= 0 || $remaining > intdiv(PHP_INT_MAX - $sample, 1000)) {
@@ -219,9 +226,14 @@ final class ClaimSend
             'egress_pool_fallback' => $input->route->egress->conservativePoolFallback, 'target_id' => $input->target->id->value,
             'profile_id' => $input->profile->id->value, 'policy_revision' => $input->request->policyRevision,
             'outcome_policy_key' => $input->policy->outcomePolicyKey,
+            'health_interpretation' => ($this->outcomes ?? new OutcomePolicyRegistry)->healthInterpretation($input->policy->outcomePolicyKey),
+            'profile_route_set' => array_map(static fn ($id) => $id->value, $input->profile->memberRouteIds),
             'route_owner_tenant_key' => $input->route->tenantKey->value,
             'independence_group' => $input->route->independenceGroup,
             'probe_token' => $input->operation->probeToken?->value,
+            'probe_epochs' => (new ProbeClaims($scope))->consume($input),
+            'probe_until' => $input->operation->probeToken === null ? null
+                : (new ProbeClaims($scope))->find($input->operation->probeToken->value)->expires_at,
             'purpose' => $input->operation->purpose->value,
             'cooldown_budget_ids' => array_values(array_map(static fn ($b) => $b->id, array_filter($locked,
                 static fn ($b) => in_array($b->scope_key, $cooldownKeys, true)))),

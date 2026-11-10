@@ -72,11 +72,11 @@ it('по умолчанию сохраняет только ciphertext и opaque
         ->toThrow(CatalogConflict::class);
 });
 
-it('первый secret получает version 1, последующая замена отзывает старую ссылку', function (): void {
+it('первый secret сменяет implicit version 1, последующая замена отзывает старую ссылку', function (): void {
     $this->table('endpoints')->update(['credential_ref' => null, 'credential_version' => null, 'revision' => 2]);
     $first = $this->rotation->handle($this->proxyEndpoint, $this->tenant, null, 'first-password', $this->actor(2));
     $second = $this->rotation->handle($this->proxyEndpoint, $this->tenant, null, 'second-password', $this->actor(3));
-    expect($first->credentialVersion())->toBe(1)->and($second->credentialVersion())->toBe(2)
+    expect($first->credentialVersion())->toBe(2)->and($second->credentialVersion())->toBe(3)
         ->and($first->credential->reference)->not->toBe($second->credential->reference)
         ->and($this->secrets->resolve($first->credential, $this->tenant))->toBeNull()
         ->and($this->secrets->resolve($second->credential, $this->tenant)->revealSecret())->toBe('second-password');

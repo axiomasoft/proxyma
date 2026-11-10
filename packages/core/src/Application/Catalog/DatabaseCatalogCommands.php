@@ -30,6 +30,7 @@ use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Health\CredentialHolds;
 use Proxyma\Infrastructure\Http\TransportDoctor;
 use Proxyma\Infrastructure\Security\SharedRouteStorage;
 
@@ -65,9 +66,12 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         $row = $this->mutate('catalog.endpoint.upsert', 'endpoints', $command->endpointId, $command->tenantKey, $command->actor, $command,
             function (?object $previous) use ($command): array {
                 $value = new Endpoint($command->endpointId, $command->tenantKey, $command->protocol, $command->host, $command->port, $command->credential);
-                if ($previous !== null && $previous->credential_ref !== null && $value->credential !== null
+                if ($previous !== null && $previous->credential_ref !== null && $value->credential === null) {
+                    throw new CatalogInvalidMutation('Removing credentials requires a new endpoint identity.');
+                }
+                if ($previous !== null && $value->credential !== null
                     && ($previous->credential_ref !== $value->credential->reference || (int) $previous->credential_version !== $value->credential->version)
-                    && $value->credential->version <= (int) $previous->credential_version) {
+                    && $value->credential->version <= (int) ($previous->credential_version ?? 1)) {
                     throw new CatalogInvalidMutation('Credential rotation must advance its version.');
                 }
 
@@ -218,6 +222,10 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
                     $this->db->table($t[$table])->insert(['id' => $id->value, 'tenant_key' => $tenant->value] + $values);
                 } else {
                     $query->update($values);
+                }
+                if ($table === 'endpoints' && $previous !== null) {
+                    (new CredentialHolds($this->db))->rotated($tenant->value, $id->value,
+                        (int) ($previous->credential_version ?? 1), (int) ($values['credential_version'] ?? 1));
                 }
                 if ($members !== null) {
                     $pivot = $this->db->table($t['route_profile_members'])->where('tenant_key', $tenant->value)->where('profile_id', $id->value);

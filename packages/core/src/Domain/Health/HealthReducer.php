@@ -14,7 +14,7 @@ final readonly class HealthReducer
         int $sample = 0, int $failures = 0, int $independentGroups = 0, bool $recentTargetFailure = false, ?DateTimeImmutable $maintenanceUntil = null): ?HealthMutation
     {
         $probe = $row->state === CircuitState::HalfOpen;
-        if ($row->state === CircuitState::Open || ($signal === HealthSignal::Ignored && ! $probe)) {
+        if (str_starts_with($row->reasonCode ?? '', 'credential_hold') || $row->state === CircuitState::Open || ($signal === HealthSignal::Ignored && ! $probe)) {
             return null;
         }
         if ($signal === HealthSignal::Ignored) {

@@ -17,12 +17,13 @@ use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Health\ProbeClaims;
 
 final readonly class ReservationCatalogLocks
 {
     public function __construct(private ConnectionScope $scope, private AuthorityLocker $locks) {}
 
-    public function lock(ReservationInput $input, LockedTransactionContext $tx): array
+    public function lock(ReservationInput $input, LockedTransactionContext $tx, bool $probeClaim = false): array
     {
         $tenant = $input->operation->owner->tenantKey;
         $db = $this->scope->connection;
@@ -107,7 +108,9 @@ final readonly class ReservationCatalogLocks
             }
             $id = $query->value('id') ?? throw new AdmissionRejected('route_health_missing');
             $health = $this->locks->rows($tier, $input->route->tenantKey, [$id], $tx)[0];
-            $this->health($health, $input);
+            if (! $probeClaim) {
+                $this->health($health, $input);
+            }
             $epochs[$name.':'.$id] = (int) $health->health_epoch;
             $versions[$name.':'.$id] = (int) $health->state_version;
         }
@@ -122,12 +125,17 @@ final readonly class ReservationCatalogLocks
         $id = $db->table($t['target_health'])->where('tenant_key', $tenant->value)->where('target_id', $target->id)->value('id')
             ?? throw new AdmissionRejected('target_health_missing');
         $health = $this->locks->rows(AuthorityLockTier::TargetHealth, $tenant, [$id], $tx)[0];
-        $this->health($health, $input);
-        if (! in_array($health->availability, ['available', 'suspect'], true)) {
+        if (! $probeClaim) {
+            $this->health($health, $input);
+        }
+        if (! $probeClaim && $health->state !== 'half_open' && ! in_array($health->availability, ['available', 'suspect'], true)) {
             throw new AdmissionRejected('target_health_unavailable');
         }
         $epochs['target_health:'.$id] = (int) $health->health_epoch;
         $versions['target_health:'.$id] = (int) $health->state_version;
+        if (! $probeClaim) {
+            (new ProbeClaims($this->scope))->assertAdmission($input, $epochs);
+        }
 
         return ['versions' => $versions, 'epochs' => $epochs];
     }

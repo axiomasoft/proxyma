@@ -33,6 +33,7 @@ use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\BinaryBodyArtifact;
 use Proxyma\Domain\Execution\BlockedReason;
 use Proxyma\Domain\Execution\DeferralReason;
+use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\Duration;
 use Proxyma\Domain\Execution\ExecutionBlocked;
 use Proxyma\Domain\Execution\ExecutionContext;
@@ -63,6 +64,7 @@ use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 use Throwable;
 
 final readonly class OutboundExecutor implements OutboundClient
@@ -200,7 +202,8 @@ final readonly class OutboundExecutor implements OutboundClient
                 }
 
                 // Проверяем все границы цикла ДО локального DNS и ДО резервирования permit.
-                if ($request->sendLimit !== null && $totalSends >= $request->sendLimit) {
+                if (($context->operation->purpose === DemandPurpose::Probe && $totalSends > 0)
+                    || ($request->sendLimit !== null && $totalSends >= $request->sendLimit)) {
                     return new ExecutionDeferred(DeferralReason::AttemptsExhausted, new RetryAt($this->nowWall()), $attemptIds, $lastDeliveredResponse);
                 }
 
@@ -328,20 +331,37 @@ final readonly class OutboundExecutor implements OutboundClient
                     previousRouteId: $previousRouteId,
                 );
 
-                try {
-                    $selectionResult = $this->selector->select($tenant, $profile->id, $effectivePolicy, $wireRequest, $selectionContext);
-                } catch (AuthorizationDenied) {
-                    $this->closeArtifactIfNeeded($lastDeliveredResponse, null);
+                if ($context->operation->purpose === DemandPurpose::Probe) {
+                    $probe = $this->scope->connection->table((new ProbeClaimRecord)->getTable())
+                        ->where('id', $context->operation->probeToken->value)->where('tenant_key', $tenant->value)
+                        ->where('operation_id', $context->operation->operationId->value)->where('target_id', $target->id->value)
+                        ->whereNull('physical_attempt_id')->whereRaw('expires_at > clock_timestamp()')->first();
+                    try {
+                        $route = $probe === null ? null : $this->catalog->findRoute($tenant, new Uuid($probe->route_id));
+                    } catch (AuthorizationDenied) {
+                        return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'probe_route_read'], $attemptIds);
+                    }
+                    if ($route === null || ! $profile->containsRoute($route->id)) {
+                        return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'probe_ownership_lost'], $attemptIds);
+                    }
+                    $selection = new RouteSelection($route->id, $route->kind, $profile->id,
+                        $route->endpointId, $route->credentialVersion, $route->egress, $route->independenceGroup);
+                } else {
+                    try {
+                        $selectionResult = $this->selector->select($tenant, $profile->id, $effectivePolicy, $wireRequest, $selectionContext);
+                    } catch (AuthorizationDenied) {
+                        $this->closeArtifactIfNeeded($lastDeliveredResponse, null);
 
-                    return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'route_select'], $attemptIds);
+                        return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'route_select'], $attemptIds);
+                    }
+
+                    if ($selectionResult->route === null || $selectionResult->selection === null) {
+                        return $this->mapUnselectedRoute($tenant, $selectionResult, $attemptIds, $lastDeliveredResponse);
+                    }
+
+                    $route = $selectionResult->route;
+                    $selection = $selectionResult->selection;
                 }
-
-                if ($selectionResult->route === null || $selectionResult->selection === null) {
-                    return $this->mapUnselectedRoute($tenant, $selectionResult, $attemptIds, $lastDeliveredResponse);
-                }
-
-                $route = $selectionResult->route;
-                $selection = $selectionResult->selection;
                 if ($sameRouteRetry && ($previousRouteId === null || ! $route->id->equals($previousRouteId))) {
                     return new ExecutionDeferred(DeferralReason::NoHealthyRoute, new RetryAt($this->nowWall()->modify('+5 seconds')), $attemptIds, $lastDeliveredResponse);
                 }

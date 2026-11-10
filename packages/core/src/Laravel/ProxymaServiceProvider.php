@@ -209,7 +209,7 @@ class ProxymaServiceProvider extends ServiceProvider
             $app->make(DemandRepository::class), $app->make(BudgetRepository::class), $app->make(PermitRepository::class),
             $app->make(DefinitionRegistry::class), $app->make(WireSealer::class),
             $app['config']->get('proxyma.extensions.locked_admission_guards', []), $app->make(QuotaService::class),
-            $app->make(QuotaRepository::class), $app['config']->get('proxyma.health_cooldown_scopes', [])));
+            $app->make(QuotaRepository::class), $app['config']->get('proxyma.health_cooldown_scopes', []), $app->make(OutcomePolicyRegistry::class)));
         $this->app->bind(ReservationService::class, static function (Application $app): ReservationService {
             return new ReservationService($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(AuthorityLocker::class),
                 $app->make(CatalogAccess::class), $app->make(CatalogQueries::class), $app->make(OwnerAuthority::class), $app->make(DefinitionRegistry::class),

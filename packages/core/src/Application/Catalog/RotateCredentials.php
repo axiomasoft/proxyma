@@ -17,6 +17,7 @@ use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Health\CredentialHolds;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
 use SensitiveParameter;
 
@@ -39,7 +40,7 @@ final readonly class RotateCredentials
         if ($previous === null) {
             throw new CatalogNotFound('Endpoint not found in tenant scope.');
         }
-        $version = (int) ($previous->credential_version ?? 0);
+        $version = (int) ($previous->credential_version ?? 1);
         if ($version === PHP_INT_MAX) {
             throw new CatalogInvalidMutation('Credential version exhausted.');
         }
@@ -60,7 +61,7 @@ final readonly class RotateCredentials
                 }
                 $query = $db->table($t['endpoints'])->where('tenant_key', $tenant->value)->where('id', $endpointId->value);
                 $previous = (clone $query)->first();
-                if ($previous === null || (int) $previous->revision !== $actor->expectedRevision || (int) ($previous->credential_version ?? 0) !== $version) {
+                if ($previous === null || (int) $previous->revision !== $actor->expectedRevision || (int) ($previous->credential_version ?? 1) !== $version) {
                     throw new CatalogConflict('Endpoint changed during credential preparation.');
                 }
                 if ($previous->retired_at !== null) {
@@ -71,6 +72,7 @@ final readonly class RotateCredentials
                     'reference' => $secret->reference->reference, 'version' => $secret->reference->version, 'ciphertext' => $ciphertext]);
                 $query->update(['credential_ref' => $secret->reference->reference, 'credential_version' => $secret->reference->version,
                     'revision' => $actor->expectedRevision + 1, 'updated_at' => $db->raw('clock_timestamp()')]);
+                (new CredentialHolds($db))->rotated($tenant->value, $endpointId->value, max(1, $version), $secret->reference->version);
                 $db->table($t['routes'])->where('tenant_key', $tenant->value)->where('endpoint_id', $endpointId->value)
                     ->whereNull('retired_at')->update(['revision' => $db->raw('revision + 1'), 'updated_at' => $db->raw('clock_timestamp()')]);
                 $result = (clone $query)->first();
