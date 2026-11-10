@@ -14,6 +14,8 @@ use Proxyma\Domain\Execution\OwnerSnapshot;
  * External owner fencing authority port.
  * Declares connection identity, bounded side-effect-free snapshot reading/validation,
  * and locked prefix verification inside the shared SQL transaction.
+ * SQL implementations also implement SqlConnectionParticipant; a connection name alone
+ * does not prove that finance and network share a PostgreSQL session.
  */
 interface OwnerAuthority
 {

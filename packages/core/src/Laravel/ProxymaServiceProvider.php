@@ -6,6 +6,7 @@ namespace Proxyma\Laravel;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
+use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
@@ -24,6 +25,7 @@ use Proxyma\Contracts\BindingQueries;
 use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
+use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
 use Proxyma\Contracts\RandomIndex;
@@ -32,8 +34,10 @@ use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
+use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
+use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
@@ -113,11 +117,16 @@ class ProxymaServiceProvider extends ServiceProvider
         });
         $this->app->alias(PolicyResolver::class, PolicyResolverContract::class);
 
-        $this->app->bind(TransactionCoordinator::class, static function (Application $app): TransactionCoordinator {
+        $this->app->scoped(ConnectionScope::class, static function (Application $app): ConnectionScope {
             $connection = $app['config']->get('proxyma.connection', 'pgsql');
 
-            return new DatabaseTransactionCoordinator(is_string($connection) && $connection !== '' ? $connection : 'pgsql');
+            return new ConnectionScope($app['db']->connection(is_string($connection) && $connection !== '' ? $connection : 'pgsql'), $app['db.transactions']);
         });
+        $this->app->scoped(\Proxyma\Application\Admission\TransactionCoordinator::class);
+        $this->app->alias(\Proxyma\Application\Admission\TransactionCoordinator::class, TransactionCoordinator::class);
+        $this->app->scoped(AuthorityLocker::class);
+        $this->app->bind(DatabaseOwnerAuthority::class);
+        $this->app->bindIf(OwnerAuthority::class, DatabaseOwnerAuthority::class);
     }
 
     public function boot(): void

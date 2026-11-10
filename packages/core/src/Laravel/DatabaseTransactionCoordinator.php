@@ -10,6 +10,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use LogicException;
+use Proxyma\Application\Admission\TransactionCoordinator as SqlTransactionCoordinator;
 use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
 use Proxyma\Domain\Execution\AuthorizedWireSnapshot;
@@ -19,10 +20,13 @@ use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\LockedTransactionContext;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
+use Proxyma\Infrastructure\Database\ConnectionScope;
 use Throwable;
 
 final class DatabaseTransactionCoordinator implements TransactionCoordinator
 {
+    private ?SqlTransactionCoordinator $databaseCoordinator = null;
+
     private const array RETRYABLE_SQL_STATES = ['40P01', '40001', '55P03'];
 
     private ?CommitLatch $activeLatch = null;
@@ -54,6 +58,9 @@ final class DatabaseTransactionCoordinator implements TransactionCoordinator
         }
 
         $this->monotonicClock = $monotonicClock ?? static fn (): int => hrtime(true);
+        if ($customTransactionDriver === null) {
+            $this->database();
+        }
     }
 
     public function connectionName(): string
@@ -77,6 +84,9 @@ final class DatabaseTransactionCoordinator implements TransactionCoordinator
 
     public function run(Closure $operation, int $maxAttempts = 3): mixed
     {
+        if ($this->customTransactionDriver === null) {
+            return $this->database()->run($operation, $maxAttempts);
+        }
         if ($maxAttempts < 1) {
             throw new InvalidArgumentException('TransactionCoordinator requires at least one attempt.');
         }
@@ -176,6 +186,9 @@ final class DatabaseTransactionCoordinator implements TransactionCoordinator
         DateTimeImmutable $expiresAt,
         LockedTransactionContext $context,
     ): ClaimCandidate {
+        if ($this->customTransactionDriver === null) {
+            return $this->database()->issueCandidate($permitId, $operationId, $physicalAttemptId, $wireFingerprint, $authorizedAt, $expiresAt, $context);
+        }
         $context->assertConnection($this->connectionName);
 
         $level = $this->transactionLevel();
@@ -209,6 +222,9 @@ final class DatabaseTransactionCoordinator implements TransactionCoordinator
         AuthorizedWireSnapshot $snapshot,
         ?int $nowMonotonicNs = null,
     ): AuthorizedWireRequest {
+        if ($this->customTransactionDriver === null) {
+            return $this->database()->activate($candidate, $request, $snapshot, $nowMonotonicNs);
+        }
         if ($candidate->connectionName !== $this->connectionName) {
             throw new LogicException("Cannot activate ClaimCandidate from connection '{$candidate->connectionName}' on '{$this->connectionName}'.");
         }
@@ -268,5 +284,11 @@ final class DatabaseTransactionCoordinator implements TransactionCoordinator
     private function candidatesAtLevel(int $level): array
     {
         return $this->candidatesByLevel[$level] ?? [];
+    }
+
+    private function database(): SqlTransactionCoordinator
+    {
+        return $this->databaseCoordinator ??= new SqlTransactionCoordinator(
+            new ConnectionScope(DB::connection($this->connectionName), app('db.transactions')), $this->monotonicClock);
     }
 }
