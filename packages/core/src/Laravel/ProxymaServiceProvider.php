@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\OperationCommands;
+use Proxyma\Application\Admission\ReservationService;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
@@ -38,11 +39,14 @@ use Proxyma\Contracts\TransactionCoordinator;
 use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
+use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
+use Proxyma\Infrastructure\Database\BudgetRepository;
 use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Database\DemandRepository;
+use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
@@ -139,6 +143,16 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bind(DemandRepository::class);
         $this->app->bind(OperationCommands::class);
         $this->app->bind(DemandQueue::class);
+        $this->app->bind(BudgetRepository::class);
+        $this->app->bind(PermitRepository::class);
+        $this->app->bind(ReservationCatalogLocks::class);
+        $this->app->bind(ReservationService::class, static function (Application $app): ReservationService {
+            return new ReservationService($app->make(\Proxyma\Application\Admission\TransactionCoordinator::class), $app->make(AuthorityLocker::class),
+                $app->make(CatalogAccess::class), $app->make(CatalogQueries::class), $app->make(OwnerAuthority::class), $app->make(DefinitionRegistry::class),
+                $app->make(DemandQueue::class), $app->make(DemandRepository::class), $app->make(BudgetRepository::class),
+                $app->make(PermitRepository::class), $app->make(ReservationCatalogLocks::class),
+                $app->make(QueueLimits::class), $app['config']->get('proxyma.extensions.budget_contributors', []), $app['config']->get('proxyma.extensions.locked_admission_guards', []));
+        });
     }
 
     public function boot(): void

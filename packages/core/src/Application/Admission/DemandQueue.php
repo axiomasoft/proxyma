@@ -10,6 +10,7 @@ use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Contracts\WorkBudget;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
+use Proxyma\Domain\Admission\DemandIntent;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\FifoPolicy;
 use Proxyma\Domain\Admission\QueueLimits;
@@ -217,11 +218,7 @@ final readonly class DemandQueue
     /** @param list<stdClass> $budgets */
     private function intent(WireRequest $request, RouteSelection $route, array $budgets): string
     {
-        $keys = array_map(static fn ($b) => $b->tenant_key.':'.$b->id, $budgets);
-        sort($keys, SORT_STRING);
-
-        return hash('sha256', json_encode([$request->fingerprint()->hex, $request->deadlineAt->format('U.u'), $route->routeId->value,
-            $route->profileId?->value, $route->endpointId?->value, $route->credentialVersion, $route->egress->key, $keys], JSON_THROW_ON_ERROR));
+        return DemandIntent::hash($request, $route, $budgets);
     }
 
     private function assertIntent(stdClass $row, string $intent): void

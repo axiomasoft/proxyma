@@ -14,7 +14,7 @@ use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
-function selectionPolicy(TenantKey $tenant, Uuid $profile, Uuid $target, string $strategy = 'uniform_random', bool $allowDirect = true, array $budgets = [], array $denied = []): EffectivePolicy
+function selectionPolicy(TenantKey $tenant, Uuid $profile, Uuid $target, string $strategy = 'uniform_random', bool $allowDirect = true, array $budgets = [], array $denied = [], array $layerRevisions = []): EffectivePolicy
 {
     return new EffectivePolicy(
         tenantKey: $tenant, subjectChain: new SubjectChain(new SubjectRef($tenant, 'document', 'fixture')),
@@ -22,7 +22,7 @@ function selectionPolicy(TenantKey $tenant, Uuid $profile, Uuid $target, string 
         routeProfileKey: 'default', routeProfileRevision: null, allowedProfileKeys: null,
         timeouts: new RequestTimeoutPolicy(1000, 3000, 5000, maxAttempts: 3, maxDistinctRoutes: 3), retryDelaysDisabled: false,
         allowDirectRoute: $allowDirect, strategyKey: $strategy, outcomePolicyKey: 'default', deniedRoutes: $denied,
-        allowedDestinations: null, budgets: $budgets, values: [], disabledSettings: [], layerRevisions: [],
+        allowedDestinations: null, budgets: $budgets, values: [], disabledSettings: [], layerRevisions: $layerRevisions,
         appliedLayers: [], explanations: [], effectiveRevision: 1, policyHash: ContentHash::of('fixture'),
     );
 }

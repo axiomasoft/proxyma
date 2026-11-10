@@ -55,7 +55,8 @@ final readonly class OperationCommands
                 'owner_id' => $operation->owner->ownerId, 'owner_token' => $operation->owner->token(), 'owner_generation' => $operation->owner->generation,
                 'deadline' => $operation->deadlineAt->format('Y-m-d H:i:s.uP'), 'connect_timeout_ms' => $timeouts->connectTimeoutMs,
                 'request_timeout_ms' => $timeouts->totalTimeoutMs, 'max_physical_attempts' => $timeouts->maxAttempts,
-                'external_operation_key' => $operation->externalOperationKey, 'parent_attempt_id' => $parentAttemptId?->value, 'intent_hash' => $intent]);
+                'external_operation_key' => $operation->externalOperationKey, 'parent_attempt_id' => $parentAttemptId?->value, 'intent_hash' => $intent,
+                'purpose' => $operation->purpose->value, 'probe_token' => $operation->probeToken?->value]);
 
             return $operation;
         });

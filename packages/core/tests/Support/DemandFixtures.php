@@ -12,6 +12,7 @@ use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
+use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\Duration;
 use Proxyma\Domain\Execution\OperationCorrelation;
 use Proxyma\Domain\Execution\OwnerRef;
@@ -53,15 +54,16 @@ trait DemandFixtures
         return $id;
     }
 
-    protected function demandOperation(?Uuid $target = null, string $url = 'https://example.test/path', ?Uuid $parent = null): array
+    protected function demandOperation(?Uuid $target = null, string $url = 'https://example.test/path', ?Uuid $parent = null, DemandPurpose $purpose = DemandPurpose::Ordinary): array
     {
         $id = Uuid::random();
         $owner = new OwnerRef($this->tenant, 'standalone', $id->value, 'fixture-token');
-        $operation = new OperationCorrelation($id, $owner, new DateTimeImmutable('+1 minute'), 'consumer:'.$id->value);
+        $operation = new OperationCorrelation($id, $owner, new DateTimeImmutable('+1 minute'), 'consumer:'.$id->value,
+            purpose: $purpose, probeToken: $purpose === DemandPurpose::Probe ? Uuid::random() : null);
         $timeouts = new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 3, maxDistinctRoutes: 3);
         $target ??= $this->catalog['target'];
         $this->operations->create($operation, $this->catalog['profile'], $target, $timeouts, $parent);
-        $request = new WireRequest($id, Uuid::random(), $target, 1, 'GET', new SafeUrl($url), $timeouts, $operation->deadlineAt);
+        $request = new WireRequest($id, Uuid::random(), $target, 1, 'GET', new SafeUrl($url), $timeouts, $operation->deadlineAt, purpose: $purpose);
         $route = new RouteSelection($this->catalog['route'], RouteKind::Direct, $this->catalog['profile'], null, 1, EgressIdentity::explicit('nat:fixture'));
 
         return ['operation' => $operation, 'request' => $request, 'route' => $route, 'timeouts' => $timeouts];

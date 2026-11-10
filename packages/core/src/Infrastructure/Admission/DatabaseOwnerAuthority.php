@@ -10,10 +10,12 @@ use Illuminate\Database\Query\Builder;
 use Proxyma\Contracts\OwnerAuthority;
 use Proxyma\Contracts\SqlConnectionParticipant;
 use Proxyma\Domain\Admission\AdmissionRejected;
+use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\LockedOwnerState;
 use Proxyma\Domain\Execution\LockedTransactionContext;
 use Proxyma\Domain\Execution\OwnerRef;
 use Proxyma\Domain\Execution\OwnerSnapshot;
+use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
@@ -40,7 +42,8 @@ final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnec
             return null;
         }
 
-        return new OwnerSnapshot($owner, new DateTimeImmutable($row->deadline), controlVersions: ['operation' => (int) $row->revision]);
+        return new OwnerSnapshot($owner, new DateTimeImmutable($row->deadline), controlVersions: ['operation' => (int) $row->revision],
+            purpose: DemandPurpose::from($row->purpose), probeToken: $row->probe_token === null ? null : new Uuid($row->probe_token));
     }
 
     public function validateSnapshot(OwnerRef $owner, OwnerSnapshot $snapshot): bool
@@ -54,6 +57,7 @@ final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnec
         $row = $this->query($owner)->lockForUpdate()->first();
         if ($row === null || ! $this->validateSnapshot($owner, $snapshot)
             || (int) $row->revision !== $snapshot->controlVersions['operation']
+            || $row->purpose !== $snapshot->purpose->value || $row->probe_token !== $snapshot->probeToken?->value
             || new DateTimeImmutable($row->deadline) != $snapshot->deadlineAt) {
             throw new AdmissionRejected('owner_lost');
         }

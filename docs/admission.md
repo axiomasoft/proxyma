@@ -203,3 +203,62 @@ scope isolation и negative DB guards с исходниками. `DemandFifoTest
 независимые PHP процессы/PG sessions, удерживает общий budget lock до наблюдаемого
 барьера и проверяет queue bound, eligible FIFO, cancellation/take и expiry при
 ожидании. Тестовый trace/worker не входит в production API.
+
+## Atomic reservations и GCRA
+
+`ReservationService.prepare()` выполняется до transaction: проверяет trusted
+tenant/permissions, выбранные catalog references, request/policy identity,
+снимает owner/work snapshots и вызывает выбранные finite registry IDs
+`BudgetScopeContributor`. Contributor возвращает только дополнительные/более
+строгие `BudgetConstraint`; mandatory origin сохраняется, probe добавляет свой
+scope. Scope names разрешаются только среди tenant/system budgets, поэтому
+contributor не выбирает чужой tenant. Внешние DNS/secret/object обращения внутри
+reserve closure отсутствуют; contributor повторно под locks не вызывается.
+
+Порядок API: prepare → enqueue prepared scopes → reserve. Набор scopes входит в
+immutable demand; поздний contributor или изменившийся набор требует нового
+плана, а не добавления связей к старому ticket. Уже materialized route-origin,
+egress-origin, policy и EXTRA scopes учитываются одновременно. Missing scope
+даёт hold без UPSERT. Budget owner сохраняется отдельно от consumer tenant в
+reservation reference, в том числе для одновременных system и tenant constraints.
+
+Standalone `reserve()` владеет transaction. `reserveLocked()` требует context
+той же Connection, соединяет FIFO handoff и все accounting updates в общей
+transaction. Composable caller сначала берёт owner prefix, затем finance и
+передаёт LockedOwnerState; первый package mutex — operation. Catalog/policy,
+health/adapter и budgets блокируются в объявленном порядке до demand/permit.
+Все applicable budgets и полные наборы старших FIFO tickets заблокированы до
+первой записи. Перед accounting проверяются capacity, integer GCRA/config,
+immutable intent и deadline свежим `clock_timestamp()`.
+
+Любой wait из Locked API выбрасывает `ReservationDeferred`; он должен дойти до
+owning transaction и откатить предшествующую finance mutation. Standalone метод
+преобразует это исключение в `DemandWait` только после rollback. Точный повтор
+reserve возвращает тот же permit/slot/expiry без новой lease или debt. Другой
+cost, wire body/headers, route либо sealed scope set отклоняется.
+
+Чистый `Domain\Budget\Gcra` использует integer microseconds и проверяет overflow
+до сложения/умножения. Reserve вычисляет общий slot, затем продвигает `tat` и
+увеличивает inflight во всех scopes либо ни в одном. `send_tat` остаётся
+независимым debt для финального send admission. `BudgetRepository.availability()`
+— отдельное advisory чтение/вычисление: оно не создаёт permit и не заменяет
+повторную проверку под locks. Временный capacity/rate hold возвращает retryAt;
+финальная physical-send authority остаётся отдельным этапом.
+
+`cancel()` берёт operation root, budgets, demand и permit; persisted references
+освобождаются ровно один раз. Используется существующий `PermitState.transitionTo`;
+после durable authorization before-send cancel запрещён. Shared `tat` и
+`send_tat` не отматываются. Изменение reservation intent/reference и возрождение
+released lease запрещены DB guard. Rollback миграции с новой историей запрещён.
+
+Fixed-window accounting относится к P4.1: пока materialized quota windows
+существуют, этот путь возвращает typed `quota_accounting_required`, а не обходит
+quota. Reservation ещё не выдаёт wire capability: полная live send revalidation,
+final claim CAS и продвижение `send_tat` принадлежат следующему этапу.
+
+`MultiScopeReservationTest.php` проверяет simultaneous origin/route/egress/probe/
+system leases, zero partial spend, immutable replay, EXTRA constraints, integer
+overflow, cancel и stale catalog/policy. `GcraReservationTest.php` использует
+независимые PHP/PG workers и наблюдаемые SQL barriers: capacity contention,
+duplicate reserve, shared egress разных routes и реальные catalog/policy command
+writers, ожидающие ранние locks до commit reservation.
