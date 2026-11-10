@@ -127,3 +127,79 @@ cancellation/deadline/version drift, guard tier и отсутствие owner pr
 receipt. Это sequential composition evidence; изменения owner другим connection
 не обозначаются доказательством одновременной гонки. Interference races относятся
 к последующим phase checks.
+
+## Bounded operations и FIFO demands
+
+`OperationCommands.create()` создаёт generic operation с owner claim, profile,
+target, конечным deadline и пределом физических попыток (1–10). Внешний
+`externalOperationKey` и `parentAttemptId` — только correlation, без FK на
+consumer/process tables. Точное повторение команды не меняет deadline или
+revision; другое намерение с тем же UUID запрещено. Создание и cancellation
+проверяют trusted tenant context и Authorizer до transaction. Новый operation
+ограничен hard maximum одного часа; renew API здесь не добавлен.
+
+`DemandQueue.enqueue()` возвращает immutable `DemandTicket` либо `DemandWait`
+с reason/retryAt. Identity — `(tenant, operation, physical attempt UUID)`.
+Другой wire fingerprint, request deadline, route/credential snapshot или набор
+budgets при повторе дают typed conflict. Ticket TTL по умолчанию 30 секунд,
+hard maximum 60 секунд; он ограничен operation, request и live/snapshot owner
+deadlines. Retry возвращает прежние UUID/sequence/expiry, включая terminal ticket,
+и не создаёт бессмертного waiter. Терминальная история остаётся для deduplication;
+по timestamp она больше не занимает очередь. Число distinct physical attempts
+ограничено operation даже после cancellation/expiry.
+
+Conflict set включает обязательный materialized origin budget, настроенные
+route-origin/egress-origin и дополнительные policy scopes. Для неизвестного
+shared egress требуется materialized pool budget. Tenant и system ограничения
+применяются одновременно. Membership и egress сверяются с catalog до чтения
+budgets; смена egress snapshot требует нового плана. Все scopes должны существовать заранее; очередь не
+создаёт budgets. Обязательные дополнительные policy scopes передаёт resolver;
+финальная admission authority повторно пересекает live policy перед permit.
+
+Enqueue под operation root блокирует весь conflict set в C ordering до INSERT.
+Sequence выдаётся после этих locks: пересекающиеся enqueue сериализованы, а
+повтор попытки не меняет порядок. По каждому budget разрешено максимум 64 live
+pending tickets (конфиг может сузить лимит); счётчик включает active и admitted.
+Проверки всех scopes предшествуют вставке, поэтому queue-full не оставляет
+частичных tickets/связей. PostgreSQL защищает attempt uniqueness, неизменяемость
+identity/lifetime, необратимость lifecycle и точный sealed scope set, включая
+deferred проверку набора связей при commit. Legacy rows сохраняются и не выдаются
+как новые immutable tickets.
+
+`take()` выдаёт durable scheduler handoff (`DemandState::Admitted`), а не permit,
+quota reservation или send capability. Он проверяет FIFO и readiness на всех
+budgets. Для каждого старшего конфликтующего ticket читается его полный набор,
+затем объединённые budgets блокируются в одном порядке. Готового старшего
+обгонять нельзя. Неготового можно пропустить, но не более `maxEligibleSkip`
+(default 8, hard maximum 64) за решение. После восстановления readiness старший
+снова имеет приоритет. При достижении skip bound возвращается retryAt до его
+readiness/expiry. Scan ограничен 1024 старшими конфликтующими tickets; превышение
+означает typed rejection. Глобального strict FIFO для независимых scopes нет.
+
+Старшие operation rows читаются без блокировки и не изменяются: их terminal
+status/deadline могут только убрать препятствие. Поэтому take не захватывает
+чужие operation roots после budget locks. Новая более ранняя конфликтующая
+запись не появляется после snapshot: enqueue выдаёт sequence только под общими
+budget locks, а ticket никогда не возвращается из terminal/admitted в active.
+
+До каждого enqueue/take заново снимаются owner snapshot и project `WorkBudget`.
+`WorkBudget.canStart(Duration)` работает вне SQL и может отказать из-за work
+slice; Process context в очереди отсутствует. Locked owner revalidation повторяется
+внутри transaction. Queue сама не спит: caller получает bounded retryAt, ждёт
+вне transaction и обращается снова. Финальный UPDATE использует свежий
+`clock_timestamp()`, поэтому истечение TTL во время ожидания SQL lock не даёт
+admission. GCRA reserve/send debts и quota/inflight читаются для readiness, но
+queue не меняет accounting и cancellation не отматывает debt.
+
+Cancellation ticket блокирует его operation root, полный scope set и demand;
+повтор terminal cancellation идемпотентен. После создания permit cancellation
+передаётся accounting-aware admission/reconcile, иначе очередь могла бы забыть
+lease/quota. Переход scheduler handoff и реальное резервирование budgets должны
+выполняться одной owning transaction при подключении следующего admission этапа.
+Самостоятельный `take()` не доказывает наличие capacity к моменту будущего send.
+
+`BoundedDemandTest.php` связывает identity/correlation, FIFO, TTL, cancellation,
+scope isolation и negative DB guards с исходниками. `DemandFifoTest.php` запускает
+независимые PHP процессы/PG sessions, удерживает общий budget lock до наблюдаемого
+барьера и проверяет queue bound, eligible FIFO, cancellation/take и expiry при
+ожидании. Тестовый trace/worker не входит в production API.

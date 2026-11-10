@@ -60,6 +60,14 @@ return [
         'max_attempts' => 3,
     ],
 
+    'queue' => [
+        'maxPendingPerScope' => 64,
+        'ticketTtlMs' => 30000,
+        'maxEligibleSkip' => 8,
+        'retryMs' => 100,
+        'maxOperationMs' => 3600000,
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Registered Extension Contracts

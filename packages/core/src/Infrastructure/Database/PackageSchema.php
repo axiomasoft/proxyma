@@ -28,6 +28,7 @@ final class PackageSchema
             'binding_revisions' => Eloquent\BindingRevisionRecord::class,
             'operations' => Eloquent\OperationRecord::class,
             'demands' => Eloquent\DemandRecord::class,
+            'demand_scopes' => Eloquent\DemandScopeRecord::class,
             'permits' => Eloquent\PermitRecord::class,
             'attempts' => Eloquent\AttemptRecord::class,
             'budgets' => Eloquent\BudgetRecord::class,

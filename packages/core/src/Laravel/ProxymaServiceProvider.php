@@ -7,6 +7,8 @@ namespace Proxyma\Laravel;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Admission\AuthorityLocker;
+use Proxyma\Application\Admission\DemandQueue;
+use Proxyma\Application\Admission\OperationCommands;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
@@ -33,12 +35,14 @@ use Proxyma\Contracts\RouteAccessChecks;
 use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Contracts\TransactionCoordinator;
+use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
+use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
@@ -127,6 +131,14 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->scoped(AuthorityLocker::class);
         $this->app->bind(DatabaseOwnerAuthority::class);
         $this->app->bindIf(OwnerAuthority::class, DatabaseOwnerAuthority::class);
+        $this->app->bind(QueueLimits::class, static function (Application $app): QueueLimits {
+            $cfg = $app['config']->get('proxyma.queue', []);
+
+            return new QueueLimits(...$cfg);
+        });
+        $this->app->bind(DemandRepository::class);
+        $this->app->bind(OperationCommands::class);
+        $this->app->bind(DemandQueue::class);
     }
 
     public function boot(): void
