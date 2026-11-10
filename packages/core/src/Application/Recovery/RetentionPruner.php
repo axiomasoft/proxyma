@@ -8,6 +8,7 @@ use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
 use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
@@ -32,14 +33,24 @@ final readonly class RetentionPruner
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from($t['attempts'].' as a')->whereColumn('a.operation_id', $t['operations'].'.id'))
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from($t['permits'].' as p')->whereColumn('p.operation_id', $t['operations'].'.id')
                 ->where(fn ($q) => $q->whereNotNull('p.authorized_at')->orWhereNull('p.lease_released_at')))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from($t['permits'].' as p')->whereColumn('p.operation_id', $t['operations'].'.id')
+                ->whereRaw("p.expires_at>=clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds]))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from($t['demands'].' as d')->whereColumn('d.operation_id', $t['operations'].'.id')
+                ->whereNotIn('d.state', ['expired', 'cancelled', 'completed']))
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from((new TemporaryArtifactRecord)->getTable().' as a')->whereColumn('a.operation_id', $t['operations'].'.id'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from($t['permits'].' as p')
+                ->join($t['quota_reservations'].' as r', 'r.permit_id', '=', 'p.id')
+                ->join($t['quota_windows'].' as w', 'w.id', '=', 'r.window_id')
+                ->whereColumn('p.operation_id', $t['operations'].'.id')
+                ->whereRaw("w.ends_at>=clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds]))
             ->orderBy('id')->limit($limit)->pluck('id')->all();
         $removed = 0;
         foreach ($ids as $id) {
             $removed += $this->transactions->run(function ($tx) use ($id, $tenant, $retentionSeconds, $scope, $t): int {
                 $db = $scope->connection;
                 $root = $this->repository->root($tenant, $id, $tx, true);
-                if ($root === null || $root->status === 'active') {
+                if ($root === null || ! in_array($root->status, ['completed', 'cancelled', 'expired'], true)
+                    || new \DateTimeImmutable($root->deadline) >= DatabaseClock::now($db)->modify('-'.$retentionSeconds.' seconds')) {
                     return 0;
                 }
                 $state = $this->repository->lockSubset($root, $tx);
@@ -51,6 +62,11 @@ final readonly class RetentionPruner
                     return 0;
                 }
                 $permitIds = array_column($state['permits'], 'id');
+                if ($db->table($t['quota_reservations'].' as r')->join($t['quota_windows'].' as w', 'w.id', '=', 'r.window_id')
+                    ->whereIn('r.permit_id', $permitIds)
+                    ->whereRaw("w.ends_at>=clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds])->exists()) {
+                    return 0;
+                }
                 if ($db->table($t['permits'])->whereIn('id', $permitIds)->whereRaw("expires_at>=clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds])->exists()
                     || array_filter($state['demands'], static fn ($d) => ! in_array($d->state, ['expired', 'cancelled', 'completed'], true)) !== []) {
                     return 0;

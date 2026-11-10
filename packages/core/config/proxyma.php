@@ -83,6 +83,10 @@ return [
 
     'health_cooldown_scopes' => [],
 
+    'scheduler' => ['enabled' => false],
+
+    'maintenance' => ['batch_size' => 32, 'retention_seconds' => 2592000],
+
     // Только пути к CA; secret material хранится через Laravel encrypter, не в config.
     'tls' => [
         'origin_bundles' => [],

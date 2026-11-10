@@ -215,3 +215,15 @@ Authorization facts, reservation references и budgets сохраняются к
 до late receipt horizon. Текущий pruner консервативно сохраняет все authorized
 attempts и связанные исходные scopes даже после retention horizon; неизвестный
 receipt и retired target не теряют исходную атрибуцию.
+**Advisory admission diagnosis** — read-only policy explain + candidate snapshot,
+с DB as-of time и revisions, без audit/reservation/last-authorized mutations.
+Не является send authority; отправка повторяет locked validation.
+
+**Operations metric sample** — bounded gauges по очереди и последним permits,
+с конечными reason labels без URL/tenant; correlation UUID хранится в redacted log.
+Lease inflight не доказывает число физических сокетов.
+
+**Maintenance opt-in** — scheduler по умолчанию пуст; явное включение регистрирует
+только bounded reconcile/prune в trusted tenant context. Probe — отдельный один
+HEAD через обычный admission с exact scope claim. Facts/windows/health history
+удерживаются консервативно; prune удаляет только безопасную preauthorization history.

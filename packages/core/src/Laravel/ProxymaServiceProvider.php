@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Laravel;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Proxyma\Application\Admission\AuthorityLocker;
@@ -25,6 +26,7 @@ use Proxyma\Application\Execution\OutcomePolicyRegistry;
 use Proxyma\Application\Execution\ProxyResolver;
 use Proxyma\Application\Execution\WireSealer;
 use Proxyma\Application\Extensions\DefinitionRegistry;
+use Proxyma\Application\Maintenance\MaintenanceSchedule;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\SettingRegistryFactory;
@@ -44,6 +46,7 @@ use Proxyma\Contracts\CatalogCommands;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\Completion;
 use Proxyma\Contracts\DestinationResolver;
+use Proxyma\Contracts\DiagnosticsQueries;
 use Proxyma\Contracts\LockedCompletionReducer;
 use Proxyma\Contracts\OutboundClient;
 use Proxyma\Contracts\OwnerAuthority;
@@ -71,6 +74,7 @@ use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
 use Proxyma\Infrastructure\Database\CompletionObservationReducer;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
+use Proxyma\Infrastructure\Database\DatabaseDiagnosticsQueries;
 use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
@@ -83,6 +87,7 @@ use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
 use Proxyma\Infrastructure\Security\UnconfiguredTenantContextResolver;
+use Proxyma\Infrastructure\Telemetry\OperationsTelemetry;
 use Proxyma\Laravel\Console\ReconcileCommand;
 use Proxyma\Laravel\Console\TransportDoctorCommand;
 
@@ -112,6 +117,8 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bind(CandidateSnapshots::class, static fn (Application $app): CandidateSnapshotQuery => new CandidateSnapshotQuery(
             $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')), $app->make(CatalogAccess::class), $app->make(StrategyRegistry::class),
             $app->make(TrafficSharePolicy::class)));
+        $this->app->bind(CandidateSnapshotQuery::class, static fn (Application $app) => $app->make(CandidateSnapshots::class));
+        $this->app->bind(DiagnosticsQueries::class, DatabaseDiagnosticsQueries::class);
 
         $this->app->singleton(PolicyResolutionCache::class, static fn (): PolicyResolutionCache => new PolicyResolutionCache);
 
@@ -245,6 +252,7 @@ class ProxymaServiceProvider extends ServiceProvider
             $app->make(PhysicalTransport::class),
             $app->make(OutcomePolicyRegistry::class),
             $app->make(CompletionCoordinator::class),
+            telemetry: $app->make(OperationsTelemetry::class),
         ));
         $this->app->alias(OutboundExecutor::class, OutboundClient::class);
     }
@@ -258,7 +266,12 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ReconcileCommand::class, TransportDoctorCommand::class]);
+            $this->commands([ReconcileCommand::class, TransportDoctorCommand::class,
+                Console\DoctorCommand::class, Console\DiagnoseCommand::class, Console\PruneCommand::class,
+                Console\MetricsCommand::class, Console\HealthResetCommand::class, Console\ProbeCommand::class]);
+            $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+                $this->app->make(MaintenanceSchedule::class)->register($schedule);
+            });
             $this->publishes([
                 __DIR__.'/../../config/proxyma.php' => $this->app->configPath('proxyma.php'),
             ], 'proxyma-config');

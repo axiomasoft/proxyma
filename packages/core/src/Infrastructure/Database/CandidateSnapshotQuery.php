@@ -29,6 +29,16 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
 
     public function load(TenantKey $tenant, Uuid $profileId, Uuid $targetId, EffectivePolicy $policy): CandidateSnapshot
     {
+        return $this->snapshot($tenant, $profileId, $targetId, $policy, true);
+    }
+
+    public function readOnly(TenantKey $tenant, Uuid $profileId, Uuid $targetId, EffectivePolicy $policy): CandidateSnapshot
+    {
+        return $this->snapshot($tenant, $profileId, $targetId, $policy, false);
+    }
+
+    private function snapshot(TenantKey $tenant, Uuid $profileId, Uuid $targetId, EffectivePolicy $policy, bool $recordAudit): CandidateSnapshot
+    {
         if ($this->db->transactionLevel() !== 0) {
             throw new InvalidArgumentException('Resolve candidates before opening a SQL transaction.');
         }
@@ -47,9 +57,11 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
             ->leftJoin($t['target_health'].' as h', fn ($j) => $j->on('h.tenant_key', '=', 'x.tenant_key')->on('h.target_id', '=', 'x.id'))
             ->where('x.tenant_key', $tenant->value)->where('x.id', $targetId->value)
             ->select(['x.*', 'h.state as health_state', 'h.availability as availability', 'h.health_epoch as health_epoch', 'h.state_version as health_version'])->first();
-        $audit = new CatalogAudit($this->db);
-        $audit->read('route_profiles', $profileId, 'catalog.profile.select', $context, (int) ($profile->revision ?? 0));
-        $audit->read('targets', $targetId, 'catalog.target.read', $targetContext, (int) ($target->revision ?? 0));
+        if ($recordAudit) {
+            $audit = new CatalogAudit($this->db);
+            $audit->read('route_profiles', $profileId, 'catalog.profile.select', $context, (int) ($profile->revision ?? 0));
+            $audit->read('targets', $targetId, 'catalog.target.read', $targetContext, (int) ($target->revision ?? 0));
+        }
         $holds = [];
         if ($profile === null || $profile->retired_at !== null) {
             $holds[] = 'profile_missing_or_retired';

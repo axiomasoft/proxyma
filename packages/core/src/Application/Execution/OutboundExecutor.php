@@ -65,6 +65,7 @@ use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Health\ProbeClaimRecord;
+use Proxyma\Infrastructure\Telemetry\OperationsTelemetry;
 use Throwable;
 
 final readonly class OutboundExecutor implements OutboundClient
@@ -91,9 +92,24 @@ final readonly class OutboundExecutor implements OutboundClient
         private CompletionCoordinator $completion,
         private ?Closure $sleepUs = null,
         private ?Closure $monotonicClockNs = null,
+        private ?OperationsTelemetry $telemetry = null,
     ) {}
 
     public function execute(OutboundRequest $request, ExecutionContext $context): ExecutionResult
+    {
+        $result = $this->executeLoop($request, $context);
+        if ($result instanceof ExecutionBlocked || $result instanceof ExecutionDeferred) {
+            try {
+                $this->telemetry?->blocked($result->reason->value, $request->operationId);
+            } catch (Throwable) {
+                // Ошибка экспортера не меняет уже принятое решение admission.
+            }
+        }
+
+        return $result;
+    }
+
+    private function executeLoop(OutboundRequest $request, ExecutionContext $context): ExecutionResult
     {
         $this->scope->assertOutsideTransaction();
         if (! $request->operationId->equals($context->operation->operationId)) {
