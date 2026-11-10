@@ -40,6 +40,7 @@ use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\Completion;
 use Proxyma\Contracts\LockedCompletionReducer;
 use Proxyma\Contracts\OwnerAuthority;
+use Proxyma\Contracts\PhysicalTransport;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
 use Proxyma\Contracts\RandomIndex;
@@ -63,6 +64,7 @@ use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
+use Proxyma\Infrastructure\Http\PhysicalHttpTransport;
 use Proxyma\Infrastructure\Http\TlsTrust;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
@@ -70,6 +72,7 @@ use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
 use Proxyma\Infrastructure\Security\UnconfiguredTenantContextResolver;
 use Proxyma\Laravel\Console\ReconcileCommand;
+use Proxyma\Laravel\Console\TransportDoctorCommand;
 
 class ProxymaServiceProvider extends ServiceProvider
 {
@@ -157,6 +160,7 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->app->bindIf(TlsTrustPolicy::class, static fn (Application $app) => new TlsTrust(
             $app->make(ConnectionScope::class), $app['config']->get('proxyma.tls.origin_bundles', []),
             $app['config']->get('proxyma.tls.proxy_bundles', [])));
+        $this->app->bindIf(PhysicalTransport::class, PhysicalHttpTransport::class);
         $this->app->scoped(\Proxyma\Application\Admission\TransactionCoordinator::class);
         $this->app->alias(\Proxyma\Application\Admission\TransactionCoordinator::class, TransactionCoordinator::class);
         $this->app->scoped(AuthorityLocker::class);
@@ -208,7 +212,7 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ReconcileCommand::class]);
+            $this->commands([ReconcileCommand::class, TransportDoctorCommand::class]);
             $this->publishes([
                 __DIR__.'/../../config/proxyma.php' => $this->app->configPath('proxyma.php'),
             ], 'proxyma-config');

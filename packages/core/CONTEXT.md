@@ -112,4 +112,17 @@ tenant, panel или entity. Scope принадлежит определённо
 исходного узла назначения и сертификату HTTPS proxy соответственно.
 # Destination preparation
 
-`DestinationPolicy` checks the exact target origin and revision and validates every DNS answer outside a transaction. `ResolvedUrl` returned by that policy pins the complete address set and original host; the wire sealer rejects descriptors constructed directly. A redirect requires a new policy resolution and a new authorization. PHP-configured exact target, host and address exceptions are trusted authority and must only include isolated fixture addresses when used by the test rig. Actual HTTP and proxy transport protocol qualification remains in P5.2.
+`DestinationPolicy` checks the exact target origin and revision and validates every DNS answer outside a transaction. `ResolvedUrl` returned by that policy pins the complete address set and original host; the wire sealer rejects descriptors constructed directly. A redirect requires a new policy resolution and a new authorization. PHP-configured exact target, host and address exceptions are trusted authority and must only include isolated fixture addresses when used by the test rig.
+
+**Proxy destination** — выбранный до admission endpoint с локально разрешённым IP.
+Protocol, hostname, port, revision и credential version входят в sealed wire;
+physical dispatch не перечитывает endpoint и не делегирует DNS proxy.
+
+**Raw response body** — ограниченная encoded entity одной физической попытки.
+Transport не декодирует её и передаёт response-слою без persistence body/секретов.
+
+`PhysicalHttpTransport` реализует один dispatch на fresh cURL connection:
+direct HTTP(S), HTTP/HTTPS proxy forwarding/CONNECT и SOCKS5 local DNS.
+Capability consume происходит после bind options непосредственно перед dispatch;
+повторный consume, поздний старт и SQL transaction отказывают без socket bytes.
+Protocol qualification и actual socket crash checkpoints описаны в `docs/transports.md`.

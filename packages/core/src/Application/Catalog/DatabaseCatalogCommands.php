@@ -30,6 +30,7 @@ use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Http\TransportDoctor;
 use Proxyma\Infrastructure\Security\SharedRouteStorage;
 
 final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedRouteCommands
@@ -60,6 +61,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
 
     public function upsertEndpoint(UpsertEndpointCommand $command): Endpoint
     {
+        TransportDoctor::assertProtocol($command->protocol);
         $row = $this->mutate('catalog.endpoint.upsert', 'endpoints', $command->endpointId, $command->tenantKey, $command->actor, $command,
             function (?object $previous) use ($command): array {
                 $value = new Endpoint($command->endpointId, $command->tenantKey, $command->protocol, $command->host, $command->port, $command->credential);

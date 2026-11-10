@@ -118,6 +118,10 @@ final class ClaimSend
                 || ($wire->credential !== null && (int) $endpoint->credential_version !== $wire->credential->reference->version)) {
                 throw new AdmissionRejected('prepared_credential_conflict');
             }
+            if ($wire->proxy !== null && ($endpoint->protocol !== $wire->proxy->endpoint->protocol->value
+                || $endpoint->host !== $wire->proxy->endpoint->host || (int) $endpoint->port !== $wire->proxy->endpoint->port)) {
+                throw new AdmissionRejected('prepared_proxy_conflict');
+            }
         }
         foreach ($this->definitions->selectExtensions(ExtensionKind::LockedAdmissionGuard, $this->guardIds) as $definition) {
             if (! $definition->implementation instanceof LockedAdmissionGuard) {

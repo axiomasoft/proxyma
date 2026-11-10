@@ -27,7 +27,6 @@ use Proxyma\Domain\Execution\IdempotencyClass;
 use Proxyma\Domain\Execution\OperationCorrelation;
 use Proxyma\Domain\Execution\OwnerRef;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
-use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\TlsTrustConfiguration;
@@ -112,6 +111,10 @@ $service = new ReservationService($transactions, $locks, $access, $catalog, $own
 $sealer = new WireSealer($scope, 'fixture-only-32-byte-hmac-key-value');
 $claims = new ClaimSend($transactions, $locks, $owners, $catalogLocks, $demands, $budgets, $permits, $definitions, $sealer,
     quotaService: $quotaService, quotaRepository: $quotas);
+if (isset($payload['physical_checkpoint'])) {
+    require __DIR__.'/PhysicalWorkerActions.php';
+    exit;
+}
 $owner = new OwnerRef($tenant, $root->owner_type, $root->owner_id, $root->owner_token, (int) $root->owner_generation);
 $deadline = DateTimeImmutable::createFromFormat('U.u', $payload['deadline']);
 $operation = new OperationCorrelation(new Uuid($root->id), $owner, $deadline, $root->external_operation_key,

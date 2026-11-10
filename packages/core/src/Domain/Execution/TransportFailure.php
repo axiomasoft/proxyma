@@ -16,6 +16,7 @@ enum TransportFailure: string
     case Configuration = 'configuration';
     case Storage = 'storage';
     case Protocol = 'protocol';
+    case ByteLimit = 'byte_limit';
 
     public function isRetryable(): bool
     {

@@ -75,7 +75,7 @@ final readonly class ReservationCatalogLocks
         if ($input->route->endpointId !== null) {
             $endpoint = $this->locks->rows(AuthorityLockTier::Endpoint, $input->route->tenantKey, [$input->route->endpointId->value], $tx)[0];
             if ($endpoint->retired_at !== null || ProxyProtocol::tryFrom($endpoint->protocol) === null
-                || (int) $endpoint->credential_version !== $input->selection->credentialVersion
+                || (int) ($endpoint->credential_version ?? 1) !== $input->selection->credentialVersion
                 || (int) $endpoint->revision !== $input->route->endpointRevision) {
                 throw new AdmissionRejected('endpoint_revision_changed');
             }
