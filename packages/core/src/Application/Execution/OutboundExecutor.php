@@ -45,6 +45,7 @@ use Proxyma\Domain\Execution\ExecutionUnknownAfterAuthorization;
 use Proxyma\Domain\Execution\IdempotencyClass;
 use Proxyma\Domain\Execution\OutboundRequest;
 use Proxyma\Domain\Execution\OutcomeDecision;
+use Proxyma\Domain\Execution\PhysicalExecutionResult;
 use Proxyma\Domain\Execution\ReadOnlyAttemptObservation;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\ResponseDescriptor;
@@ -101,6 +102,9 @@ final readonly class OutboundExecutor implements OutboundClient
     public function execute(OutboundRequest $request, ExecutionContext $context): ExecutionResult
     {
         $result = $this->executeLoop($request, $context);
+        if ($result instanceof PhysicalExecutionResult) {
+            throw new \LogicException('Physical result escaped normal execution.');
+        }
         if ($result instanceof ExecutionBlocked || $result instanceof ExecutionDeferred) {
             try {
                 $this->telemetry?->blocked($result->reason->value, $request->operationId);
@@ -112,7 +116,19 @@ final readonly class OutboundExecutor implements OutboundClient
         return $result;
     }
 
-    private function executeLoop(OutboundRequest $request, ExecutionContext $context): ExecutionResult
+    /** One stable physical ID per immutable operation; no retry/redirect loop is entered. */
+    public function executeAttempt(OutboundRequest $request, ExecutionContext $context, RouteSelectionContext $routes,
+        int $attempt = 1, int $redirects = 0): PhysicalExecutionResult|ExecutionResult
+    {
+        if ($attempt < 1 || $redirects < 0) {
+            throw new InvalidArgumentException('Invalid finite execution position.');
+        }
+
+        return $this->executeLoop($request, $context, $routes, $attempt, $redirects);
+    }
+
+    private function executeLoop(OutboundRequest $request, ExecutionContext $context,
+        ?RouteSelectionContext $physicalRoutes = null, int $physicalAttempt = 1, int $physicalRedirects = 0): PhysicalExecutionResult|ExecutionResult
     {
         $this->scope->assertOutsideTransaction();
         if (! $request->operationId->equals($context->operation->operationId)) {
@@ -140,8 +156,8 @@ final readonly class OutboundExecutor implements OutboundClient
         /** @var array<string, true> $visitedUrls */
         $visitedUrls = [$currentUrl->reveal() => true];
 
-        $hopAttempt = 1;
-        $redirectHop = 0;
+        $hopAttempt = $physicalAttempt;
+        $redirectHop = $physicalRedirects;
         $totalSends = $this->scope->connection->table(PackageSchema::tables()['permits'])
             ->where('tenant_key', $tenant->value)->where('operation_id', $request->operationId->value)
             ->whereNotNull('authorized_at')->count();
@@ -325,7 +341,7 @@ final readonly class OutboundExecutor implements OutboundClient
                     }
                 }
 
-                $physicalAttemptId = Uuid::random();
+                $physicalAttemptId = $physicalRoutes === null ? Uuid::random() : $request->operationId;
                 $wireRequest = new WireRequest(
                     operationId: $context->operation->operationId,
                     physicalAttemptId: $physicalAttemptId,
@@ -343,7 +359,7 @@ final readonly class OutboundExecutor implements OutboundClient
                     responseProfile: $request->responseProfile,
                 );
 
-                $selectionContext = new RouteSelectionContext(
+                $selectionContext = $physicalRoutes ?? new RouteSelectionContext(
                     triedRouteIds: $triedRouteIds,
                     maxDistinctRoutes: $effectiveTimeouts->maxDistinctRoutes,
                     preferUntried: $preferUntried,
@@ -612,6 +628,14 @@ final readonly class OutboundExecutor implements OutboundClient
                 if ($attemptResult->response !== null) {
                     $this->closeArtifactIfNeeded($lastDeliveredResponse, $attemptResult->response);
                     $lastDeliveredResponse = $attemptResult->response;
+                }
+
+                if ($physicalRoutes !== null && ! $policyFailed) {
+                    return new PhysicalExecutionResult($physicalAttemptId, $route->id, $attemptResult, $resolvedOutcome,
+                        $effectiveTimeouts, $resolvedOutcome->isAmbiguousAfterAuthorization()
+                            ? new ExecutionUnknownAfterAuthorization($context->operation->operationId, $physicalAttemptId,
+                                $authorizedWire->snapshot->permitId, $sealedWire->request->fingerprint(), $attemptResult->failure)
+                            : null);
                 }
 
                 if ($resolvedOutcome->isAmbiguousAfterAuthorization()) {
@@ -1366,71 +1390,7 @@ final readonly class OutboundExecutor implements OutboundClient
 
     private function resolveRedirectUrl(SafeUrl $baseUrl, string $location): SafeUrl
     {
-        $trimmed = trim($location);
-        if ($trimmed === '') {
-            throw new InvalidArgumentException('Redirect Location header must not be empty.');
-        }
-
-        $fragmentPos = strpos($trimmed, '#');
-        if ($fragmentPos !== false) {
-            $trimmed = substr($trimmed, 0, $fragmentPos);
-        }
-
-        if ($trimmed === '') {
-            return $baseUrl;
-        }
-
-        if (preg_match('/^[a-zA-Z][a-zA-Z0-9+.-]*:/', $trimmed) === 1) {
-            return new SafeUrl($trimmed);
-        }
-
-        if (str_starts_with($trimmed, '//')) {
-            return new SafeUrl($baseUrl->origin->scheme.':'.$trimmed);
-        }
-
-        $originPrefix = $baseUrl->origin->value();
-        if (str_starts_with($trimmed, '/')) {
-            return new SafeUrl($originPrefix.$trimmed);
-        }
-
-        $baseRevealed = $baseUrl->reveal();
-        $basePath = parse_url($baseRevealed, PHP_URL_PATH);
-        $basePath = is_string($basePath) && $basePath !== '' ? $basePath : '/';
-
-        if (str_starts_with($trimmed, '?')) {
-            return new SafeUrl($originPrefix.$basePath.$trimmed);
-        }
-
-        $lastSlash = strrpos($basePath, '/');
-        $dir = $lastSlash === false ? '/' : substr($basePath, 0, $lastSlash + 1);
-
-        return new SafeUrl($originPrefix.$this->normalizeRelativePath($dir.$trimmed));
-    }
-
-    private function normalizeRelativePath(string $path): string
-    {
-        $query = '';
-        $qPos = strpos($path, '?');
-        if ($qPos !== false) {
-            $query = substr($path, $qPos);
-            $path = substr($path, 0, $qPos);
-        }
-
-        $segments = explode('/', $path);
-        $resolved = [];
-        foreach ($segments as $segment) {
-            if ($segment === '' || $segment === '.') {
-                continue;
-            }
-            if ($segment === '..') {
-                array_pop($resolved);
-
-                continue;
-            }
-            $resolved[] = $segment;
-        }
-
-        return '/'.implode('/', $resolved).$query;
+        return (new RedirectUrlResolver)->resolve($baseUrl, $location);
     }
 
     private function resolveRetryDelayMs(
