@@ -16,7 +16,7 @@ final readonly class ResponseProfile
         public ?string $charsetDefault = 'UTF-8',
     ) {
         if (! in_array($kind, ['raw', 'text', 'binary'], true) || min($maxWireBytes, $maxEntityBytes, $maxTextBytes) < 1
-            || max($maxWireBytes, $maxEntityBytes, $maxTextBytes) > 67108864) {
+            || max($maxWireBytes, $maxEntityBytes, $maxTextBytes) > ($kind === 'binary' ? 268435456 : 67108864)) {
             throw new InvalidArgumentException('Invalid bounded response profile.');
         }
     }

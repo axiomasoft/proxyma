@@ -48,9 +48,6 @@ final class ResponseReader
         if ($this->wire > $this->profile->maxWireBytes) {
             throw new \LengthException('Wire byte limit exceeded.');
         }
-        if ($this->profile->kind === 'binary' && fwrite($this->stream, $chunk) !== strlen($chunk)) {
-            throw new LogicException('Response sink write failed.');
-        }
         foreach (str_split($chunk, 512) as $part) {
             $decoded = $this->inflater === null ? $part : @inflate_add($this->inflater, $part, ZLIB_SYNC_FLUSH);
             if ($decoded === false) {
@@ -60,7 +57,11 @@ final class ResponseReader
             if ($this->decoded > $this->profile->maxEntityBytes) {
                 throw new \LengthException('Entity byte limit exceeded.');
             }
-            if ($this->profile->kind !== 'binary') {
+            if ($this->profile->kind === 'binary') {
+                if (fwrite($this->stream, $decoded) !== strlen($decoded)) {
+                    throw new LogicException('Response sink write failed.');
+                }
+            } else {
                 $this->text .= $decoded;
             }
         }
@@ -82,7 +83,7 @@ final class ResponseReader
         $hash = hash_init('sha256');
         hash_update_stream($hash, $this->stream);
 
-        return new BinaryBodyArtifact($this->stream, $this->wire, new ContentHash(hash_final($hash)), $this->scope);
+        return new BinaryBodyArtifact($this->stream, $this->decoded, new ContentHash(hash_final($hash)), $this->scope);
     }
 
     public function wireBytes(): int

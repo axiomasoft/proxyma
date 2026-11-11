@@ -30,8 +30,8 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
     public function __construct(private ConnectionScope $scope, private WireSealer $sealer,
         private int $maxResponseBytes = 67_108_864, private ?Closure $cancelled = null)
     {
-        if ($maxResponseBytes < 1 || $maxResponseBytes > 64 * 1024 * 1024) {
-            throw new LogicException('Physical response limit must be between 1 byte and 64 MiB.');
+        if ($maxResponseBytes < 1 || $maxResponseBytes > 256 * 1024 * 1024) {
+            throw new LogicException('Physical response limit must be between 1 byte and 256 MiB.');
         }
     }
 

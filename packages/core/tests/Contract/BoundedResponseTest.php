@@ -34,6 +34,28 @@ it('собирает разбитый gzip и учитывает каждый п
     $reader->close();
 });
 
+it('binary artifact содержит распакованные bytes и hash без смешения с wire accounting', function (): void {
+    $content = "%PDF-1.4\n".str_repeat('local fixture', 128);
+    $wire = gzencode($content);
+    $reader = new ResponseReader(new ResponseProfile('binary', 65536, 65536, 65536), responseScope(), 'gzip');
+    foreach (str_split($wire, 3) as $chunk) {
+        $reader->write($chunk);
+    }
+    $artifact = $reader->finish();
+    expect($reader->wireBytes())->toBe(strlen($wire))
+        ->and($reader->decodedBytes())->toBe(strlen($content))
+        ->and($artifact->contentHash()->hex)->toBe(hash('sha256', $content));
+    $artifact->accept(function ($stream, $length) use ($content): void {
+        expect($length)->toBe(strlen($content))->and(stream_get_contents($stream))->toBe($content);
+    });
+});
+
+it('binary ceiling допускает конечный Agelto download profile без расширения text buffering', function (): void {
+    expect((new ResponseProfile('binary', 268435456, 268435456, 268435456))->maxEntityBytes)->toBe(268435456)
+        ->and(fn () => new ResponseProfile('binary', 268435457, 268435456, 268435456))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => new ResponseProfile('raw', 67108865, 67108865, 67108865))->toThrow(InvalidArgumentException::class);
+});
+
 it('декодирует BOM, header, HTML meta и CSV default без подмены bytes', function (): void {
     $decoder = new ResponseDecoder;
     $profile = new ResponseProfile('text', charsetDefault: 'Windows-1251');
