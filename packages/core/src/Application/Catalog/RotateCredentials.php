@@ -6,6 +6,7 @@ namespace Proxyma\Application\Catalog;
 
 use Illuminate\Database\QueryException;
 use Proxyma\Application\Authorization\CatalogAccess;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Catalog\Endpoint;
@@ -49,6 +50,7 @@ final readonly class RotateCredentials
         $ciphertext = $this->secrets->encrypt($tenant, $secret);
         try {
             $row = $db->transaction(function () use ($db, $t, $ability, $tenant, $endpointId, $actor, $secret, $hash, $ciphertext, $version): object {
+                app(CatalogMutationFence::class)->lock($db, $actor);
                 (new CatalogProvisioner($db))->lockCatalog($tenant);
                 $receipt = $db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)
                     ->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey))->first();

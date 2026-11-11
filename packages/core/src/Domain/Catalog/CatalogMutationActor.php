@@ -19,6 +19,7 @@ final readonly class CatalogMutationActor
         string $reason,
         public ?int $expectedRevision = null,
         public ?string $idempotencyKey = null,
+        public ?string $authorityVersion = null,
     ) {
         $actor = $actorId instanceof ActorRef ? $actorId : new ActorRef('operator', trim($actorId));
         $actorId = $actor->id;

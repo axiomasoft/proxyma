@@ -9,6 +9,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Contracts\CatalogCommands;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Contracts\SharedRouteCommands;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Catalog\Endpoint;
@@ -195,6 +196,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         // Повторяем только SQL; внешние authorizer/secret/network вызовы остаются вне closure.
         try {
             return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $hash, $changes, $budgets, $members): object {
+                app(CatalogMutationFence::class)->lock($this->db, $actor);
                 $t = PackageSchema::tables();
                 $provisioner = new CatalogProvisioner($this->db);
                 $provisioner->lockCatalog($tenant);

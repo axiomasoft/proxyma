@@ -9,10 +9,12 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Validation\ValidationException;
 use JsonException;
 use Proxyma\Application\Authorization\AuthorizationDenied;
+use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Panels\PanelFormProjection;
 use Proxyma\Application\Panels\PanelSubjects;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Contracts\BindingCommands;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
@@ -60,7 +62,8 @@ class BindingEditor
         }
         $context = [$subject->tenant->value, $subject->type, $subject->id, $target->value, $panel, $slot,
             $projection->binding->revision ?? 0, $projection->editVersion,
-            array_map(static fn (SubjectRef $s): string => $s->key(), $this->subjects->resolve($panel, $subject)->ordered)];
+            array_map(static fn (SubjectRef $s): string => $s->key(), $this->subjects->resolve($panel, $subject)->ordered),
+            app(CatalogMutationFence::class)->version()];
 
         return ['context' => Crypt::encryptString(json_encode($context, JSON_THROW_ON_ERROR)), 'fields' => $fields, 'reason' => ''];
     }
@@ -77,6 +80,7 @@ class BindingEditor
             throw new AuthorizationDenied;
         }
         [$tenant, $type, $id, $target, $panel, $slot, $revision, $version, $chain] = $context;
+        $authorityVersion = $context[9] ?? null;
         $subject = new SubjectRef(new TenantKey($tenant), $type, $id);
         try {
             $projection = $this->project($subject, new Uuid($target), $panel, $slot);
@@ -118,9 +122,9 @@ class BindingEditor
             validator(['reason' => $reason], ['reason' => ['required', 'string', 'max:512']])->validate();
             $actor = $this->tenants->resolve()->actor;
             $this->commands->bindPolicy(new BindSubjectPolicyCommand($subject, $projection->binding?->routeProfileId,
-                $projection->binding->policyKey ?? 'default', new CatalogMutationActor($actor, $reason, $revision, Uuid::random()->value),
+                $projection->binding->policyKey ?? 'default', new CatalogMutationActor($actor, $reason, $revision, Uuid::random()->value, $authorityVersion),
                 $panel, $slot, new SettingPatch(1, $changes), $version));
-        } catch (PolicyConflict) {
+        } catch (PolicyConflict|CatalogConflict) {
             throw ValidationException::withMessages(['data' => 'Политика изменена. Перезагрузите форму.']);
         } catch (InvalidSettingPatch) {
             throw ValidationException::withMessages(['data' => 'Недопустимое значение или операция настройки.']);

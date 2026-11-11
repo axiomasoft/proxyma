@@ -47,6 +47,7 @@ use Proxyma\Contracts\BindingCommands;
 use Proxyma\Contracts\BindingQueries;
 use Proxyma\Contracts\CandidateSnapshots;
 use Proxyma\Contracts\CatalogCommands;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\Completion;
 use Proxyma\Contracts\DestinationResolver;
@@ -91,6 +92,7 @@ use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
 use Proxyma\Infrastructure\Security\DenyAuthorizer;
+use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 use Proxyma\Infrastructure\Security\UnconfiguredTenantContextResolver;
 use Proxyma\Infrastructure\Telemetry\OperationsTelemetry;
 use Proxyma\Laravel\Console\ReconcileCommand;
@@ -104,6 +106,7 @@ class ProxymaServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../../config/proxyma.php', 'proxyma');
 
         $this->app->bindIf(Authorizer::class, DenyAuthorizer::class);
+        $this->app->bindIf(CatalogMutationFence::class, StandaloneCatalogMutationFence::class);
         $this->app->bind(BindingEditVersion::class, static fn (Application $app): BindingEditVersion => new BindingEditVersion(
             $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
             $app->make(DefinitionRegistry::class), $app->make(SettingRegistry::class)));

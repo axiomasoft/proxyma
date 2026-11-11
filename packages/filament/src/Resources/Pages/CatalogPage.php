@@ -13,6 +13,7 @@ use Livewire\Attributes\Locked;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogNotFound;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Contracts\CatalogQueries;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Domain\Catalog\Endpoint;
@@ -41,6 +42,9 @@ abstract class CatalogPage extends Page
     public int $revision = 0;
 
     #[Locked]
+    public ?string $authorityVersion = null;
+
+    #[Locked]
     public int $catalogPage = 1;
 
     #[Unexposed]
@@ -65,6 +69,7 @@ abstract class CatalogPage extends Page
         abort_unless(static::canAccess(), 403);
         $this->recordId = Uuid::random()->value;
         $this->revision = 0;
+        $this->authorityVersion = app(CatalogMutationFence::class)->version();
         $this->resetErrorBag();
         $this->form->fill($this->defaults() + ['reason' => '']);
     }
@@ -91,7 +96,7 @@ abstract class CatalogPage extends Page
     {
         $this->guardWrite();
         try {
-            $value = app(SaveCatalog::class)->save(static::$kind, $this->recordId, $this->revision, $this->form->getState());
+            $value = app(SaveCatalog::class)->save(static::$kind, $this->recordId, $this->revision, $this->form->getState(), $this->authorityVersion);
             $this->revision = $value->revision;
             $this->data['reason'] = '';
         } catch (CatalogConflict) {
@@ -123,6 +128,7 @@ abstract class CatalogPage extends Page
             abort_if($value === null || ! $value->tenantKey->equals($tenant), 404);
             $this->recordId = $id;
             $this->revision = $value->revision;
+            $this->authorityVersion = app(CatalogMutationFence::class)->version();
             $this->resetErrorBag();
 
             return $value;

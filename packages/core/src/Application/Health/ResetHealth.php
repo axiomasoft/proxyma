@@ -7,6 +7,7 @@ namespace Proxyma\Application\Health;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthScope;
@@ -32,6 +33,7 @@ final readonly class ResetHealth
         $db = $this->scope->connection;
 
         return $db->transaction(function () use ($db, $scope, $id, $tenant, $actor, $ability, $hash): object {
+            app(CatalogMutationFence::class)->lock($db, $actor);
             $t = PackageSchema::tables();
             (new CatalogProvisioner($db))->lockCatalog($tenant);
             $receipt = $db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)

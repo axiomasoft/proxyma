@@ -15,6 +15,7 @@ use Livewire\Attributes\Locked;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\CatalogConflict;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Contracts\TenantContextResolver;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
@@ -66,7 +67,8 @@ abstract class OperationsPage extends Page
         $this->command(function () use ($id): void {
             $row = app(OperationsQuery::class)->find(static::$kind, $id, $this->selectedHealthScope());
             abort_if($row === null, 404);
-            $this->editing = $row + ['tenant' => app(TenantContextResolver::class)->resolve()->tenant->value, 'key' => Uuid::random()->value];
+            $this->editing = $row + ['tenant' => app(TenantContextResolver::class)->resolve()->tenant->value, 'key' => Uuid::random()->value,
+                'authority_version' => app(CatalogMutationFence::class)->version()];
             $this->form->fill($this->editState($row) + ['reason' => '']);
         });
     }
@@ -97,7 +99,7 @@ abstract class OperationsPage extends Page
         $this->assertEditing();
 
         return new CatalogMutationActor(app(TenantContextResolver::class)->resolve()->actor, $state['reason'],
-            (int) ($this->editing['revision'] ?? $this->editing['state_version']), $this->editing['key']);
+            (int) ($this->editing['revision'] ?? $this->editing['state_version']), $this->editing['key'], $this->editing['authority_version'] ?? null);
     }
 
     protected function assertEditing(): void

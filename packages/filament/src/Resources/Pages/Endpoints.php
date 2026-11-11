@@ -68,7 +68,7 @@ class Endpoints extends CatalogPage
             $this->guardWrite('rotate-credentials');
             abort_if($this->revision === 0, 404);
             $state = $this->credentials->getState();
-            $value = app(SaveCatalog::class)->rotate($this->recordId, $this->revision, $state['reason'], $state);
+            $value = app(SaveCatalog::class)->rotate($this->recordId, $this->revision, $state['reason'], $state, $this->authorityVersion);
             $this->revision = $value->revision;
             $this->data['credential_status'] = '•••••••• · v'.$value->credential->version;
         } catch (CatalogConflict) {

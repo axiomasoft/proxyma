@@ -37,12 +37,12 @@ class SaveCatalog
         $this->access->authorize($context->tenant, "catalog.{$kind}.{$operation}", new Uuid($id), $context->actor);
     }
 
-    public function save(string $kind, string $id, int $revision, array $data): Endpoint|Route|RouteProfile
+    public function save(string $kind, string $id, int $revision, array $data, ?string $authorityVersion = null): Endpoint|Route|RouteProfile
     {
         $this->authorize($kind, $id);
         $context = $this->tenants->resolve();
         $uuid = new Uuid($id);
-        $actor = new CatalogMutationActor($context->actor, $data['reason'], $revision, Uuid::random()->value);
+        $actor = new CatalogMutationActor($context->actor, $data['reason'], $revision, Uuid::random()->value, $authorityVersion);
         if ($kind === 'endpoint') {
             $previous = $this->queries->findEndpoint($context->tenant, $uuid);
             if ($revision > 0 && $previous === null) {
@@ -79,7 +79,7 @@ class SaveCatalog
             array_map(static fn (string $id): Uuid => new Uuid($id), $data['member_route_ids']), $data['strategy_key'], $actor));
     }
 
-    public function rotate(string $id, int $revision, string $reason, #[SensitiveParameter] array $credentials): Endpoint
+    public function rotate(string $id, int $revision, string $reason, #[SensitiveParameter] array $credentials, ?string $authorityVersion = null): Endpoint
     {
         $this->authorize('endpoint', $id, 'rotate-credentials');
         $password = $credentials['password'];
@@ -90,6 +90,6 @@ class SaveCatalog
 
         return app(RotateCredentials::class)->handle(new Uuid($id), $context->tenant,
             ($credentials['username'] ?? '') ?: null, $password,
-            new CatalogMutationActor($context->actor, $reason, $revision, Uuid::random()->value));
+            new CatalogMutationActor($context->actor, $reason, $revision, Uuid::random()->value, $authorityVersion));
     }
 }

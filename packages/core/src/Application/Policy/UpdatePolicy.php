@@ -7,6 +7,7 @@ namespace Proxyma\Application\Policy;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Proxyma\Application\Authorization\CatalogAccess;
+use Proxyma\Contracts\CatalogMutationFence;
 use Proxyma\Contracts\PolicyCommands;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
@@ -45,6 +46,7 @@ final readonly class UpdatePolicy implements PolicyCommands
 
         try {
             $savedRevision = $this->db->transaction(function () use ($command, $patch, $hash): PolicyRevision {
+                app(CatalogMutationFence::class)->lock($this->db, $command->actor);
                 $t = PackageSchema::tables();
                 $tenant = $command->tenant->value;
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);
