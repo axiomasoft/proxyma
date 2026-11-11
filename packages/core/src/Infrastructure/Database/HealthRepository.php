@@ -16,6 +16,7 @@ use Proxyma\Domain\Health\HealthSignal;
 use Proxyma\Domain\Health\HealthSignals;
 use Proxyma\Domain\Health\HealthSnapshot;
 use Proxyma\Domain\Health\TargetAvailability;
+use Proxyma\Infrastructure\Eloquent\ImportedHealthSampleRecord;
 use Proxyma\Infrastructure\Health\ProbeClaims;
 
 final readonly class HealthRepository
@@ -77,7 +78,7 @@ final readonly class HealthRepository
                 if (! $this->dedup($fact, $key, $epoch, $eligible) || ! $eligible) {
                     continue;
                 }
-                [$sample, $failures, $groups] = $this->window($scope, $key, $epoch, $now);
+                [$sample, $failures, $groups] = $this->window($scope, $key, $epoch, $now, $scope === HealthScope::Target ? $fact->tenant->value : $owner);
                 $snapshot = new HealthSnapshot(new Uuid($row->id), CircuitState::from($row->state), (int) $row->health_epoch,
                     (int) $row->state_version, (int) $row->consecutive_failures, (int) $row->recent_openings, $row->reason_code,
                     self::date($row->last_success_at), self::date($row->last_failure_at), self::date($row->open_until),
@@ -114,7 +115,7 @@ final readonly class HealthRepository
         ]) === 1;
     }
 
-    private function window(HealthScope $scope, string $key, int $epoch, DateTimeImmutable $now): array
+    private function window(HealthScope $scope, string $key, int $epoch, DateTimeImmutable $now, string $tenant): array
     {
         if ($scope === HealthScope::Route) {
             return [0, 0, 0];
@@ -135,6 +136,17 @@ final readonly class HealthRepository
                 if ($signal !== HealthSignal::Success && is_string($summary['independence_group'] ?? null) && $summary['independence_group'] !== '') {
                     $groups[$summary['independence_group']] = true;
                 }
+            }
+        }
+        $imports = $this->scope->connection->table((new ImportedHealthSampleRecord)->getTable())
+            ->where('tenant_key', $tenant)
+            ->where('application_key', $key)->where('health_epoch', $epoch)->where('reducer_allowed', true)
+            ->where('observed_at', '>=', $now->modify('-'.$seconds.' seconds')->format('Y-m-d H:i:s.uP'))->get();
+        foreach ($imports as $row) {
+            $failed = $row->signal !== 'success';
+            $attempts[$row->attempt_id] = ($attempts[$row->attempt_id] ?? false) || $failed;
+            if ($failed && is_string($row->independence_group) && $row->independence_group !== '') {
+                $groups[$row->independence_group] = true;
             }
         }
         $sample = count($attempts);
