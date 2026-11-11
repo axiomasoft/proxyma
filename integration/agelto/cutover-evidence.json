@@ -1,0 +1,304 @@
+{
+  "schema": "proxyma-agelto-cutover-evidence/v1",
+  "agelto_head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+  "proxyma_base": "04e87e314e16fe2ad5b176eb234a066c7ab464d2",
+  "external_root": "/home/vostrikov/projects/agelto/agelto",
+  "external_changed_paths": [
+    "app/Console/Commands/Procurement/ProxymaCutoverCommand.php",
+    "app/Models/Procurement/Proxyma/LegacyPermitScope.php",
+    "app/Models/Procurement/Proxyma/LegacyProfileMember.php",
+    "app/Services/Procurement/Proxyma/Migration/Cutover.php",
+    "app/Services/Procurement/Proxyma/Migration/CutoverFence.php",
+    "app/Services/Procurement/Proxyma/Migration/CutoverJournal.php",
+    "app/Services/Procurement/Proxyma/ProcessOwnerAuthority.php",
+    "app/Services/Procurement/Proxyma/UiAuthority.php",
+    "app/Repositories/Procurement/Network/NetworkPermitRepository.php",
+    "database/migrations/2026_11_11_100002_add_prc_proxyma_cutover_fences.php",
+    "tests/Support/ProcessCore/ProxymaUpgradeFixtures.php",
+    "tests/Support/ProcessCore/ProxymaFixtures.php",
+    "tests/Support/ProcessCore/ProxymaProviderFixtures.php",
+    "tests/Support/ProcessCore/Http/PermitFixtures.php",
+    "tests/Support/ProcessCore/CutoverFixtures.php",
+    "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php",
+    "tests/Integration/ProcessCore/Concurrency/ProxymaCutoverTest.php",
+    "tests/Feature/ProcessCore/Network/ProxymaRollbackTest.php",
+    "tests/Fixtures/ProcessCore/manifest.json",
+    "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json",
+    "tests/Support/ProcessCore/schema-inventory.json",
+    "docs/dev/process-schema.md",
+    "app/Services/Procurement/Proxyma/Migration/Inventory.php"
+  ],
+  "execution": "isolated fixtures only; no production switch; final commits owned by coordinator",
+  "checks": [
+    {
+      "id": "target-files",
+      "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 /tmp/p102-target.py",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "runtime_cwd": "/var/www/html",
+      "exit": 2,
+      "log": "/tmp/p102-target-tests.log",
+      "junit": "/tmp/p102-output/target-junit.xml",
+      "tests": 15,
+      "assertions": 18,
+      "errors": 13,
+      "failures": 0,
+      "note": "Single invocation before the final fixture repairs. No final-tree green claim."
+    },
+    {
+      "id": "pint",
+      "cmd": "php8.4 vendor/bin/pint app/Console/Commands/Procurement/ProxymaCutoverCommand.php app/Models/Procurement/Proxyma/LegacyPermitScope.php app/Models/Procurement/Proxyma/LegacyProfileMember.php app/Services/Procurement/Proxyma/Migration/Cutover.php app/Services/Procurement/Proxyma/Migration/CutoverFence.php app/Services/Procurement/Proxyma/Migration/CutoverJournal.php app/Services/Procurement/Proxyma/ProcessOwnerAuthority.php app/Services/Procurement/Proxyma/UiAuthority.php app/Repositories/Procurement/Network/NetworkPermitRepository.php database/migrations/2026_11_11_100002_add_prc_proxyma_cutover_fences.php tests/Support/ProcessCore/ProxymaUpgradeFixtures.php tests/Support/ProcessCore/ProxymaFixtures.php tests/Support/ProcessCore/ProxymaProviderFixtures.php tests/Support/ProcessCore/Http/PermitFixtures.php tests/Support/ProcessCore/CutoverFixtures.php tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php tests/Integration/ProcessCore/Concurrency/ProxymaCutoverTest.php tests/Feature/ProcessCore/Network/ProxymaRollbackTest.php",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "log": "/tmp/p102-pint.log",
+      "note": "One invocation before final fixture and bounded-transaction edits; Inventory.php was added afterward. No final-tree Pint claim."
+    },
+    {
+      "id": "schema-generation",
+      "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 /tmp/p102-setup.py",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "runtime_cwd": "/var/www/html",
+      "exit": 0,
+      "log": "/tmp/p102-schema-generation-fixed.log",
+      "note": "Read schema in rollback transaction on guarded agelto_test. Initial entrypoint invocation failed before PHP execution; corrected to --entrypoint php."
+    },
+    {
+      "id": "schema-contract",
+      "cmd": "php8.4 tests/Support/ProcessCore/verify-schema.php",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "log": "/tmp/p102-schema-check.log",
+      "assertions": [
+        "schema_inventory_violations=[]"
+      ]
+    },
+    {
+      "id": "syntax",
+      "cmd": "php8.4 -l <each changed Agelto PHP path>",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "log": "/tmp/p102-final-syntax.log",
+      "paths": [
+        "app/Console/Commands/Procurement/ProxymaCutoverCommand.php",
+        "app/Models/Procurement/Proxyma/LegacyPermitScope.php",
+        "app/Models/Procurement/Proxyma/LegacyProfileMember.php",
+        "app/Services/Procurement/Proxyma/Migration/Cutover.php",
+        "app/Services/Procurement/Proxyma/Migration/CutoverFence.php",
+        "app/Services/Procurement/Proxyma/Migration/CutoverJournal.php",
+        "app/Services/Procurement/Proxyma/ProcessOwnerAuthority.php",
+        "app/Services/Procurement/Proxyma/UiAuthority.php",
+        "app/Repositories/Procurement/Network/NetworkPermitRepository.php",
+        "database/migrations/2026_11_11_100002_add_prc_proxyma_cutover_fences.php",
+        "tests/Support/ProcessCore/ProxymaUpgradeFixtures.php",
+        "tests/Support/ProcessCore/ProxymaFixtures.php",
+        "tests/Support/ProcessCore/ProxymaProviderFixtures.php",
+        "tests/Support/ProcessCore/Http/PermitFixtures.php",
+        "tests/Support/ProcessCore/CutoverFixtures.php",
+        "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php",
+        "tests/Integration/ProcessCore/Concurrency/ProxymaCutoverTest.php",
+        "tests/Feature/ProcessCore/Network/ProxymaRollbackTest.php",
+        "app/Services/Procurement/Proxyma/Migration/Inventory.php"
+      ]
+    },
+    {
+      "id": "diff-package",
+      "cmd": "git diff --check",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "log": "/tmp/p102-proxyma-final-diff.log"
+    },
+    {
+      "id": "diff-consumer",
+      "cmd": "git diff --check",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "log": "/tmp/p102-agelto-final-diff.log"
+    }
+  ],
+  "target_assertions_passed": [
+    {
+      "name": "snapshot старого package worker отвергается после смены selector generation в другой SQL сессии",
+      "assertions": 5,
+      "note": "Recorded prior to final edits; final tree not rerun."
+    },
+    {
+      "name": "первый joint claim без socket делает rollback необратимым сохраняет finance hold и не даёт stale worker send",
+      "assertions": 13
+    }
+  ],
+  "fixture_repairs_after_target": [
+    "Populate committed consumer fixture in one caller transaction for financial authorize.",
+    "Reuse existing fixture-provider; clean isolated financial ledger and legacy budget debts between scenarios.",
+    "Remove remaining budget debts after both new test files."
+  ],
+  "final_external_sha256": {
+    "app/Console/Commands/Procurement/ProxymaCutoverCommand.php": "21aa0b12e819d353e756a9c7802a1a2efafc35f31cecdfce2da0ba264aa4ade3",
+    "app/Models/Procurement/Proxyma/LegacyPermitScope.php": "6e4839ae3b2b48e133b733f96e87497c6ae5a3c6b716593a6a2577c540439db3",
+    "app/Models/Procurement/Proxyma/LegacyProfileMember.php": "84f77a6dca4c93e31a95d1c80dda105b32af4378de34a0b88b9a739f94e3b07a",
+    "app/Services/Procurement/Proxyma/Migration/Cutover.php": "6accafb7194566e44c3ce43427973043d847da8c2bf7fda9a089eb75d9b09c6d",
+    "app/Services/Procurement/Proxyma/Migration/CutoverFence.php": "0b5c79aef252109f955f9c6f83413f12748e151064b23e594d9911bc9dc75da1",
+    "app/Services/Procurement/Proxyma/Migration/CutoverJournal.php": "6c5343d24730eba71d76a6fef0f326dc017cead1c4c76e2f9ddce94c57938d41",
+    "app/Services/Procurement/Proxyma/ProcessOwnerAuthority.php": "56fad3209cfc22e5245272f52d7bcb21512fb97c2af1952b9f64974ba4dfc2de",
+    "app/Services/Procurement/Proxyma/UiAuthority.php": "15e5092474acf05e4f85d38d96b55b31a69f8ce86aa2ad0c28d7d54b83bc876d",
+    "app/Repositories/Procurement/Network/NetworkPermitRepository.php": "5e08d657c7edeb064db09b6f267e052463d41206ad025354f6f96d8e3f0837b6",
+    "database/migrations/2026_11_11_100002_add_prc_proxyma_cutover_fences.php": "d8ed66cf0b2ef548e92613119e1e7956ae5f2a86b749a844bbf4260efd4dd995",
+    "tests/Support/ProcessCore/ProxymaUpgradeFixtures.php": "e53025bb91d8c3aa672455dc328a0ba77e1a5401b69536c17e1aebbee6d6a04d",
+    "tests/Support/ProcessCore/ProxymaFixtures.php": "146fffc7c93c7bf568f374e210e872ea7bca358abd9c46cda5a1685cfee6880b",
+    "tests/Support/ProcessCore/ProxymaProviderFixtures.php": "17c8bf20c562756f47ac988d5c9d6fcd336b826ed2107048bb0e7f92f3bfdc97",
+    "tests/Support/ProcessCore/Http/PermitFixtures.php": "356a76991b6a025427695ef40a188a152635640dc72d106952cbfe7418f889c6",
+    "tests/Support/ProcessCore/CutoverFixtures.php": "130242ff88a33516f842edbea8b7f7503df77cd312a62a1b5a693633a9b0ba16",
+    "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php": "d8de427ff143cab96d651868ea7e2340179fca0e28c8e9013c6bf51d38f3faba",
+    "tests/Integration/ProcessCore/Concurrency/ProxymaCutoverTest.php": "0ebd1b21832ea4605c7ae6abef21d1fe9694e8b65cbe136d6044d70ffe23fe38",
+    "tests/Feature/ProcessCore/Network/ProxymaRollbackTest.php": "236335779bc7d90e458536ebe1a95a8991f3cc201c0de996e022bbfe61efc78c",
+    "tests/Fixtures/ProcessCore/manifest.json": "a2b00ef6a61ea6c06a8bb65b3ae3177b7a81fe85127225402b89469cbfbda7e8",
+    "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "ff3b47fee7b120ea4d36cb1a757bb20e532cc4825de1ca9212df2ae570ee0ebe",
+    "tests/Support/ProcessCore/schema-inventory.json": "50a2393d95ed5f32d01dd9d908333ae597d029588fa99f087dd3ea1b352d160a",
+    "docs/dev/process-schema.md": "bcd17541a0c246165dfbb1c9dd181e6341a5211fcf66521a9c45cf74460db842",
+    "app/Services/Procurement/Proxyma/Migration/Inventory.php": "17e2642f56a5b8fd85cf14549039478125eab4ea3d9905a4344fca08ea876609"
+  },
+  "proxyma_changed_paths": [
+    "docs/integrations/agelto-cutover.md",
+    "integration/agelto/cutover-evidence.json",
+    "scripts/agelto.py",
+    "scripts/tests/test_agelto.py"
+  ],
+  "behavior": {
+    "phases": [
+      "prepared",
+      "draining",
+      "verified",
+      "switched",
+      "accepted"
+    ],
+    "fault_boundaries": [
+      "prepared",
+      "draining",
+      "transferred",
+      "verified",
+      "switched",
+      "accepted"
+    ],
+    "authority": "One persisted selector, expected generation and pause; no fallback or dual writes. Legacy SQL fence blocks obsolete writers.",
+    "rollback_before_claim": "Drain, source checksum and exact complete target checksum; selector-only return at a new generation.",
+    "rollback_after_claim": "Atomic first authorized_at marker persists before socket; refuse, pause and hold for roll-forward. No quota, health or finance reset.",
+    "timeout": "Keep unresolved state; expiry is never evidence of not-sent.",
+    "bounds": "0..60000ms local drain wait, 1s SQL lock timeout, 10s per statement in cutover transitions and transfer steps."
+  },
+  "source_to_test_mapping": [
+    {
+      "source": [
+        "app/Services/Procurement/Proxyma/Migration/Cutover.php",
+        "database/migrations/2026_11_11_100002_add_prc_proxyma_cutover_fences.php"
+      ],
+      "test": "tests/Integration/ProcessCore/Concurrency/ProxymaCutoverTest.php",
+      "behaviors": [
+        "crash at every durable phase; resume without duplicated import/spend",
+        "bounded drain preserves unknown/financial rows",
+        "separate SQL sessions deny paused legacy authorization",
+        "fresh source/target drift leaves legacy paused",
+        "stale package owner snapshot rejects a later selector generation"
+      ]
+    },
+    {
+      "source": [
+        "app/Services/Procurement/Proxyma/Migration/Cutover.php",
+        "app/Services/Procurement/Proxyma/Migration/CutoverFence.php",
+        "database/migrations/2026_11_11_100002_add_prc_proxyma_cutover_fences.php"
+      ],
+      "test": "tests/Feature/ProcessCore/Network/ProxymaRollbackTest.php",
+      "behaviors": [
+        "exact source/target counters/epochs/receipts/holds before new claim",
+        "changed source or target refuses rollback",
+        "joint financial/network durable claim without HTTP refuses reverse and preserves reservation",
+        "marker reset and selector code-only reverse refused by SQL"
+      ]
+    },
+    {
+      "source": [
+        "scripts/agelto.py"
+      ],
+      "test": "scripts/tests/test_agelto.py::AgeltoLauncherTest.test_cutover_paths_require_matching_checkout_revision_and_schema",
+      "behaviors": [
+        "wrong checkout, revision and schema rejected; not executed under single-target-run policy"
+      ]
+    }
+  ],
+  "qualification_limits": [
+    "V1/V2/V3 are withheld and conductor-owned; none executed here.",
+    "Agelto HEAD remains the pinned baseline with cumulative authorized dirty integration work. No final source commit created. Hash map identifies final authored inputs, not a final-SHA acceptance pass.",
+    "Runner uses the current core readonly at /proxyma-candidate; installed-consumer acceptance still requires coordinator package commit/repin.",
+    "Final populated cutover and exact rollback cases remain unverified after fixture repairs; do not treat test existence as proof.",
+    "Target run had 15 cases/18 assertions/13 setup errors; the final additional transaction case was not run. Pint was not rerun after final edits under one-run policy."
+  ],
+  "next_piece": [
+    "P10.3 must preserve historical table metadata required by migration 100002, including Proxy shim, two new Legacy* pivot records and network model getTable references, or replace them with explicit migration compatibility records before deleting classes.",
+    "Keep cutover SQL fences and irreversible journal/history when removing legacy runtime.",
+    "P10.4 must bind final consumer/package commits, vendor pin and actual JUnit/manifest evidence."
+  ],
+  "changes_after_target": [
+    "Fixture transaction/provider/cleanup repairs.",
+    "Explicit caller-transaction rejection and bounded drain SQL reads; inventory uses bounded SQL lock/statement timeouts.",
+    "Added unexecuted negative caller-transaction case."
+  ],
+  "corrections": [
+    {
+      "round": "executor.2",
+      "focus": "V3: provider negative fixture attempted a legacy source write after package activation.",
+      "change": "Create the mismatched provider in a guarded fixture callback after configure and before activate; retain provider/owner denial and zero-claim/no-HTTP assertions. Runtime SQL fence unchanged.",
+      "proxyma_head": "04e87e314e16fe2ad5b176eb234a066c7ab464d2",
+      "agelto_head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+      "changed_external_paths": [
+        "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php",
+        "tests/Support/ProcessCore/ProxymaProviderFixtures.php",
+        "tests/Fixtures/ProcessCore/manifest.json",
+        "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json"
+      ],
+      "source_sha256": {
+        "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php": "d8de427ff143cab96d651868ea7e2340179fca0e28c8e9013c6bf51d38f3faba",
+        "tests/Support/ProcessCore/ProxymaProviderFixtures.php": "17c8bf20c562756f47ac988d5c9d6fcd336b826ed2107048bb0e7f92f3bfdc97",
+        "tests/Fixtures/ProcessCore/manifest.json": "a2b00ef6a61ea6c06a8bb65b3ae3177b7a81fe85127225402b89469cbfbda7e8",
+        "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "ff3b47fee7b120ea4d36cb1a757bb20e532cc4825de1ca9212df2ae570ee0ebe"
+      },
+      "checks": [
+        {
+          "id": "target-attempt",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 /tmp/p102-executor2-target.py",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "runtime_cwd": "/var/www/html",
+          "exit": 2,
+          "log": "/tmp/p102-executor2-target.log",
+          "junit": "/tmp/p102-executor2-target-junit.xml",
+          "note": "Initial relocation before configure failed its provider lookup; repaired using beforeActivate."
+        },
+        {
+          "id": "target-fixed",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 /tmp/p102-executor2-target.py",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "runtime_cwd": "/var/www/html",
+          "exit": 0,
+          "log": "/tmp/p102-executor2-fixed-target.log",
+          "junit": "/tmp/p102-executor2-fixed-junit.xml",
+          "tests": 2,
+          "assertions": 11
+        },
+        {
+          "id": "pint-fixed",
+          "cmd": "php8.4 vendor/bin/pint tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php tests/Support/ProcessCore/ProxymaProviderFixtures.php",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "log": "/tmp/p102-executor2-fixed-pint.log"
+        }
+      ],
+      "assertions": [
+        {
+          "name": "Proxyma чужие provider или owner не получают сетевой authorization with data set \"('provider')\"",
+          "assertions": 6
+        },
+        {
+          "name": "Proxyma чужие provider или owner не получают сетевой authorization with data set \"('owner')\"",
+          "assertions": 5
+        }
+      ],
+      "acceptance": "V3 full suite not rerun; conductor owns acceptance. No commits or plan mutations."
+    }
+  ]
+}
