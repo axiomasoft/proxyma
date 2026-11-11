@@ -48,7 +48,7 @@ it('encrypted store migration изолирована и обратима вме�
     $this->artisan('migrate:rollback', ['--force' => true])->assertExitCode(0);
     expect($this->db->select('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'))->toHaveCount(1);
     $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
-    expect($this->table('encrypted_secrets')->count())->toBe(0)->and($this->db->table('migrations')->count())->toBe(14);
+    expect($this->table('encrypted_secrets')->count())->toBe(0)->and($this->db->table('migrations')->count())->toBe(15);
 });
 
 it('по умолчанию сохраняет только ciphertext и opaque reference, атомарно продвигает authority и audit', function (): void {

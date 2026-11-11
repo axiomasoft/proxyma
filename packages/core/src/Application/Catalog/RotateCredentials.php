@@ -20,6 +20,7 @@ use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Health\CredentialHolds;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
+use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 use SensitiveParameter;
 
 final readonly class RotateCredentials
@@ -50,7 +51,7 @@ final readonly class RotateCredentials
         $ciphertext = $this->secrets->encrypt($tenant, $secret);
         try {
             $row = $db->transaction(function () use ($db, $t, $ability, $tenant, $endpointId, $actor, $secret, $hash, $ciphertext, $version): object {
-                app(CatalogMutationFence::class)->lock($db, $actor);
+                (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($db, $actor);
                 (new CatalogProvisioner($db))->lockCatalog($tenant);
                 $receipt = $db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)
                     ->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey))->first();

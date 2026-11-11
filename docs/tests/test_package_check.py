@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('package_check', ROOT / 'scripts/package-check.py')
 SUPPLY = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SUPPLY)
-QUALIFIED = '5a046f699b32facfa7512e2f75c7079ef3a451e3'
+QUALIFIED = json.loads((ROOT / 'integration/agelto/candidate.json').read_text())['qualification_source_commit']
 
 
 class PrivateSupplyTest(unittest.TestCase):
@@ -112,8 +112,13 @@ class PrivateSupplyTest(unittest.TestCase):
     def test_resolve_проверяет_исходники_commit_и_не_сам_дескриптор(self):
         value = {**self.value, 'source': {'commit': QUALIFIED, 'sha256': SUPPLY.fingerprint(self.files)}}
         self.assertEqual(self.verify(value)['source']['commit'], QUALIFIED)
+        invalid_source = dict(self.files)
+        path = 'packages/filament/composer.json'
+        manifest = json.loads(invalid_source[path])
+        manifest['require']['axiomasoft/proxyma'] = '*'
+        invalid_source[path] = json.dumps(manifest).encode()
         with self.assertRaisesRegex(ValueError, 'same mapped version of core'):
-            self.verify(value, source=self.base)
+            self.verify(value, source=invalid_source)
         mismatched = {**self.files, 'packages/core/src/Unqualified.php': b'changed source'}
         with self.assertRaisesRegex(ValueError, 'does not contain candidate packages'):
             self.verify(value, source=mismatched)

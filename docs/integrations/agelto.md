@@ -165,3 +165,24 @@ LLM financial claim не меняются. HTTP/DNS/secrets/artifact I/O ост�
 source profile ID и version, в том числе до switch. Current historical profile revision
 используется только пока mapping отсутствует; неизвестная версия отклоняется. Повреждённый
 cutover checkpoint останавливает перенос, не подменяя сохранённые фазы пустым состоянием.
+# Финальная installed-приёмка
+
+До native consumer report статус остаётся private candidate. Команда
+`python3 scripts/package-check.py --accepted integration/agelto/acceptance.json`
+отказывает для pending descriptor, устаревшего package proof, другого runtime или
+неполного consumer report. `PROXYMA_AGELTO_ROOT` задаёт checkout; также можно передать
+`--consumer-root`. Collector читает фактические Agelto gates, проверяет исходные
+artifacts и повторно собирает summary без запуска тестов.
+
+В regression обязательны отдельные файлы owner/catalog/UI, caller/send accounting,
+joint financial claim, transfer, populated upgrade, cutover и rollback. Исчезнувшие
+network test paths в T01–T48 заменены именованными replay inventories; каждый binding
+сохраняет hash исторического source и его исходную group. Эти inventories получены
+через Pest discovery, а успешное выполнение подтверждается только actual JUnit.
+Frozen original-executed-scenarios и scenario-transfers остаются прежними.
+
+Все семь финальных gates требуют одинаковые image/config/dependency identities и
+hashes файлов установленных пакетов внутри app container. Host Composer path
+references сверяются с pinned manifest; symlink vendor не считается установкой.
+Установка в fixture не разрешает production rollout или публичный release.
+Полная последовательность — [agelto-acceptance.md](agelto-acceptance.md).

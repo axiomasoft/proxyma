@@ -13,7 +13,7 @@ requirements. Не используйте `--ignore-platform-reqs`.
 ```bash
 python3 -B scripts/package-check.py candidate \
   --qualification build/test-report.json \
-  --qualification-source-commit 5a046f699b32facfa7512e2f75c7079ef3a451e3 \
+  --qualification-source-commit "$PROXYMA_SOURCE_SHA" \
   --output integration/agelto/candidate.json
 python3 -B scripts/package-check.py verify
 ```
@@ -234,6 +234,13 @@ tenant/actor. Opt-in добавляет reconcile раз в минуту, prune 
 Полные условия и сохраняемая история — [upgrading](upgrading.md).
 
 ## Accepted descriptor — только после consumer qualification
+
+Для финальной P10.4 приёмки используется native `process-core-acceptance/v1`
+`summary.json` и [финальный runbook](integrations/agelto-acceptance.md).
+`PROXYMA_SOURCE_SHA` — полный commit проверенного source, заданный coordinator.
+Приведённый ниже envelope `proxyma-consumer-proof/v1` сохранён как прежний supply API;
+`--accepted` требует именно native report, реальные JUnit и финальные runtime files.
+Готовность не наследуется от старого qualification SHA из истории этого документа.
 
 После P10.4 из Proxyma root, с чистым Agelto checkout:
 

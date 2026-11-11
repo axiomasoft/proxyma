@@ -34,6 +34,7 @@ use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Health\CredentialHolds;
 use Proxyma\Infrastructure\Http\TransportDoctor;
 use Proxyma\Infrastructure\Security\SharedRouteStorage;
+use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 
 final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedRouteCommands
 {
@@ -196,7 +197,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         // Повторяем только SQL; внешние authorizer/secret/network вызовы остаются вне closure.
         try {
             return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $hash, $changes, $budgets, $members): object {
-                app(CatalogMutationFence::class)->lock($this->db, $actor);
+                (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $actor);
                 $t = PackageSchema::tables();
                 $provisioner = new CatalogProvisioner($this->db);
                 $provisioner->lockCatalog($tenant);

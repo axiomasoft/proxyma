@@ -107,7 +107,7 @@ SQL;
             $artisan('migrate');
             $after = $inspect('schema');
             expect($after['postgres'])->toStartWith('17.')->and($after['doctor']['healthy'])->toBeTrue()
-                ->and($after['doctor']['network_io'])->toBeFalse()->and($after['migrations'])->toHaveCount(14);
+                ->and($after['doctor']['network_io'])->toBeFalse()->and($after['migrations'])->toHaveCount(15);
             $state = $snapshot();
             expect($state)->not->toBe([]);
             $artisan('migrate');

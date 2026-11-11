@@ -16,6 +16,7 @@ use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 
 final readonly class ResetHealth
 {
@@ -33,7 +34,7 @@ final readonly class ResetHealth
         $db = $this->scope->connection;
 
         return $db->transaction(function () use ($db, $scope, $id, $tenant, $actor, $ability, $hash): object {
-            app(CatalogMutationFence::class)->lock($db, $actor);
+            (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($db, $actor);
             $t = PackageSchema::tables();
             (new CatalogProvisioner($db))->lockCatalog($tenant);
             $receipt = $db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)

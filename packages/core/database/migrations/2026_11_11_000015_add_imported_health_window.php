@@ -22,4 +22,11 @@ return new class extends Migration
         $db->statement("CREATE TRIGGER pxm_imported_window_immutable BEFORE UPDATE OR DELETE ON {$table}
             FOR EACH ROW EXECUTE FUNCTION pxm_append_only_guard()");
     }
+
+    public function down(): void
+    {
+        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $table = (new ImportedHealthSampleRecord)->getTable();
+        $db->statement("DROP TABLE IF EXISTS {$table}");
+    }
 };

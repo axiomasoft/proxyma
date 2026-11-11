@@ -271,8 +271,14 @@ def consumer(root, value, consumer_root, paths):
                 require(local(install_path, relative_name).read_bytes() == content, 'installed source differs: ' + filename)
         installed_paths[name] = 'vendor/' + name
     proof = read_reference(consumer_root, refs['report'])
-    check_consumer_proof(consumer_root, proof, commit, value['source']['commit'], refs, installed_paths)
-    return {'repository': 'axiomasoft/agelto', 'commit': commit, **refs}
+    integration = {}
+    if proof.get('format') == 'process-core-acceptance/v1':
+        native = module(root, 'native_agelto_acceptance', 'scripts/agelto-acceptance.py')
+        integration = {'integration': native.check(root, consumer_root, proof, commit,
+                                                   value['source']['commit'], refs, installed_paths)}
+    else:
+        check_consumer_proof(consumer_root, proof, commit, value['source']['commit'], refs, installed_paths)
+    return {'repository': 'axiomasoft/agelto', 'commit': commit, **refs, **integration}
 
 
 def check_consumer_proof(consumer_root, proof, commit, source_commit, refs, installed_paths):
@@ -316,6 +322,8 @@ def check_consumer_proof(consumer_root, proof, commit, source_commit, refs, inst
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate', metavar='PATH', help='verify an existing candidate descriptor')
+    parser.add_argument('--accepted', metavar='PATH', help='verify final installed Agelto acceptance')
+    parser.add_argument('--consumer-root', type=Path, dest='accepted_consumer_root')
     sub = parser.add_subparsers(dest='command')
     create = sub.add_parser('candidate')
     create.add_argument('--qualification', default='build/test-report.json')
@@ -337,7 +345,16 @@ def arguments(argv=None):
             command.add_argument('--installed', default='vendor/composer/installed.json')
             command.add_argument('--report', required=True)
     args = parser.parse_args(argv)
-    if args.candidate is not None:
+    if args.accepted is not None:
+        if args.command is not None or args.candidate is not None:
+            parser.error('--accepted cannot be combined with another command')
+        args.command = 'verify'
+        args.descriptor = args.accepted
+        args.consumer_root = args.accepted_consumer_root
+        if args.consumer_root is None:
+            launcher = module(ROOT, 'accepted_agelto_root', 'scripts/agelto.py')
+            args.consumer_root = launcher.resolve_root()
+    elif args.candidate is not None:
         if args.command is not None:
             parser.error('--candidate cannot be combined with a command')
         args.command = 'verify'
@@ -354,6 +371,11 @@ def main():
         value = candidate(ROOT, args.qualification, args.qualification_source_commit)
     else:
         value = json.loads(Path(args.descriptor).read_text())
+        if args.accepted is not None:
+            require(value.get('status') == 'accepted', 'final acceptance has not been collected')
+            proof = read_reference(args.consumer_root, value['consumer']['report'])
+            require(proof.get('format') == 'process-core-acceptance/v1',
+                    'final acceptance requires original native Agelto reports')
         verify(ROOT, value)
         if args.command == 'resolve':
             require(value['status'] == 'candidate', 'cannot repin accepted proof')

@@ -63,9 +63,13 @@ def verify(root, baseline):
         if adapter_path.is_file():
             adapters = json.loads(adapter_path.read_text())
             require(adapters.get("schema") == schema
-                    and adapters.get("agelto_head") == baseline
+                    and re.fullmatch(r"[0-9a-f]{40}", adapters.get("agelto_head", "")) is not None
                     and Path(adapters.get("external_root", "")).resolve() == root,
                     "adapter changes require the same checkout and expected baseline")
+            try:
+                git(root, "merge-base", "--is-ancestor", adapters["agelto_head"], baseline)
+            except ValueError as error:
+                raise ValueError("adapter changes require the same checkout and expected baseline ancestry") from error
             allowed.update(adapters["external_changed_paths"])
     dirty = git(root, "status", "--porcelain=v1", "--untracked-files=all", "-z")
     # Rename records include two names; rejecting them prevents an unchecked source path.

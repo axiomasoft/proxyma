@@ -20,6 +20,12 @@ path repositories с `symlink:false` и явной картой versions. Filame
 реальный qualification source commit и hashes. После commit исходников checker
 разрешает точный install SHA в отдельный файл, исключая самоссылочный checksum.
 
+Состояние финальной приёмки — [acceptance.json](integration/agelto/acceptance.json).
+`pending_checks` сохраняется до реальных installed-consumer gates. Итоговый collector
+проверяет native Agelto reports, оба полных fixture load-профиля, populated upgrade,
+cutover/rollback, copied vendor и единый source SHA. Порядок подготовки и сбора —
+[финальная приёмка Agelto](docs/integrations/agelto-acceptance.md).
+
 - [Приватная установка и проверка candidate](docs/private-installation.md)
 - [Совместимость и installed fixtures](docs/compatibility.md)
 - [Конфигурация](docs/configuration.md), [API](docs/api.md), [расширения](docs/extensions.md)

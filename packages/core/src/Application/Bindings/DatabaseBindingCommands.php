@@ -28,6 +28,7 @@ use Proxyma\Infrastructure\Database\BindingStorage;
 use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Eloquent\BindingRevisionRecord;
+use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 
 final readonly class DatabaseBindingCommands implements BindingCommands
 {
@@ -80,7 +81,7 @@ final readonly class DatabaseBindingCommands implements BindingCommands
         $hash = hash('sha256', json_encode([$retire ? 'binding.unbind' : 'binding.bind', $command, $this->definitions->fingerprint()], JSON_THROW_ON_ERROR));
         try {
             $result = $this->db->transaction(function () use ($command, $subject, $id, $retire, $patch, $hash): SubjectPolicyBinding {
-                app(CatalogMutationFence::class)->lock($this->db, $command->actor);
+                (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $command->actor);
                 $t = PackageSchema::tables();
                 $tenant = $subject->tenant->value;
                 if ($command instanceof BindSubjectPolicyCommand && $command->expectedPolicyVersion !== null && ! $subject->tenant->isSystem()) {

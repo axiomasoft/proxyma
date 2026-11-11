@@ -19,6 +19,7 @@ use Proxyma\Domain\Policy\UpdatePolicyCommand;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 
 final readonly class UpdatePolicy implements PolicyCommands
 {
@@ -46,7 +47,7 @@ final readonly class UpdatePolicy implements PolicyCommands
 
         try {
             $savedRevision = $this->db->transaction(function () use ($command, $patch, $hash): PolicyRevision {
-                app(CatalogMutationFence::class)->lock($this->db, $command->actor);
+                (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $command->actor);
                 $t = PackageSchema::tables();
                 $tenant = $command->tenant->value;
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);

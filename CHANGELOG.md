@@ -4,6 +4,12 @@
 
 ### Added
 
+- Финальный collector installed Agelto: native JUnit/scenario provenance, одинаковые
+  source/runtime inputs семи gates, оба 1800-second load-профиля, runtime vendor hashes
+  и проверка legacy removal. Offline re-pin обновляет оба пакета вместе.
+- Историческая acceptance matrix связывает удалённые network tests с полными
+  contract replay inventories, не меняя original-executed-scenarios/scenario-transfers.
+
 - Приватная поставка двух пакетов с внутренней версией 0.1.0, qualification
   provenance и отдельным разрешением install SHA после source commit.
 - Checker candidate/accepted proof и runbook чистой установки, эксплуатации

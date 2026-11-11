@@ -46,6 +46,7 @@ final class PackageSchema
             'target_health' => Eloquent\TargetHealthRecord::class,
             'observations' => Eloquent\ObservationRecord::class,
             'observation_applications' => Eloquent\ObservationApplicationRecord::class,
+            'imported_health_samples' => Eloquent\ImportedHealthSampleRecord::class,
             'audit_events' => Eloquent\AuditEventRecord::class,
             'shared_route_grants' => SharedRouteGrantRecord::class,
             'catalog_command_receipts' => CatalogCommandReceiptRecord::class,

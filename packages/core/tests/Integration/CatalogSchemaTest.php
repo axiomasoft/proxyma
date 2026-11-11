@@ -23,8 +23,9 @@ it('мигрирует независимый core дважды и откаты�
     foreach (PackageSchema::tables() as $name) {
         expect($tables)->toContain($name);
     }
+    expect(PackageSchema::tables())->toHaveKey('imported_health_samples');
     $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
-    expect($this->db->table('migrations')->count())->toBe(14);
+    expect($this->db->table('migrations')->count())->toBe(15);
     $migration = require dirname(__DIR__, 2).'/database/migrations/2026_11_09_000001_create_pxm_authority_tables.php';
     $this->app['config']->set('proxyma.connection', 'configured-authority');
     expect($migration->getConnection())->toBe('configured-authority');
@@ -38,8 +39,10 @@ it('мигрирует независимый core дважды и откаты�
     }
     $this->artisan('migrate:rollback', ['--force' => true])->assertExitCode(0);
     expect($this->db->select('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'))->toHaveCount(1);
+    expect($this->db->getSchemaBuilder()->hasTable(PackageSchema::tables()['imported_health_samples']))->toBeFalse();
     $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
-    expect($this->table('endpoints')->count())->toBe(0);
+    expect($this->table('endpoints')->count())->toBe(0)
+        ->and($this->table('imported_health_samples')->count())->toBe(0);
 });
 
 it('изолирует uniqueness и FK арендаторов, проверяет route kind XOR', function (): void {

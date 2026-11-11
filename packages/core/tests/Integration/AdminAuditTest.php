@@ -129,7 +129,7 @@ it('read audit проверяет actor tenant revision и не возвраща
 });
 
 it('upgrade установленной P1.3 схемы сохраняет catalog и replay, удаляя snapshots из audit', function (): void {
-    $this->artisan('migrate:rollback', ['--step' => 13, '--force' => true])->assertExitCode(0);
+    $this->artisan('migrate:rollback', ['--step' => 14, '--force' => true])->assertExitCode(0);
     expect($this->db->table('migrations')->count())->toBe(1);
     // 000011 поддерживает roll-forward: P1.3 форму восстанавливаем явно только в fixture.
     $this->db->statement('ALTER TABLE '.(new BudgetRecord)->getTable().' DROP COLUMN cooldown_until');

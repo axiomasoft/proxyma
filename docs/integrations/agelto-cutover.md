@@ -123,3 +123,12 @@ post-claim refusal до HTTP. Проверки запускаются тольк
 rollback fixture `agelto_test`, заселяет старое состояние до новых migrations, затем
 проверяет IDs, credential versions, debt, quota usage, holds, reducer window и FK/history.
 Оригинальные executed-case provenance и SHA manifests не заменяются новыми именами.
+# Связь с итоговой приёмкой
+
+`core-test-install` по-прежнему доказывает только два clean resets. Итоговый native
+report дополнительно требует actual regression JUnit для `ProxymaDataTransferTest`,
+`ProxymaPopulatedUpgradeTest`, `ProxymaRollbackTest` и concurrent `ProxymaCutoverTest`.
+Проверяются полные case inventories, включая отрицательные исходы, а не наличие файлов.
+После первого нового durable authorization поддерживается только pause и roll-forward;
+финальная qualification не добавляет reverse migration или post-claim rollback.
+Все прогоны — isolated fixtures, без production DB и live traffic.

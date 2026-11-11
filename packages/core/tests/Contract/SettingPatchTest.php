@@ -204,7 +204,7 @@ it('ошибки audit и stale revision откатывают head revision и r
     expect((int) $this->table('policy_heads')->value('revision'))->toBe(1)->and($this->table('policy_revisions')->count())->toBe(1)
         ->and($this->table('audit_events')->count())->toBe(1)->and($this->table('catalog_command_receipts')->count())->toBe(1);
     $this->rejectedSql(fn () => $this->table('audit_events')->delete());
-    expect(fn () => $this->artisan('migrate:rollback', ['--step' => 12, '--force' => true]))->toThrow(LogicException::class, 'Policy audit history prevents rollback.');
+    expect(fn () => $this->artisan('migrate:rollback', ['--step' => 13, '--force' => true]))->toThrow(LogicException::class, 'Policy audit history prevents rollback.');
     expect($this->table('audit_events')->count())->toBe(1)->and($this->table('policy_revisions')->count())->toBe(1);
 });
 
