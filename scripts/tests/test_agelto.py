@@ -140,6 +140,21 @@ class AgeltoLauncherTest(unittest.TestCase):
                        + "\n" + result.stdout + result.stderr)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_joint_provider_paths_require_matching_checkout_and_revision(self):
+        path = self.root / "integration/agelto/llm-changes.json"
+        value = {"schema": "proxyma-agelto-llm-changes/v1", "agelto_head": self.head,
+                 "external_root": str(self.root), "external_changed_paths":
+                 ["provider.txt", "integration/agelto/llm-changes.json"]}
+        path.write_text(json.dumps(value))
+        (self.root / "provider.txt").write_text("provider")
+        with patch.object(launcher, "ROOT", self.root):
+            launcher.verify(self.root, self.head)
+            for field, invalid in (("agelto_head", "a" * 40), ("external_root", str(self.root / "other")),
+                                   ("schema", "proxyma-agelto-adapter-changes/v1")):
+                path.write_text(json.dumps({**value, field: invalid}))
+                with self.assertRaisesRegex(ValueError, "same checkout"):
+                    launcher.verify(self.root, self.head)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -71,12 +71,12 @@ FK package→consumer не появляется. Старые migrations, runtim
 Schema inventory содержит декларацию нового DDL, а не выдуманный install capture;
 реальный каталог сверяет isolated install check кондуктора.
 
-Следующий joint-claim шаг должен использовать тот же scoped owner adapter и
-ConnectionScope, бросать typed rejection после financial mutation и активировать
-capability после outermost commit. Caller migration закрепляет каждый physical
+Joint-claim использует тот же scoped owner adapter и ConnectionScope, откатывает
+financial mutation при network denial и активирует capability после outermost commit;
+подробности — `agelto-joint-send.md`. Caller migration закрепляет каждый physical
 plan через guard и заполняет стабильную operation/parent correlation. Populated
-transfer заполняет mappings; cutover управляет selector/journal и записывает первый
-durable authorization до возможной отправки. Начальный journal schema сам по себе
+transfer заполняет mappings; cutover управляет selector/journal. Joint claim записывает
+первый durable authorization в journal до возможной отправки. Начальный journal schema сам по себе
 не реализует drain, перенос counters или rollback.
 
 ## Проверка поведения
