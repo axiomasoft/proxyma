@@ -170,6 +170,21 @@ class AgeltoLauncherTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "same checkout"):
                     launcher.verify(self.root, self.head)
 
+    def test_ui_paths_require_matching_checkout_revision_and_schema(self):
+        path = self.root / "integration/agelto/ui-and-provenance.json"
+        value = {"schema": "proxyma-agelto-ui-and-provenance/v1", "agelto_head": self.head,
+                 "external_root": str(self.root), "external_changed_paths":
+                 ["ui.php", "integration/agelto/ui-and-provenance.json"]}
+        path.write_text(json.dumps(value))
+        (self.root / "ui.php").write_text("isolated UI fixture")
+        with patch.object(launcher, "ROOT", self.root):
+            launcher.verify(self.root, self.head)
+            for field, invalid in (("agelto_head", "a" * 40), ("external_root", str(self.root / "other")),
+                                   ("schema", "proxyma-agelto-caller-map/v1")):
+                path.write_text(json.dumps({**value, field: invalid}))
+                with self.assertRaisesRegex(ValueError, "same checkout"):
+                    launcher.verify(self.root, self.head)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -53,6 +53,16 @@ idempotency UUID. Record ID и revision защищены Livewire `Locked`.
 Core сохраняет audit и command receipt в собственной SQL transaction; UI не
 сохраняет ORM models и не оборачивает secret preparation в SQL transaction.
 
+Consumer с несколькими поколениями catalog authority связывает `CatalogMutationFence`.
+`version()` возвращает opaque версию, которую UI сохраняет в Locked state или
+encrypted binding context и передаёт как `CatalogMutationActor.authorityVersion`.
+`lock(Connection, CatalogMutationActor)` вызывается в начале транзакции catalog,
+policy, binding, credential и health reset команды, до package locks. Он проверяет
+ожидаемую generation и удерживает SQL lock selector до commit. Внутри допустим
+только SQL; permission/secret preparation остаётся до транзакции. Standalone default
+возвращает null и не добавляет selector. Agelto adapter требует точную generation
+даже от прямого command caller; отсутствие версии или старая форма даёт conflict.
+
 Credentials меняются отдельно после создания endpoint. Username и password —
 только новый ввод, без чтения `SecretResolver` и без заполнения из хранилища.
 Форма показывает только маску и credential version. После любого вызова ротации

@@ -1,0 +1,1045 @@
+{
+  "schema": "proxyma-agelto-ui-and-provenance/v1",
+  "item": "P9.5",
+  "external_root": "/home/vostrikov/projects/agelto/agelto",
+  "agelto_head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+  "proxyma_head": "a60adfbcb0384644f8f91715ce743ee510d7a32b",
+  "final_commit": null,
+  "revision_state": "Core/UI source is committed and installed at a60adfbcb0384644f8f91715ce743ee510d7a32b. Agelto HEAD remains f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f with the explicit consumer product diff. Coordinator owns final commits and final qualification.",
+  "external_changed_paths": [
+    "app/Actions/Procurement/Network/UpdateRouteProfile.php",
+    "app/Dto/Procurement/Crawler/PlatformThrottleSettings.php",
+    "app/Enums/Procurement/Proxy/ProxyScope.php",
+    "app/Filament/Concerns/GuardsNetworkSettingsForm.php",
+    "app/Filament/Pages/NetworkRouteProfilesPage.php",
+    "app/Filament/Platforms/Eis/EisCrawlerPlatformForm.php",
+    "app/Filament/Resources/Procurement/Crawler/Crawlers/Pages/EditCrawler.php",
+    "app/Filament/Resources/Procurement/Crawler/Crawlers/Schemas/CrawlerForm.php",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/Pages/CreateProxy.php",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/Pages/EditProxy.php",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/ProxyResource.php",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/Schemas/ProxyForm.php",
+    "app/Filament/Resources/Procurement/Platform/Platforms/Pages/EditPlatform.php",
+    "app/Filament/Resources/Procurement/Platform/Platforms/Schemas/PlatformForm.php",
+    "app/Providers/Filament/AdminPanelProvider.php",
+    "app/Providers/ProxymaServiceProvider.php",
+    "app/Repositories/Procurement/Document/DownloadStorageRepository.php",
+    "app/Repositories/Procurement/Network/RouteRepository.php",
+    "app/Services/Llm/Execution/PreparedProviderTransport.php",
+    "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php",
+    "app/Services/Procurement/Network/NetworkRouteCommands.php",
+    "app/Services/Procurement/Network/OutboundExecutor.php",
+    "app/Services/Procurement/Platform/ExecutorPlatformOutbound.php",
+    "app/Services/Procurement/Proxyma/AgeltoAuthorizer.php",
+    "app/Services/Procurement/Proxyma/AgeltoTenantContext.php",
+    "app/Services/Procurement/Proxyma/BindingAdapter.php",
+    "app/Services/Procurement/Proxyma/CallerAttemptGate.php",
+    "app/Services/Procurement/Proxyma/CallerPolicyContext.php",
+    "app/Services/Procurement/Proxyma/PanelProvider.php",
+    "app/Services/Procurement/Proxyma/ProviderNetwork.php",
+    "app/Services/Procurement/Proxyma/RuntimeCaller.php",
+    "app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php",
+    "app/Services/Procurement/Proxyma/SettingsSections.php",
+    "app/Services/Procurement/Proxyma/TelegramOutbound.php",
+    "app/Services/Procurement/Proxyma/UiAuthority.php",
+    "app/Services/Procurement/Proxyma/UiAuthorizer.php",
+    "app/Services/Procurement/Proxyma/UiTenantContext.php",
+    "tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php",
+    "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php",
+    "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json",
+    "tests/Fixtures/ProcessCore/manifest.json",
+    "tests/Fixtures/ProcessCore/scenario-transfers.json",
+    "tests/Support/ProcessCore/ProxymaCallerFixtures.php",
+    "tests/Support/ProcessCore/ProxymaProviderFixtures.php",
+    "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php",
+    "app/Services/Procurement/Proxyma/CallerSendFacts.php"
+  ],
+  "behavior": [
+    "ProxymaPlugin is registered in admin. Package navigation and direct mutations are denied until selector authority=proxyma. Legacy catalog remains the sole editor before switch and is retained until P10.3.",
+    "UiTenantContext derives system tenant/operator from authenticated User; UiAuthorizer maps finite generic abilities to ProxyPermission/AzGuard admin grants. Unknown abilities, forged actor and foreign tenant deny. No Process permissions enter package source.",
+    "CatalogMutationFence runs SQL-only at the start of catalog/binding/policy/credential/reset transactions, before package locks. UiAuthority takes a selector row share lock and requires exact engine:generation. Switch must update the same selector row atomically. Commands require expected revision and generation; stale state never dual-writes.",
+    "Crawler/platform forms embed ConfigureProxymaAction through trusted owner records and current target mappings. Owner scheduling/filter/date fields remain owner-owned; BindingEditor receives only the encrypted section patch. Existing owner edit forms reject selector changes.",
+    "requestsPerMinutePerProxy is deprecated for historical reads, removed from the visible form and unused by quota authority. ProxyScope is descriptive metadata; explicit membership plus effective policy owns routing. Origin debt/quota does not grow with route count."
+  ],
+  "source_verification": {
+    "method": "Only four named donor baseline blobs checked against docs/reference/source-manifest.json; no full manifest rehash.",
+    "baseline_matches": [
+      "docs/dev/runbooks/process-test-rig.md",
+      "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php",
+      "app/Repositories/Procurement/Document/DownloadStorageRepository.php",
+      "docker/tests/process-core/rig.py"
+    ],
+    "architecture": "No new model/migration/Procurement DTO namespace or CoreKnowsNoDocumentType namespace member. DomainLayout and the 165-class core perimeter require no count/allowlist changes."
+  },
+  "ownership": {
+    "transfer": "tests/Fixtures/ProcessCore/scenario-transfers.json records exact frozen original file/name and consumer replay identities in ProxymaUiAuthorityTest.php. Original UI cases remain runnable during legacy phase; P10.3 owns removal.",
+    "retain": [
+      "original-executed-scenarios.json and historical SHA-256 fields remain frozen",
+      "rig.py scenario_proof/compare_scenarios and acceptance guards unchanged",
+      "owner scheduling/date/cursor/filter/parser configuration",
+      "legacy runtime and UI until active cutover; minimal historical Proxy migration shim belongs to P10.3"
+    ]
+  },
+  "target_test": "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php",
+  "checks": [
+    {
+      "id": "pint-package",
+      "cmd": "php8.4 vendor/bin/pint packages/core/src/Application/Bindings/DatabaseBindingCommands.php packages/core/src/Application/Catalog/DatabaseCatalogCommands.php packages/core/src/Application/Catalog/RotateCredentials.php packages/core/src/Application/Health/ResetHealth.php packages/core/src/Application/Policy/UpdatePolicy.php packages/core/src/Domain/Catalog/CatalogMutationActor.php packages/core/src/Laravel/ProxymaServiceProvider.php packages/filament/src/Actions/SaveCatalog.php packages/filament/src/BindingEditor.php packages/filament/src/Pages/OperationsPage.php packages/filament/src/Resources/Pages/CatalogPage.php packages/filament/src/Resources/Pages/Endpoints.php packages/core/src/Contracts/CatalogMutationFence.php packages/core/src/Infrastructure/Security/StandaloneCatalogMutationFence.php > integration/agelto/p95-pint-package.log 2>&1",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "evidence": "integration/agelto/p95-pint-package.log",
+      "assertions": "Formatter completed; no behavioral assertions."
+    },
+    {
+      "id": "pint-consumer",
+      "cmd": "php8.4 vendor/bin/pint app/Actions/Procurement/Network/UpdateRouteProfile.php app/Dto/Procurement/Crawler/PlatformThrottleSettings.php app/Enums/Procurement/Proxy/ProxyScope.php app/Filament/Concerns/GuardsNetworkSettingsForm.php app/Filament/Pages/NetworkRouteProfilesPage.php app/Filament/Resources/Procurement/Crawler/Crawlers/Pages/EditCrawler.php app/Filament/Resources/Procurement/Crawler/Crawlers/Schemas/CrawlerForm.php app/Filament/Resources/Procurement/Crawler/Proxies/Pages/CreateProxy.php app/Filament/Resources/Procurement/Crawler/Proxies/Pages/EditProxy.php app/Filament/Resources/Procurement/Crawler/Proxies/ProxyResource.php app/Filament/Resources/Procurement/Crawler/Proxies/Schemas/ProxyForm.php app/Filament/Resources/Procurement/Platform/Platforms/Pages/EditPlatform.php app/Filament/Resources/Procurement/Platform/Platforms/Schemas/PlatformForm.php app/Providers/Filament/AdminPanelProvider.php app/Providers/ProxymaServiceProvider.php app/Services/Procurement/Network/NetworkRouteCommands.php app/Services/Procurement/Proxyma/SettingsSections.php app/Services/Procurement/Proxyma/UiAuthority.php app/Services/Procurement/Proxyma/UiAuthorizer.php app/Services/Procurement/Proxyma/UiTenantContext.php tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php tests/Support/ProcessCore/ProxymaCallerFixtures.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-pint-consumer.log 2>&1",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "evidence": "integration/agelto/p95-pint-consumer.log",
+      "assertions": "Formatter completed once per initial changed PHP path."
+    },
+    {
+      "id": "pint-route",
+      "cmd": "php8.4 vendor/bin/pint app/Repositories/Procurement/Network/RouteRepository.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-pint-route.log 2>&1",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "evidence": "integration/agelto/p95-pint-route.log",
+      "assertions": "Additional supporting repository path formatted once; initial paths were not rerun."
+    },
+    {
+      "id": "ui-target",
+      "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- make core-test-file TEST_FILE=tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php > integration/agelto/p95-target.log 2>&1",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 2,
+      "rig_exit": 1,
+      "cases": 11,
+      "assertions": 0,
+      "evidence": "integration/agelto/p95-target-junit.xml",
+      "result": "All cases fail in setup: installed pinned package lacks StandaloneCatalogMutationFence. No replacement has been proved passing. No rerun performed."
+    },
+    {
+      "id": "diff-package",
+      "cmd": "git diff --check > integration/agelto/p95-diff-package.log 2>&1",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "evidence": "integration/agelto/p95-diff-package.log"
+    },
+    {
+      "id": "diff-consumer",
+      "cmd": "git diff --check > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-diff-consumer.log 2>&1",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "evidence": "integration/agelto/p95-diff-consumer.log"
+    }
+  ],
+  "next_steps": [
+    "Conductor runs final acceptance on the current installed package source and corrected consumer tree; the old missing-fence snapshot diagnosis is historical.",
+    "Conductor runs V1-V4 on the pinned final tree, records actual consumer JUnit identity/status/assertions and final SHA. Transfer entries are obligations, not claims of passed tests.",
+    "P10.1/P10.2 import inactive catalog through an explicitly authorized import fixture, then drain and update the same selector row. Do not grant UI commands access to inactive catalogs or disable the fence for operators.",
+    "P10.3 deletes legacy UI only after active transition, retaining original provenance and migration compatibility."
+  ],
+  "syntax": {
+    "files": 37,
+    "exit": 0,
+    "exact_commands_and_cwds": "integration/agelto/p95-syntax.log"
+  },
+  "actual_consumer_report": "storage/app/testing/process-core/reports/20261111T123241.766366Z-1750372",
+  "actual_consumer_candidate": {
+    "dirty_digest": "cdf98ce08a0e7a1f36341c9671e084ccf1c52a48ab53626b55f09d326494743f",
+    "head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+    "input_tree_sha256": "045d036afa181e9c1dabbf2b4e5e684ee2689e47e7b4ff859fb7e4ecdf88ec19"
+  },
+  "final_target_cases": 24,
+  "execution_limit": "Current retry/redirect and download membership correction: one focused invocation, 14 passed cases / 113 assertions. Earlier evidence is retained in correction history. Full V1-V4 remain conductor-owned; no full acceptance rerun or green claim.",
+  "external_changed_sha256": {
+    "app/Actions/Procurement/Network/UpdateRouteProfile.php": "67b9bbf7226ee7486d9dc3c949dff40b541ed48d38a8b8633452f556c6c58a8e",
+    "app/Dto/Procurement/Crawler/PlatformThrottleSettings.php": "cbf8850de15778757af6da0146d382c9f9089978f09d1d48963db95fc6f49a1e",
+    "app/Enums/Procurement/Proxy/ProxyScope.php": "6d0bf4ae5c4b32f0b01303b7e09fb9486c8c9ad01d2221f179992696199c1403",
+    "app/Filament/Concerns/GuardsNetworkSettingsForm.php": "13131497125ee14f5a02cfb97a53e125e4dbaf4e83d1ffa62b418809b0983d18",
+    "app/Filament/Pages/NetworkRouteProfilesPage.php": "943059bad1d6bbf90cbc81b019b25b58a09e7d9831d225a21b2fc732692be8f2",
+    "app/Filament/Resources/Procurement/Crawler/Crawlers/Pages/EditCrawler.php": "ac0fc4e0e136a4fded581e708b1ab9dfa76d16121e34ae6e4c61312b0658f3f2",
+    "app/Filament/Resources/Procurement/Crawler/Crawlers/Schemas/CrawlerForm.php": "d72e8ad3e267e0785ad3c9e96a02b4b30c8f562947a2a7ff50917870f2277a08",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/Pages/CreateProxy.php": "8c57b7a4023f23741d582e1c11a97ad6370bf119a03b34d64c2e454b562b6d0b",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/Pages/EditProxy.php": "007786c2a821049d88bb9b9765f601fd964f6e9a5a7d9de7e2c46119c54c7784",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/ProxyResource.php": "037125546dae23bc3edbd3b0d48f3b9354866406b75492afa1f5d6055e099e6a",
+    "app/Filament/Resources/Procurement/Crawler/Proxies/Schemas/ProxyForm.php": "4d449a7241be1629125b915a32122b0d841b4b59feb65703d739bc1b0432e857",
+    "app/Filament/Resources/Procurement/Platform/Platforms/Pages/EditPlatform.php": "fd1659675f7743f51f7a3b8390f5fd8b59fb90467fab9b09dccfad45bfc81057",
+    "app/Filament/Resources/Procurement/Platform/Platforms/Schemas/PlatformForm.php": "5cdef7f8fd67e67b1db77c8c185615ae1bec4fe56a055d74c646af0820888a55",
+    "app/Providers/Filament/AdminPanelProvider.php": "e980e2b792cd66882d304fe7813a02e4a1d67bfd6d1d3b2c70e46d5e7d3f4655",
+    "app/Providers/ProxymaServiceProvider.php": "f1b81ef1d4eef77c5ef03da6a1d710af922f1780b99a01678f54997ef261b29f",
+    "app/Repositories/Procurement/Document/DownloadStorageRepository.php": "4e5b61840c40a15065fd87fa261c51e875537c07dff557a9f148eac87869c040",
+    "app/Repositories/Procurement/Network/RouteRepository.php": "8e97ca21499da046f11669f7c6c58ce3b324fd53143b2ce5077cec764ac65fd5",
+    "app/Services/Llm/Execution/PreparedProviderTransport.php": "470c1cd9d8ebdf272e17fd9629b971621c29007928d894983861866f8bab4dab",
+    "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php": "1233bacea91e216fd189cd31a3b37cb818acd962a17a109971d02b256de150af",
+    "app/Services/Procurement/Network/NetworkRouteCommands.php": "a98ea2e8e7035056570baf9205b81b39ff675b1b74928009376f4634ad2ff8c7",
+    "app/Services/Procurement/Network/OutboundExecutor.php": "c626100f472b3dcf4747abb6fe0ea6e90265ee0c77f7146788d61a0133b1af9b",
+    "app/Services/Procurement/Platform/ExecutorPlatformOutbound.php": "5342d73e69084d3ce7645ae63c04d9a9b2a7f50b29b83c95680aaa390e44d338",
+    "app/Services/Procurement/Proxyma/CallerAttemptGate.php": "abdeed66baa8eea586ca347a86509ea098fecf3083a04bb765284564bd0e8730",
+    "app/Services/Procurement/Proxyma/ProviderNetwork.php": "4e845ed3455ceb61f6619b1734d6a9c9252de978c7f39db68d0d0841e6894788",
+    "app/Services/Procurement/Proxyma/SettingsSections.php": "540b9c05c3f61093c4e3e674f32414a3fd73fa870018eb8a73e46dc74893f196",
+    "app/Services/Procurement/Proxyma/TelegramOutbound.php": "4380e7368b957d3d711aaded560800f79e9f7e86a5f045766b7920fdd4f3ff26",
+    "app/Services/Procurement/Proxyma/UiAuthority.php": "fb5d9660ca23aa6b3812315dccf559f67bb436ec6861c72c57bddc414e44c4b2",
+    "app/Services/Procurement/Proxyma/UiAuthorizer.php": "2e3ec46d8b34ee9b28651ad4bb836124cb941d1c99af45f517daf358c2db8f7c",
+    "app/Services/Procurement/Proxyma/UiTenantContext.php": "09da5c96397d1e32f82a11e64dfe09c709bebd02bfc4a2da0e9680fa09f5fe5d",
+    "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php": "815c59be37d42ac9ab71a74891df821de43e9f001d1a3b2e4e669a7fbc469248",
+    "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "8dc815c19c897d4c86bebcae5a4d170e74e72aa2840e0dd03cc3711f6d75c349",
+    "tests/Fixtures/ProcessCore/manifest.json": "9187983d8b0c610095085756ff0a42f37302fe34a698663758a3de7e646a7621",
+    "tests/Fixtures/ProcessCore/scenario-transfers.json": "bd9a7f5731edb0b34e6f6b40521e5a55215a6e5e472746b2d8de809ff19f8b7a",
+    "tests/Support/ProcessCore/ProxymaCallerFixtures.php": "e44953347d2684199254ab453c6b679deceb165be630358b9086a416eeab72ab",
+    "app/Filament/Platforms/Eis/EisCrawlerPlatformForm.php": "4942d7f7f76d090590ce98647a1684ea5eb47ee1a3229c4b8611d96954de5b30",
+    "app/Services/Procurement/Proxyma/RuntimeCaller.php": "e1b745a9827b7e9ccf0739334d594585af1b5b64f7decd9906e5a6a26b988760",
+    "app/Services/Procurement/Proxyma/AgeltoAuthorizer.php": "551223293bad68d3389cd97557225990f240ef47a9cf1e06455321082a7d74e3",
+    "app/Services/Procurement/Proxyma/AgeltoTenantContext.php": "d6616608ee61fd6904fb65381944b960b0adfdd5c9b6d991ef3f4b41ddba1f8e",
+    "app/Services/Procurement/Proxyma/CallerPolicyContext.php": "c4f82b920a7e633fa03e5244727f8031c8597641246fc533f78536c2d0a4db97",
+    "app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php": "8313ad75f1b8f79ba101de69c68aa591441a7b4ff46c1e08d925fc919f9b28a8",
+    "app/Services/Procurement/Proxyma/BindingAdapter.php": "785a684393dec9f612ba35040e63e303ac3300ada0789e31d263079018765b63",
+    "app/Services/Procurement/Proxyma/PanelProvider.php": "486981bb98acf958300a1cede20b96411d2c225212d2aeebaf98aa97cb13e76c",
+    "tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php": "f876807cc476735c5fa8b7ef34759ff9dffacce65de6333e53c132b144338df7",
+    "tests/Support/ProcessCore/ProxymaProviderFixtures.php": "7384f2e1aa67fb4bf1677088144cefe29ff7dd97ddef2649270057e86fcb8b46",
+    "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php": "4b4f9bfd03c6e41a8ee1bf903933c28e6076c85a02100ad471a0a72f5c24afb5",
+    "app/Services/Procurement/Proxyma/CallerSendFacts.php": "e57db7bf18224df51ff3aa584bc18d596258246015fcbe3fb68d44159176c10c"
+  },
+  "proxyma_changed_sha256": {
+    "docs/filament.md": "afe1d3ab7ec22eacaee22b1d9161f65e6cf8e76ef7feb495dce30980dd072b98",
+    "docs/integrations/agelto.md": "f33e3ae708c2ff6e361a9c17f2e0e574eeaca6caedc1da0f191e893e4090dbe0",
+    "packages/core/src/Application/Bindings/DatabaseBindingCommands.php": "a18c928e993e19fb77d71c5e5f8e342f1435c206415708a0a303699fa4447b89",
+    "packages/core/src/Application/Catalog/DatabaseCatalogCommands.php": "5d02313b2814d5a7a4a0a70114c560efdc1f5c6df02ba5032102033ca632c17a",
+    "packages/core/src/Application/Catalog/RotateCredentials.php": "7e4c375a0f46849311fc1f2a4ff4d3bced7bf9314c16dc1526923587bbc86488",
+    "packages/core/src/Application/Health/ResetHealth.php": "1dc089c926d72360bbbfd2fe06292ff08847b451d76ba67b5887f72fa31b6f81",
+    "packages/core/src/Application/Policy/UpdatePolicy.php": "90ebf73c97b8cb93769eb3896fcda4283cb6c8649da8b9a7b13e849869914809",
+    "packages/core/src/Contracts/CatalogMutationFence.php": "a4c31701a26c529ea25164c0e69211652169fc6bd9452df744efccfaeba00f6f",
+    "packages/core/src/Domain/Catalog/CatalogMutationActor.php": "362cf3053e66940a945d9ea5a963488d261665d4c9c464d533960f66355d6767",
+    "packages/core/src/Infrastructure/Security/StandaloneCatalogMutationFence.php": "c3d7c2021fe31a0361bfff14d316754f187bc4ebedad1d3f7feb6972dc63e401",
+    "packages/core/src/Laravel/ProxymaServiceProvider.php": "4dc5c54ad986ae5c86cb5165896a93584bc6960d4dc32b18bd135dafcbb3d2d9",
+    "packages/filament/src/Actions/SaveCatalog.php": "2466dc89234698ea72cb5598e4f9f12f7c3707a28ec924a1f408201699f445fa",
+    "packages/filament/src/BindingEditor.php": "a1fa16dd881e43361a7069bb83982ff6387161972a1dda053f1e6c56bfa4c855",
+    "packages/filament/src/Pages/OperationsPage.php": "0658fd4e0d9532d51533c9d7bf38a3cae0e14191c38bc03e18c0745c7a61ec0f",
+    "packages/filament/src/Resources/Pages/CatalogPage.php": "5130a09fe8ecc73b16a298ec9d505eb949fd850e1c0dac26c00d8d2119a1c545",
+    "packages/filament/src/Resources/Pages/Endpoints.php": "1977ae9ec9a56174321a2c4911936cd0023590461b4efa8274ffe32e8810e81c",
+    "scripts/agelto.py": "ea55a1d18dcb3722e4b5e3ce746b554ad360065754c8c9ef366c11f3120f42f2",
+    "scripts/tests/test_agelto.py": "cffc4b17edf1309b918e5d9de70bee7fd5223c18158a64462446f85ea967b7e6"
+  },
+  "frozen_original_sha256": "b69ef2315e2910de05fd09c34884e312f27cfff66c513402f946e4314a0cc4d1",
+  "permission_boundary": "Only authenticated UI operators receive ProxyPermission mappings. No implicit worker authorization grant is added; caller fixtures explicitly install their existing synthetic runtime context. Runtime worker authority wiring must be verified before P10 activation.",
+  "correction_rounds": [
+    {
+      "round": 2,
+      "focus": "checks.1 V1/V2 missing pinned CatalogMutationFence; V4 named Pint and PHPStan diagnostics only.",
+      "corrected_product_paths": [
+        "app/Filament/Pages/NetworkRouteProfilesPage.php",
+        "app/Services/Procurement/Proxyma/SettingsSections.php",
+        "app/Services/Llm/Execution/PreparedProviderTransport.php",
+        "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php",
+        "app/Services/Procurement/Network/OutboundExecutor.php",
+        "app/Services/Procurement/Platform/ExecutorPlatformOutbound.php",
+        "app/Services/Procurement/Proxyma/CallerAttemptGate.php",
+        "app/Services/Procurement/Proxyma/TelegramOutbound.php",
+        "app/Repositories/Procurement/Document/DownloadStorageRepository.php",
+        "app/Services/Procurement/Proxyma/ProviderNetwork.php"
+      ],
+      "behavior": "Preserved transport and permission boundaries; narrowed SQL identities, raw body and binary callback types; legacy joint wait is converted to the existing rate-limit result. No guard/ignore/baseline relaxation.",
+      "checks": [
+        {
+          "id": "pint-correction",
+          "cmd": "php8.4 vendor/bin/pint app/Filament/Pages/NetworkRouteProfilesPage.php app/Services/Procurement/Proxyma/SettingsSections.php app/Services/Llm/Execution/PreparedProviderTransport.php app/Services/Procurement/Extraction/AnalysisProviderSendGate.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Platform/ExecutorPlatformOutbound.php app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Proxyma/TelegramOutbound.php app/Repositories/Procurement/Document/DownloadStorageRepository.php app/Services/Procurement/Proxyma/ProviderNetwork.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-r2-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-r2-pint.log"
+        },
+        {
+          "id": "phpstan-correction",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Filament/Pages/NetworkRouteProfilesPage.php app/Services/Procurement/Proxyma/SettingsSections.php app/Services/Llm/Execution/PreparedProviderTransport.php app/Services/Procurement/Extraction/AnalysisProviderSendGate.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Platform/ExecutorPlatformOutbound.php app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Proxyma/TelegramOutbound.php app/Repositories/Procurement/Document/DownloadStorageRepository.php app/Services/Procurement/Proxyma/ProviderNetwork.php app/Providers/ProxymaServiceProvider.php app/Services/Procurement/Proxyma/UiAuthority.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-r2-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 1,
+          "evidence": "integration/agelto/p95-r2-phpstan.log",
+          "result": "First targeted pass: four stale-package diagnostics plus two CallerAttemptGate diagnostics. The two caller issues were corrected next."
+        },
+        {
+          "id": "phpstan-caller",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Services/Procurement/Proxyma/CallerAttemptGate.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-r2-caller-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-r2-caller-phpstan.log"
+        },
+        {
+          "id": "focused-tests",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys, subprocess\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=storage/app/testing/process-core/p95-r2-focused-junit.xml\", \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\", \"tests/Feature/ProcessCore/Network/HttpTransportTest.php\", \"tests/Feature/ProcessCore/Network/ProxymaCallerParityTest.php\", \"tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php\", \"--filter=до переключения только legacy каталог|denied gate и повторное|transport decompresses once binary|Gemini pure compile|отказ второй network scope|notification POST|объявленный package probe\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Target database: agelto_test; rig readiness/identity passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/var/www/html/storage/app/testing/process-core/p95-r2-focused-junit.xml\", \"/home/vostrikov/projects/packages/proxyma/integration/agelto/p95-r2-focused-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > integration/agelto/p95-r2-focused.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "runtime_cwd": "/var/www/html",
+          "exit": 2,
+          "evidence": "integration/agelto/p95-r2-focused-junit.xml",
+          "cases": [
+            {
+              "name": "до переключения только legacy каталог принимает правки профиля",
+              "status": "failed",
+              "assertions": 0
+            },
+            {
+              "name": "denied gate и повторное использование capability не отправляют bytes",
+              "status": "passed",
+              "assertions": 4
+            },
+            {
+              "name": "transport decompresses once binary gzip remains binary entity и failures очищают sink",
+              "status": "passed",
+              "assertions": 16
+            },
+            {
+              "name": "notification POST имеет отдельного owner и не повторяется после terminal HTTP error",
+              "status": "failed",
+              "assertions": 0
+            },
+            {
+              "name": "объявленный package probe восстанавливает due target без записи legacy health",
+              "status": "failed",
+              "assertions": 0
+            },
+            {
+              "name": "Gemini pure compile и настоящий wire совпадают; один joint ID, receipt и network release",
+              "status": "passed",
+              "assertions": 17
+            },
+            {
+              "name": "отказ второй network scope откатывает финансовую claim и сетевые request facts",
+              "status": "passed",
+              "assertions": 4
+            }
+          ],
+          "assertions": 41
+        },
+        {
+          "id": "syntax",
+          "exact_commands_and_cwds": "integration/agelto/p95-r2-syntax.log",
+          "files": 10,
+          "exit": 0
+        },
+        {
+          "id": "diff-package",
+          "cmd": "git diff --check > integration/agelto/p95-r2-diff-package.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-r2-diff-package.log"
+        },
+        {
+          "id": "diff-consumer",
+          "cmd": "git diff --check > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-r2-diff-consumer.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-r2-diff-consumer.log"
+        }
+      ],
+      "diagnosis": "integration/agelto/p95-r2-diagnosis.log",
+      "remaining": "V1/V2 and four V4 symbol/property diagnostics cannot be resolved against pinned Proxyma 410615bf6f39e025f7ac708e5d5cac93bbd98d44. Coordinator must commit current owning package, repin both packages to that full SHA, install through vendor-sync/Composer, refresh the owning rig snapshot, then run V1/V2/V4. No vendor or pin edits, commits, acceptance suite reruns or package substitutes performed.",
+      "provenance": "Narrow source hash refresh includes nested Llm/acceptance-v1.json AnalysisProviderSendGate input and its containing manifest record. Runtime/schema inputs unchanged; frozen original and scenario guards unchanged."
+    },
+    {
+      "id": "source-dates-and-read-audit",
+      "executor": "executor.2",
+      "source_revisions": {
+        "proxyma": "a60adfbcb0384644f8f91715ce743ee510d7a32b",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "installed_package": "a60adfbcb0384644f8f91715ce743ee510d7a32b"
+      },
+      "red_report": "storage/app/testing/process-core/reports/20261111T135533.402553Z-2090706",
+      "scope": [
+        "app/Filament/Platforms/Eis/EisCrawlerPlatformForm.php",
+        "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php",
+        "tests/Fixtures/ProcessCore/manifest.json"
+      ],
+      "causes": [
+        "SaveCatalog performs an audited profile read before a failed membership command; total audit count must grow while mutation audit and command receipts remain unchanged.",
+        "DatePicker runtime timezone/date-only serialization shifted the source calendar day; the Y-m-d DTO cast also inherited current time."
+      ],
+      "changes": [
+        "Source date fields use the configured EisPolicy timezone and serialize explicit local midnight as ISO-8601. DTO/model/schema contracts unchanged.",
+        "Replay verifies one read-audit, unchanged mutation count and receipts, revision and membership. Owner test retains full filter equality, adds explicit date-bound edits and verifies stale generation cannot change either schedule or filter."
+      ],
+      "checks": [
+        {
+          "id": "pint-date-audit",
+          "cmd": "php8.4 vendor/bin/pint app/Filament/Platforms/Eis/EisCrawlerPlatformForm.php tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-date-audit-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-date-audit-pint.log"
+        },
+        {
+          "id": "focused-date-audit",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=storage/app/testing/process-core/p95-date-audit-junit.xml\", \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\", \"--filter=replay устаревшая membership форма|owner форма сохраняет scheduling\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/var/www/html/storage/app/testing/process-core/p95-date-audit-junit.xml\", \"/home/vostrikov/projects/packages/proxyma/integration/agelto/p95-date-audit-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > integration/agelto/p95-date-audit-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test",
+          "exit": 0,
+          "cases": [
+            {
+              "name": "replay устаревшая membership форма и неизвестный маршрут не дают частичной записи",
+              "assertions": 11,
+              "status": "passed"
+            },
+            {
+              "name": "owner форма сохраняет scheduling и отвергает generation старого редактора",
+              "assertions": 17,
+              "status": "passed"
+            }
+          ],
+          "assertions": 28,
+          "evidence": "integration/agelto/p95-date-audit-junit.xml"
+        },
+        {
+          "id": "phpstan-date-form",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Filament/Platforms/Eis/EisCrawlerPlatformForm.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-date-audit-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-date-audit-phpstan.log"
+        },
+        {
+          "id": "syntax",
+          "files": 2,
+          "exit": 0,
+          "exact_commands_and_cwds": "integration/agelto/p95-date-audit-syntax.log"
+        }
+      ],
+      "acceptance_note": "No acceptance suite rerun. Supplied V2 log references the earlier pre-repin report 20261111T124034.149413Z-1781858; final network replay must be collected by conductor on this tree."
+    },
+    {
+      "id": "runtime-callers-settings-and-active-profiles",
+      "executor": "executor.3",
+      "findings": [
+        "F1",
+        "F2",
+        "F3"
+      ],
+      "source_revisions": {
+        "proxyma": "a60adfbcb0384644f8f91715ce743ee510d7a32b",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "installed_package": "a60adfbcb0384644f8f91715ce743ee510d7a32b",
+        "consumer_state": "explicit dirty product diff; final commit owned by coordinator"
+      },
+      "scope": [
+        "app/Providers/ProxymaServiceProvider.php",
+        "app/Services/Procurement/Proxyma/RuntimeCaller.php",
+        "app/Services/Procurement/Proxyma/AgeltoAuthorizer.php",
+        "app/Services/Procurement/Proxyma/AgeltoTenantContext.php",
+        "app/Services/Procurement/Proxyma/CallerPolicyContext.php",
+        "app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php",
+        "app/Services/Procurement/Proxyma/CallerAttemptGate.php",
+        "app/Services/Procurement/Proxyma/BindingAdapter.php",
+        "app/Services/Procurement/Proxyma/PanelProvider.php",
+        "app/Services/Procurement/Network/OutboundExecutor.php",
+        "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php",
+        "tests/Support/ProcessCore/ProxymaCallerFixtures.php",
+        "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php",
+        "tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php",
+        "tests/Support/ProcessCore/ProxymaProviderFixtures.php",
+        "tests/Fixtures/ProcessCore/manifest.json",
+        "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json"
+      ],
+      "source_sha256": {
+        "app/Providers/ProxymaServiceProvider.php": "f1b81ef1d4eef77c5ef03da6a1d710af922f1780b99a01678f54997ef261b29f",
+        "app/Services/Procurement/Proxyma/RuntimeCaller.php": "e1b745a9827b7e9ccf0739334d594585af1b5b64f7decd9906e5a6a26b988760",
+        "app/Services/Procurement/Proxyma/AgeltoAuthorizer.php": "551223293bad68d3389cd97557225990f240ef47a9cf1e06455321082a7d74e3",
+        "app/Services/Procurement/Proxyma/AgeltoTenantContext.php": "d6616608ee61fd6904fb65381944b960b0adfdd5c9b6d991ef3f4b41ddba1f8e",
+        "app/Services/Procurement/Proxyma/CallerPolicyContext.php": "c4f82b920a7e633fa03e5244727f8031c8597641246fc533f78536c2d0a4db97",
+        "app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php": "8313ad75f1b8f79ba101de69c68aa591441a7b4ff46c1e08d925fc919f9b28a8",
+        "app/Services/Procurement/Proxyma/CallerAttemptGate.php": "89450a4d8365dd0b20b5498f5e7c05b000e789fe1774ab4e234ee722017c3c70",
+        "app/Services/Procurement/Proxyma/BindingAdapter.php": "785a684393dec9f612ba35040e63e303ac3300ada0789e31d263079018765b63",
+        "app/Services/Procurement/Proxyma/PanelProvider.php": "486981bb98acf958300a1cede20b96411d2c225212d2aeebaf98aa97cb13e76c",
+        "app/Services/Procurement/Network/OutboundExecutor.php": "c1d3a3b9f4c1403b3ea5153df6c4fe51198975adb1e15940882148f882574b64",
+        "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php": "1233bacea91e216fd189cd31a3b37cb818acd962a17a109971d02b256de150af",
+        "tests/Support/ProcessCore/ProxymaCallerFixtures.php": "e83b74f2b06bdafb4e76f4c65b1cbc400c4a116e590a752b18e2dcde2d576a73",
+        "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php": "534a34b8c1e294ac581fc9b4f13088d57a310968202fa2021807ec5688d61efe",
+        "tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php": "f876807cc476735c5fa8b7ef34759ff9dffacce65de6333e53c132b144338df7",
+        "tests/Support/ProcessCore/ProxymaProviderFixtures.php": "7384f2e1aa67fb4bf1677088144cefe29ff7dd97ddef2649270057e86fcb8b46",
+        "tests/Fixtures/ProcessCore/manifest.json": "ea32b4e3dba0b7f5cccc01b5d6b526294fe07d5d9f480065dc6eb8f8413f5a2b",
+        "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "8dc815c19c897d4c86bebcae5a4d170e74e72aa2840e0dd03cc3711f6d75c349"
+      },
+      "changes": [
+        "Production operator authorizer/tenant context delegate to a bounded runtime identity only inside a native live-owner-validated outbound loop; no Auth user required, no catalog/UI mutation grant, foreign target/tenant and closed owner denied.",
+        "Finite runtime execution operation/reservation/demand/artifact/receipt abilities are bound to the current physical operation; prepared provider physical send revalidates owner outside SQL. Provider completion uses immutable operation/attempt owner token/generation and receipt-only authority, preserving completion after live owner loss.",
+        "Caller resolves the same panel/slot as embedded settings and the persisted owner crawler/procurement ancestry in outermost-first order. Both platform detail and crawler listing timeout.connect_ms=500 reach actual local HTTP.",
+        "New requests read active package profile revision and membership independently from immutable historical source-version mappings. UI unchanged-membership save permits the next send; current empty membership denies bytes; historical snapshot version stays 1.",
+        "Fixture-only imports keep isolated standalone fences and schema trigger cleanup; production-binding tests explicitly restore both application ports before sending."
+      ],
+      "checks": [
+        {
+          "id": "formatter-initial",
+          "cmd": "php8.4 vendor/bin/pint app/Providers/ProxymaServiceProvider.php app/Services/Procurement/Proxyma/RuntimeCaller.php app/Services/Procurement/Proxyma/AgeltoAuthorizer.php app/Services/Procurement/Proxyma/AgeltoTenantContext.php app/Services/Procurement/Proxyma/CallerPolicyContext.php app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Proxyma/BindingAdapter.php app/Services/Procurement/Proxyma/PanelProvider.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Extraction/AnalysisProviderSendGate.php tests/Support/ProcessCore/ProxymaCallerFixtures.php tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-pint.log"
+        },
+        {
+          "id": "formatter-updated",
+          "cmd": "php8.4 vendor/bin/pint app/Services/Procurement/Proxyma/BindingAdapter.php app/Services/Procurement/Proxyma/CallerAttemptGate.php tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php tests/Support/ProcessCore/ProxymaProviderFixtures.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-pint-updated.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-pint-updated.log"
+        },
+        {
+          "id": "phpstan-initial",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Providers/ProxymaServiceProvider.php app/Services/Procurement/Proxyma/RuntimeCaller.php app/Services/Procurement/Proxyma/AgeltoAuthorizer.php app/Services/Procurement/Proxyma/AgeltoTenantContext.php app/Services/Procurement/Proxyma/CallerPolicyContext.php app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Proxyma/BindingAdapter.php app/Services/Procurement/Proxyma/PanelProvider.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Extraction/AnalysisProviderSendGate.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 1,
+          "evidence": "integration/agelto/p95-review-phpstan.log"
+        },
+        {
+          "id": "phpstan-binding-correction",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Services/Procurement/Proxyma/BindingAdapter.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-binding-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-binding-phpstan.log"
+        },
+        {
+          "id": "formatter-owner-correction",
+          "cmd": "php8.4 vendor/bin/pint app/Services/Procurement/Proxyma/RuntimeCaller.php app/Services/Procurement/Proxyma/BindingAdapter.php tests/Support/ProcessCore/ProxymaProviderFixtures.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-fix-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-fix-pint.log"
+        },
+        {
+          "id": "focused-initial",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=storage/app/testing/process-core/p95-review-junit.xml\", \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\", \"tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php\", \"tests/Feature/ProcessCore/Network/ProxymaCallerParityTest.php\", \"--filter=production|embedded settings|registered slots|старые snapshots|package CSV caller|package caller сохраняет terminal|notification POST\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/var/www/html/storage/app/testing/process-core/p95-review-junit.xml\", \"/home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > integration/agelto/p95-review-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 2,
+          "evidence": "integration/agelto/p95-review-junit.xml",
+          "cases": [
+            {
+              "name": "embedded settings сохраняют только patch и отвергают stale generation без изменения scheduling",
+              "assertions": 8,
+              "status": "passed"
+            },
+            {
+              "name": "production worker без Auth отправляет только с live owner и не получает UI mutation grant",
+              "assertions": 7,
+              "status": "failed"
+            },
+            {
+              "name": "embedded platform detail patch применяется к production HTTP без Auth",
+              "assertions": 2,
+              "status": "failed"
+            },
+            {
+              "name": "embedded crawler listing patch использует persisted owner chain в production caller",
+              "assertions": 2,
+              "status": "failed"
+            },
+            {
+              "name": "package UI profile revision не блокирует новый production request и не переписывает snapshot mapping",
+              "assertions": 6,
+              "status": "failed"
+            },
+            {
+              "name": "production provider без Auth сохраняет joint claim receipt и финансовый settlement",
+              "assertions": 0,
+              "status": "failed"
+            },
+            {
+              "name": "старые snapshots сохраняют stage profile ID и version через явные immutable mappings",
+              "assertions": 8,
+              "status": "passed"
+            },
+            {
+              "name": "registered slots исключают finance и inactive provider не подключает package migrations",
+              "assertions": 10,
+              "status": "passed"
+            },
+            {
+              "name": "package CSV caller сохраняет win1251 partial и не публикует неполную строку",
+              "assertions": 9,
+              "status": "passed"
+            },
+            {
+              "name": "package caller сохраняет terminal HTTP evidence и общий send budget",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "notification POST имеет отдельного owner и не повторяется после terminal HTTP error",
+              "assertions": 6,
+              "status": "passed"
+            }
+          ],
+          "assertions": 65,
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test"
+        },
+        {
+          "id": "focused-owner-correction",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=storage/app/testing/process-core/p95-review-fixed-junit.xml\", \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\", \"--filter=production\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/var/www/html/storage/app/testing/process-core/p95-review-fixed-junit.xml\", \"/home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-fixed-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > integration/agelto/p95-review-fixed-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 2,
+          "evidence": "integration/agelto/p95-review-fixed-junit.xml",
+          "cases": [
+            {
+              "name": "production worker без Auth отправляет только с live owner и не получает UI mutation grant",
+              "assertions": 7,
+              "status": "failed"
+            },
+            {
+              "name": "embedded platform detail patch применяется к production HTTP без Auth",
+              "assertions": 2,
+              "status": "failed"
+            },
+            {
+              "name": "embedded crawler listing patch использует persisted owner chain в production caller",
+              "assertions": 3,
+              "status": "failed"
+            },
+            {
+              "name": "package UI profile revision не блокирует новый production request и не переписывает snapshot mapping",
+              "assertions": 6,
+              "status": "failed"
+            },
+            {
+              "name": "production provider без Auth сохраняет joint claim receipt и финансовый settlement",
+              "assertions": 2,
+              "status": "failed"
+            }
+          ],
+          "assertions": 20,
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test"
+        },
+        {
+          "id": "formatter-lifecycle",
+          "cmd": "php8.4 vendor/bin/pint app/Services/Procurement/Proxyma/RuntimeCaller.php app/Services/Procurement/Extraction/AnalysisProviderSendGate.php tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-lifecycle-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-lifecycle-pint.log"
+        },
+        {
+          "id": "focused-lifecycle",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=storage/app/testing/process-core/p95-review-lifecycle-junit.xml\", \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\", \"--filter=production\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/var/www/html/storage/app/testing/process-core/p95-review-lifecycle-junit.xml\", \"/home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-lifecycle-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > integration/agelto/p95-review-lifecycle-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 2,
+          "evidence": "integration/agelto/p95-review-lifecycle-junit.xml",
+          "cases": [
+            {
+              "name": "production worker без Auth отправляет только с live owner и не получает UI mutation grant",
+              "assertions": 10,
+              "status": "failed"
+            },
+            {
+              "name": "embedded platform detail patch применяется к production HTTP без Auth",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "embedded crawler listing patch использует persisted owner chain в production caller",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "package UI profile revision не блокирует новый production request и не переписывает snapshot mapping",
+              "assertions": 13,
+              "status": "passed"
+            },
+            {
+              "name": "production provider без Auth сохраняет joint claim receipt и финансовый settlement with data set \"dataset \"live owner\"\"",
+              "assertions": 11,
+              "status": "passed"
+            },
+            {
+              "name": "production provider без Auth сохраняет joint claim receipt и финансовый settlement with data set \"dataset \"owner lost after send\"\"",
+              "assertions": 11,
+              "status": "passed"
+            }
+          ],
+          "assertions": 57,
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test"
+        },
+        {
+          "id": "formatter-worker-fixture",
+          "cmd": "php8.4 vendor/bin/pint tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-worker-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-worker-pint.log"
+        },
+        {
+          "id": "focused-worker-fixture",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=storage/app/testing/process-core/p95-review-worker-junit.xml\", \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\", \"--filter=production worker\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/var/www/html/storage/app/testing/process-core/p95-review-worker-junit.xml\", \"/home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-worker-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > integration/agelto/p95-review-worker-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-worker-junit.xml",
+          "cases": [
+            {
+              "name": "production worker без Auth отправляет только с live owner и не получает UI mutation grant",
+              "assertions": 13,
+              "status": "passed"
+            }
+          ],
+          "assertions": 13,
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test"
+        },
+        {
+          "id": "phpstan-final-app-files",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Providers/ProxymaServiceProvider.php app/Services/Procurement/Proxyma/RuntimeCaller.php app/Services/Procurement/Proxyma/AgeltoAuthorizer.php app/Services/Procurement/Proxyma/AgeltoTenantContext.php app/Services/Procurement/Proxyma/CallerPolicyContext.php app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Proxyma/BindingAdapter.php app/Services/Procurement/Proxyma/PanelProvider.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Extraction/AnalysisProviderSendGate.php > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-final-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-final-phpstan.log"
+        },
+        {
+          "id": "syntax",
+          "cmd": "python3 - <<'PY' > integration/agelto/p95-review-syntax.log 2>&1\nfrom pathlib import Path\nimport subprocess,sys\nroot=Path('/home/vostrikov/projects/agelto/agelto')\npaths=[\"app/Providers/ProxymaServiceProvider.php\",\"app/Services/Procurement/Proxyma/RuntimeCaller.php\",\"app/Services/Procurement/Proxyma/AgeltoAuthorizer.php\",\"app/Services/Procurement/Proxyma/AgeltoTenantContext.php\",\"app/Services/Procurement/Proxyma/CallerPolicyContext.php\",\"app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php\",\"app/Services/Procurement/Proxyma/CallerAttemptGate.php\",\"app/Services/Procurement/Proxyma/BindingAdapter.php\",\"app/Services/Procurement/Proxyma/PanelProvider.php\",\"app/Services/Procurement/Network/OutboundExecutor.php\",\"app/Services/Procurement/Extraction/AnalysisProviderSendGate.php\",\"tests/Support/ProcessCore/ProxymaCallerFixtures.php\",\"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\",\"tests/Feature/ProcessCore/Network/ProxymaCatalogAdapterTest.php\",\"tests/Support/ProcessCore/ProxymaProviderFixtures.php\"]\nprint('cwd:',root,flush=True)\nfor path in paths:\n print('command: php8.4 -l '+path,flush=True)\n result=subprocess.run(['php8.4','-l',path],cwd=root)\n if result.returncode: sys.exit(result.returncode)\nPY",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-syntax.log"
+        },
+        {
+          "id": "diff-package",
+          "cmd": "git diff --check > integration/agelto/p95-review-diff-package.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-diff-package.log"
+        },
+        {
+          "id": "diff-consumer",
+          "cmd": "git diff --check > /home/vostrikov/projects/packages/proxyma/integration/agelto/p95-review-diff-consumer.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p95-review-diff-consumer.log"
+        }
+      ],
+      "latest_passed_cases": [
+        {
+          "name": "embedded settings сохраняют только patch и отвергают stale generation без изменения scheduling",
+          "assertions": 8,
+          "evidence": "integration/agelto/p95-review-junit.xml"
+        },
+        {
+          "name": "старые snapshots сохраняют stage profile ID и version через явные immutable mappings",
+          "assertions": 8,
+          "evidence": "integration/agelto/p95-review-junit.xml"
+        },
+        {
+          "name": "registered slots исключают finance и inactive provider не подключает package migrations",
+          "assertions": 10,
+          "evidence": "integration/agelto/p95-review-junit.xml"
+        },
+        {
+          "name": "package CSV caller сохраняет win1251 partial и не публикует неполную строку",
+          "assertions": 9,
+          "evidence": "integration/agelto/p95-review-junit.xml"
+        },
+        {
+          "name": "package caller сохраняет terminal HTTP evidence и общий send budget",
+          "assertions": 7,
+          "evidence": "integration/agelto/p95-review-junit.xml"
+        },
+        {
+          "name": "notification POST имеет отдельного owner и не повторяется после terminal HTTP error",
+          "assertions": 6,
+          "evidence": "integration/agelto/p95-review-junit.xml"
+        },
+        {
+          "name": "embedded platform detail patch применяется к production HTTP без Auth",
+          "assertions": 6,
+          "evidence": "integration/agelto/p95-review-lifecycle-junit.xml"
+        },
+        {
+          "name": "embedded crawler listing patch использует persisted owner chain в production caller",
+          "assertions": 6,
+          "evidence": "integration/agelto/p95-review-lifecycle-junit.xml"
+        },
+        {
+          "name": "package UI profile revision не блокирует новый production request и не переписывает snapshot mapping",
+          "assertions": 13,
+          "evidence": "integration/agelto/p95-review-lifecycle-junit.xml"
+        },
+        {
+          "name": "production provider без Auth сохраняет joint claim receipt и финансовый settlement with data set \"dataset \"live owner\"\"",
+          "assertions": 11,
+          "evidence": "integration/agelto/p95-review-lifecycle-junit.xml"
+        },
+        {
+          "name": "production provider без Auth сохраняет joint claim receipt и финансовый settlement with data set \"dataset \"owner lost after send\"\"",
+          "assertions": 11,
+          "evidence": "integration/agelto/p95-review-lifecycle-junit.xml"
+        },
+        {
+          "name": "production worker без Auth отправляет только с live owner и не получает UI mutation grant",
+          "assertions": 13,
+          "evidence": "integration/agelto/p95-review-worker-junit.xml"
+        }
+      ],
+      "diagnostics": "Initial failed iterations remain in logs/JUnit: missing finite execution abilities, wrong ancestor order, fixture trigger cleanup and a closed-owner fixture missing finished_at were corrected. No acceptance guard/count was weakened.",
+      "provenance": "Only affected source/test hashes and the nested AI manifest were refreshed. original-executed-scenarios.json, scenario-transfers.json, runtime inputs, schema inventory and architecture guards were not changed in this correction.",
+      "follow_up": [
+        "Conductor runs V1-V4 on the final tree and binds reports to final committed source.",
+        "P10 must explicitly map legacy traffic-specific budget window keys to generic panel slot keys; original App TrafficClass remains available to project retry/owner controls.",
+        "P10 transfer keeps current active profile identity separate from immutable historical snapshot mappings."
+      ],
+      "limitation": "Pest mutate plugin emits a read-only vendor cache mkdir warning; tests and isolated fixture guards execute normally. No vendor writes or permission changes were made."
+    },
+    {
+      "id": "download-fixture-ancestry",
+      "executor": "executor.2",
+      "finding": "F4",
+      "source_revisions": {
+        "proxyma": "a60adfbcb0384644f8f91715ce743ee510d7a32b",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "consumer_state": "Explicit dirty product diff; coordinator owns final commit."
+      },
+      "scope": [
+        "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php",
+        "tests/Fixtures/ProcessCore/manifest.json"
+      ],
+      "changes": [
+        "The accounting fixture now creates its registry on the target platform and aligns procurement, document and work platform IDs. The shared DownloadFixtures helper and production ownership guard are unchanged.",
+        "Added a negative case: a foreign procurement/registry platform is rejected as OwnerLost with no HTTP receipts and zero physical sends. Existing identity/gzip signed refresh, exhausted ceiling and child canary assertions remain."
+      ],
+      "checks": [
+        {
+          "id": "download-accounting-file",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=/tmp/p95-f4-junit.xml\", \"tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/tmp/p95-f4-junit.xml\", \"/tmp/p95-f4-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > /tmp/p95-f4-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test",
+          "exit": 0,
+          "tests": 5,
+          "assertions": 32,
+          "evidence": "/tmp/p95-f4-junit.xml",
+          "log": "/tmp/p95-f4-tests.log",
+          "cases": [
+            {
+              "name": "download и один signed refresh входят в тот же package physical ceiling with data set \"dataset \"identity\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "download и один signed refresh входят в тот же package physical ceiling with data set \"dataset \"gzip\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "исчерпанный download ceiling запрещает HTTP после signed refresh",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "дочерний canary учитывается по стабильному parent attempt при отдельном operation owner",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "download с чужой platform в ancestry не отправляет bytes",
+              "assertions": 6,
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "pint",
+          "cmd": "php8.4 vendor/bin/pint tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php > /tmp/p95-f4-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "/tmp/p95-f4-pint.log"
+        },
+        {
+          "id": "syntax",
+          "cmd": "php8.4 -l tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php > /tmp/p95-f4-syntax.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "/tmp/p95-f4-syntax.log"
+        },
+        {
+          "id": "diff-consumer",
+          "cmd": "git diff --check > /tmp/p95-f4-diff-consumer.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "/tmp/p95-f4-diff-consumer.log"
+        },
+        {
+          "id": "diff-package",
+          "cmd": "git diff --check > /tmp/p95-f4-diff-package.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "/tmp/p95-f4-diff-package.log"
+        }
+      ],
+      "acceptance_note": "V2 network acceptance was not rerun; conductor owns V1-V4. Only the named failed test file ran once. All intermediate output is in /tmp.",
+      "provenance": "Only the affected test SHA/scenario list and containing manifest SHA changed; original scenario provenance, transfers, runtime/schema inputs and production guards remain unchanged.",
+      "source_sha256": {
+        "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php": "776e7e909482dc012eaad794cc34bb462a2cff1d9b777cd4af33e06c0da3f8a8",
+        "tests/Fixtures/ProcessCore/manifest.json": "b5b4a33f4a44f9aa224f9f05ef26d85a92a21d05c2003bb8ab98aa8702b184e5"
+      }
+    },
+    {
+      "id": "owning-loop-limits-and-download-membership",
+      "executor": "executor.3",
+      "findings": [
+        "F1 fk-028e49ef857d587d",
+        "F2 fk-72952407759d275c"
+      ],
+      "source_revisions": {
+        "proxyma": "a60adfbcb0384644f8f91715ce743ee510d7a32b",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "consumer_state": "Explicit dirty product diff; coordinator owns final commit."
+      },
+      "scope": [
+        "app/Services/Procurement/Proxyma/CallerAttemptGate.php",
+        "app/Services/Procurement/Network/OutboundExecutor.php",
+        "app/Services/Procurement/Proxyma/CallerSendFacts.php",
+        "app/Services/Procurement/Platform/ExecutorPlatformOutbound.php",
+        "tests/Support/ProcessCore/ProxymaCallerFixtures.php",
+        "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php",
+        "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php",
+        "tests/Fixtures/ProcessCore/manifest.json"
+      ],
+      "changes": [
+        "CallerAttemptGate seals effective retry attempts, redirects, distinct routes and full-jitter delay bounds intersected with caller caps. OutboundExecutor retains those caps across its owning logical loop; a new physical operation does not reset them. The gate checks live loop position before creating another operation/claim.",
+        "CallerSendFacts resolves the same effective profile/panel/slot/owner chain under a bounded production RuntimeCaller grant. Download probe health checks and candidate iteration use current package membership and its profile health; final admission revalidates the catalog. Explicit direct constraints and legacy authority behavior remain unchanged.",
+        "Added local HTTP cases for max_redirects=0 / max_attempts=1, stricter caller caps, zero effective retry delay and one permitted redirect. Download cases cover empty legacy profile, empty package denial without HTTP, post-switch UI membership addition, a healthy route and a due package probe with unchanged legacy catalog.",
+        "Historical caller fixtures explicitly permit retries/redirects up to bounded fixture ceilings; the source endpoint profile remains the stricter cap. Production defaults were not relaxed."
+      ],
+      "checks": [
+        {
+          "id": "focused-files",
+          "cmd": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 -c 'import sys\nsys.path.insert(0, \"docker/tests/process-core\")\nimport rig\nwith rig.project_lock():\n    rig.readiness()\n    rig.stop_workers()\n    rig.verify_fixture_inputs()\n    rig.prepare_runtime()\n    command = [\"./vendor/bin/pest\", \"--no-tia\", \"--compact\", \"--log-junit=/tmp/p95-loop-membership-junit.xml\",\n        \"tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php\",\n        \"tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php\",\n        \"--filter=embedded loop limits|embedded retry delay|package UI profile revision|download|дочерний canary\"]\n    print(\"Guarded cwd:\", rig.ROOT, flush=True)\n    print(\"Database: agelto_test; readiness and fixture guards passed\", flush=True)\n    print(\"Command:\", repr(command), flush=True)\n    result = rig.compose(\"exec\", \"-T\", \"app\", *command, check=False)\n    print(result.stdout)\n    print(result.stderr, file=sys.stderr)\n    copied = rig.compose(\"cp\", \"app:/tmp/p95-loop-membership-junit.xml\", \"/tmp/p95-loop-membership-junit.xml\", check=False)\n    print(\"JUnit copy exit:\", copied.returncode, flush=True)\n    sys.exit(result.returncode or copied.returncode)\n' > /tmp/p95-loop-membership-tests.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "runtime_cwd": "/var/www/html",
+          "database": "agelto_test",
+          "exit": 0,
+          "tests": 14,
+          "assertions": 113,
+          "evidence": "/tmp/p95-loop-membership-junit.xml",
+          "log": "/tmp/p95-loop-membership-tests.log",
+          "cases": [
+            {
+              "name": "package UI profile revision не блокирует новый production request и не переписывает snapshot mapping",
+              "assertions": 13,
+              "status": "passed"
+            },
+            {
+              "name": "embedded loop limits запрещают второй physical send на 302 и 503 with data set \"dataset \"policy redirect\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "embedded loop limits запрещают второй physical send на 302 и 503 with data set \"dataset \"policy retry\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "embedded loop limits запрещают второй physical send на 302 и 503 with data set \"dataset \"caller redirect\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "embedded loop limits запрещают второй physical send на 302 и 503 with data set \"dataset \"caller retry\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "embedded retry delay ограничивает caller jitter перед следующей отправкой",
+              "assertions": 5,
+              "status": "passed"
+            },
+            {
+              "name": "embedded loop limits разрешают один redirect при attempts равном одному",
+              "assertions": 5,
+              "status": "passed"
+            },
+            {
+              "name": "download и один signed refresh входят в тот же package physical ceiling with data set \"dataset \"identity\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "download и один signed refresh входят в тот же package physical ceiling with data set \"dataset \"gzip\"\"",
+              "assertions": 7,
+              "status": "passed"
+            },
+            {
+              "name": "исчерпанный download ceiling запрещает HTTP после signed refresh",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "дочерний canary учитывается по стабильному parent attempt при отдельном operation owner",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "download с чужой platform в ancestry не отправляет bytes",
+              "assertions": 6,
+              "status": "passed"
+            },
+            {
+              "name": "download после UI добавления package route игнорирует пустой legacy membership with data set \"dataset \"healthy package route\"\"",
+              "assertions": 15,
+              "status": "passed"
+            },
+            {
+              "name": "download после UI добавления package route игнорирует пустой legacy membership with data set \"dataset \"due package probe\"\"",
+              "assertions": 15,
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "pint",
+          "cmd": "php8.4 vendor/bin/pint app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Proxyma/CallerSendFacts.php app/Services/Procurement/Platform/ExecutorPlatformOutbound.php tests/Support/ProcessCore/ProxymaCallerFixtures.php tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php > /tmp/p95-loop-membership-pint.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "/tmp/p95-loop-membership-pint.log"
+        },
+        {
+          "id": "phpstan",
+          "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock docker compose --project-name agelto_core_test --env-file docker/tests/process-core/rig.env -f docker/compose.core-test.yml exec -T app ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G app/Services/Procurement/Proxyma/CallerAttemptGate.php app/Services/Procurement/Network/OutboundExecutor.php app/Services/Procurement/Proxyma/CallerSendFacts.php app/Services/Procurement/Platform/ExecutorPlatformOutbound.php > /tmp/p95-loop-membership-phpstan.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "/tmp/p95-loop-membership-phpstan.log"
+        },
+        {
+          "id": "syntax",
+          "commands": [
+            "php8.4 -l app/Services/Procurement/Proxyma/CallerAttemptGate.php",
+            "php8.4 -l app/Services/Procurement/Network/OutboundExecutor.php",
+            "php8.4 -l app/Services/Procurement/Proxyma/CallerSendFacts.php",
+            "php8.4 -l app/Services/Procurement/Platform/ExecutorPlatformOutbound.php",
+            "php8.4 -l tests/Support/ProcessCore/ProxymaCallerFixtures.php",
+            "php8.4 -l tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php",
+            "php8.4 -l tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php"
+          ],
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "files": 7,
+          "exact_commands": "/tmp/p95-loop-membership-syntax.log"
+        },
+        {
+          "id": "diff-consumer",
+          "cmd": "git diff --check > /tmp/p95-loop-membership-diff-consumer.log 2>&1",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "/tmp/p95-loop-membership-diff-consumer.log"
+        },
+        {
+          "id": "diff-package",
+          "cmd": "git diff --check > /tmp/p95-loop-membership-diff-package.log 2>&1",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "/tmp/p95-loop-membership-diff-package.log"
+        }
+      ],
+      "provenance": "Only the seven changed PHP inputs, their scenario lists and containing manifest hash were refreshed. No migration, runtime input, original executed scenario, scenario transfer or architecture guard changed.",
+      "acceptance_note": "One focused invocation of the two affected test files, no acceptance suites rerun. V1-V4 remain conductor-owned. All new diagnostic logs/JUnit live only in /tmp.",
+      "follow_up": "P10 transfer must preserve explicit legacy retry/redirect policy values and current package profile membership. Existing historical snapshot mappings are unchanged.",
+      "source_sha256": {
+        "app/Services/Procurement/Proxyma/CallerAttemptGate.php": "abdeed66baa8eea586ca347a86509ea098fecf3083a04bb765284564bd0e8730",
+        "app/Services/Procurement/Network/OutboundExecutor.php": "c626100f472b3dcf4747abb6fe0ea6e90265ee0c77f7146788d61a0133b1af9b",
+        "app/Services/Procurement/Proxyma/CallerSendFacts.php": "e57db7bf18224df51ff3aa584bc18d596258246015fcbe3fb68d44159176c10c",
+        "app/Services/Procurement/Platform/ExecutorPlatformOutbound.php": "5342d73e69084d3ce7645ae63c04d9a9b2a7f50b29b83c95680aaa390e44d338",
+        "tests/Support/ProcessCore/ProxymaCallerFixtures.php": "e44953347d2684199254ab453c6b679deceb165be630358b9086a416eeab72ab",
+        "tests/Feature/ProcessCore/Network/ProxymaUiAuthorityTest.php": "815c59be37d42ac9ab71a74891df821de43e9f001d1a3b2e4e669a7fbc469248",
+        "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php": "4b4f9bfd03c6e41a8ee1bf903933c28e6076c85a02100ad471a0a72f5c24afb5",
+        "tests/Fixtures/ProcessCore/manifest.json": "9187983d8b0c610095085756ff0a42f37302fe34a698663758a3de7e646a7621"
+      },
+      "documentation_sha256": {
+        "docs/integrations/agelto.md": "0fa039fa60a7ad9aa823a35720073beb3b4b472525e6a64dd7d997d9dd90b17a"
+      }
+    }
+  ],
+  "installed_package_source": "a60adfbcb0384644f8f91715ce743ee510d7a32b"
+}
