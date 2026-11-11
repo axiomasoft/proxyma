@@ -55,7 +55,8 @@ def verify(root, baseline):
     for filename, schema in (("adapter-changes.json", "proxyma-agelto-adapter-changes/v1"),
                              ("llm-changes.json", "proxyma-agelto-llm-changes/v1"),
                              ("caller-map.json", "proxyma-agelto-caller-map/v1"),
-                             ("ui-and-provenance.json", "proxyma-agelto-ui-and-provenance/v1")):
+                             ("ui-and-provenance.json", "proxyma-agelto-ui-and-provenance/v1"),
+                             ("migration-map.json", "proxyma-agelto-migration-map/v1")):
         adapter_path = ROOT / "integration/agelto" / filename
         if adapter_path.is_file():
             adapters = json.loads(adapter_path.read_text())
