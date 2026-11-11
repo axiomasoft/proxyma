@@ -105,3 +105,22 @@ Callback policy получает реальные `AttemptFacts` и технич
 к существующим бюджетам. Установленный consumer должен применить её до использования
 executor. Authorization snapshot сохраняет origin, egress, credential version,
 profile/policy revision и ключ интерпретации outcome для последующего health reducer.
+
+## Явный target для каждого physical operation
+
+Consumer с отдельными mapped targets для разных origin использует
+`FiniteOutboundExecutor::execute(OutboundRequest, FiniteExecutionPort)`.
+Port выполняет ровно одну попытку через native `OutboundExecutor::executeAttempt`:
+создаёт immutable operation для текущего target, передаёт текущие subjects/owner и возвращает
+`PhysicalExecutionResult` после admission, dispatch и completion. Следующая попытка получает
+новый operation ID; общий Process parent correlation сохраняется consumer adapter.
+
+Port явно разрешает target следующего redirect. Нет mapping, downgrade, cycle или тело запроса —
+новой отправки нет. Этот путь следует redirects только для bodyless GET/HEAD и удаляет
+чувствительные headers при смене origin. Текущие effective ceilings ограничивают общую цепочку;
+resolved retry delays сохраняют приоритет policy, включая отключение caller jitter.
+`canStart` проверяет локальный monotonic slice перед send/ожиданием, `now` возвращает SQL authority
+clock для persisted retry time. HTTP/DNS/secrets и artifact I/O выполняются вне SQL transaction.
+
+Порт не меняет target существующей operation и не ослабляет claim/owner/schema invariants.
+Обычный `OutboundClient::execute` сохраняет существующий контракт одной логической operation.

@@ -57,7 +57,8 @@ def verify(root, baseline):
                              ("caller-map.json", "proxyma-agelto-caller-map/v1"),
                              ("ui-and-provenance.json", "proxyma-agelto-ui-and-provenance/v1"),
                              ("migration-map.json", "proxyma-agelto-migration-map/v1"),
-                             ("cutover-evidence.json", "proxyma-agelto-cutover-evidence/v1")):
+                             ("cutover-evidence.json", "proxyma-agelto-cutover-evidence/v1"),
+                             ("legacy-removal.json", "proxyma-agelto-legacy-removal/v1")):
         adapter_path = ROOT / "integration/agelto" / filename
         if adapter_path.is_file():
             adapters = json.loads(adapter_path.read_text())

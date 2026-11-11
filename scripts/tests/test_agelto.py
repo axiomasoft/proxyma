@@ -183,6 +183,20 @@ class AgeltoLauncherTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "same checkout"):
                     launcher.verify(self.root, self.head)
 
+    def test_legacy_removal_paths_require_matching_checkout_revision_and_schema(self):
+        path = self.root / "integration/agelto/legacy-removal.json"
+        value = {"schema": "proxyma-agelto-legacy-removal/v1", "agelto_head": self.head,
+                 "external_root": str(self.root), "external_changed_paths": ["retired-runtime.php", "integration/agelto/legacy-removal.json"]}
+        path.write_text(json.dumps(value))
+        (self.root / "retired-runtime.php").write_text("migration-only table carrier")
+        with patch.object(launcher, "ROOT", self.root):
+            launcher.verify(self.root, self.head)
+            for field, invalid in (("agelto_head", "a" * 40), ("external_root", str(self.root / "other")),
+                                   ("schema", "proxyma-agelto-migration-map/v1")):
+                path.write_text(json.dumps({**value, field: invalid}))
+                with self.assertRaisesRegex(ValueError, "same checkout"):
+                    launcher.verify(self.root, self.head)
+
     def test_caller_map_paths_require_matching_checkout_revision_and_schema(self):
         path = self.root / "integration/agelto/caller-map.json"
         value = {"schema": "proxyma-agelto-caller-map/v1", "agelto_head": self.head,

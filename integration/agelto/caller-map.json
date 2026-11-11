@@ -50,7 +50,7 @@
         "AdapterDiagnosticRunner",
         "DiagnosticRunner"
       ],
-      "engine": "OutboundExecutor → CallerAttemptGate → package ClaimSend/PhysicalTransport",
+      "engine": "CallerOutbound → package FiniteOutboundExecutor → CallerExecutionPort → package executeAttempt → package ClaimSend/PhysicalTransport",
       "semantics": [
         "adapter admission/outcome remains project-owned",
         "source target and exact profile mapping",
@@ -66,19 +66,19 @@
         "ExecutorPlatformOutbound",
         "DownloadHandler"
       ],
-      "engine": "OutboundExecutor → CallerAttemptGate",
+      "engine": "CallerOutbound → package FiniteOutboundExecutor → CallerExecutionPort → package executeAttempt",
       "accounting": "package attempts join operations by system tenant; process_attempt owner generation or stable parent_attempt_id; legacy archive remains included",
       "storage_fk": "prc_storage_reservations.operation_id → prc_outbound_operations.id (unchanged)"
     },
     {
       "caller": "OKPD2 / reference",
       "entry": "app/Services/Platforms/Eis/Filters/Okpd2NodeSynchronizer.php",
-      "engine": "LegacyOutboundClient → bounded project operation → OutboundExecutor → CallerAttemptGate"
+      "engine": "LegacyOutboundClient → bounded project operation → CallerOutbound → package FiniteOutboundExecutor → CallerExecutionPort → package executeAttempt"
     },
     {
       "caller": "reference CSV",
       "entry": "app/Services/Platforms/Eis/EisListingSource.php",
-      "engine": "AcquisitionPlatformOutbound → OutboundExecutor → CallerAttemptGate",
+      "engine": "AcquisitionPlatformOutbound → CallerOutbound → package FiniteOutboundExecutor → CallerExecutionPort → package executeAttempt",
       "semantics": [
         "Windows-1251",
         "partial rows and original CSV fixtures retained"
@@ -87,12 +87,12 @@
     {
       "caller": "UID verification",
       "entry": "app/Console/Platforms/Eis/VerifyDocumentUid.php",
-      "engine": "LegacyOutboundClient → diagnostic operation → OutboundExecutor → CallerAttemptGate"
+      "engine": "LegacyOutboundClient → diagnostic operation → CallerOutbound → package FiniteOutboundExecutor → CallerExecutionPort → package executeAttempt"
     },
     {
       "caller": "declared safe network probes",
       "entry": "app/Services/Procurement/Network/NetworkProbeReconcileCategory.php",
-      "engine": "LegacyOutboundClient probe owner → CallerAttemptGate → ProbeCoordinator"
+      "engine": "LegacyOutboundClient probe owner → CallerExecutionPort → package executeAttempt → ProbeCoordinator"
     },
     {
       "caller": "LLM generation and file/cache operations",
@@ -114,38 +114,40 @@
     {
       "caller": "Telegram notification",
       "entry": "app/Notifications/PipelineAlert.php",
-      "engine": "persisted selector → TelegramOutbound → project diagnostic owner → CallerAttemptGate",
+      "engine": "persisted selector → TelegramOutbound → project diagnostic owner → CallerExecutionPort → package executeAttempt",
       "semantics": [
         "configured notification target is provisioned before transfer",
         "ambiguous POST has one attempt",
         "dedup key only after successful delivery",
-        "legacy delivery remains default until drain"
+        "legacy selector denies new sends until package cutover"
       ]
     },
     {
       "caller": "transport implementations",
-      "entry": "app/Services/Procurement/Network/HttpTransport.php",
+      "entry": "app/Services/Procurement/Proxyma/CallerExecutionPort.php",
       "composition": [
-        "PinnedCurlHandler",
+        "Proxyma FiniteOutboundExecutor",
+        "Proxyma OutboundExecutor::executeAttempt",
         "Proxyma PhysicalHttpTransport"
       ],
-      "engine": "selector invokes exactly one transport for each physical attempt",
+      "engine": "one immutable package operation/permit per physical send",
       "semantics": [
-        "legacy retained inactive until removal phase",
-        "no directory exemption"
+        "legacy transport and loop removed",
+        "no directory exemption",
+        "target mapping checked per redirect"
       ]
     },
     {
       "caller": "resolvers / binding only",
-      "entry": "app/Services/Procurement/Proxy/ProxyResolver.php",
+      "entry": "app/Services/Procurement/Proxyma/ProfileResolver.php",
       "composition": [
         "ProxyBindingResolver",
-        "RouteSelector",
-        "AdapterCanaryRouteSelector",
+        "ProfileBindings",
         "BindingAdapter",
-        "ProviderNetwork"
+        "ProviderNetwork",
+        "HistoricalCatalog"
       ],
-      "engine": "no socket; source profile/membership preserved, active package owns health/quotas"
+      "engine": "identity/profile snapshot mapping only; package owns selection, credentials, DNS, transport, health and quotas"
     }
   ],
   "checks": [
@@ -380,5 +382,120 @@
     ],
     "remaining": "Consumer gzip case passed (V2 exit 0) after coordinator committed 410615bf6f39e025f7ac708e5d5cac93bbd98d44 and regenerated sanitized snapshot.",
     "pin_evidence": "integration/agelto/p942-dependency-pin.log"
+  },
+  "before_runtime_removal_paths": [
+    {
+      "caller": "listing/detail/status_refresh",
+      "entry": "app/Services/Procurement/Acquisition/AcquisitionPlatformOutbound.php",
+      "composition": [
+        "AcquisitionHandler",
+        "AcquisitionValidation",
+        "AcquisitionDiagnostic",
+        "AdapterDiagnosticRunner",
+        "DiagnosticRunner"
+      ],
+      "engine": "OutboundExecutor → CallerAttemptGate → package ClaimSend/PhysicalTransport",
+      "semantics": [
+        "adapter admission/outcome remains project-owned",
+        "source target and exact profile mapping",
+        "finite work/slice and send budgets",
+        "terminal decoded HTTP evidence"
+      ]
+    },
+    {
+      "caller": "document download/signed refresh",
+      "entry": "app/Services/Procurement/Document/RuntimeDownloadHandler.php",
+      "composition": [
+        "DocumentDownloadHandler",
+        "ExecutorPlatformOutbound",
+        "DownloadHandler"
+      ],
+      "engine": "OutboundExecutor → CallerAttemptGate",
+      "accounting": "package attempts join operations by system tenant; process_attempt owner generation or stable parent_attempt_id; legacy archive remains included",
+      "storage_fk": "prc_storage_reservations.operation_id → prc_outbound_operations.id (unchanged)"
+    },
+    {
+      "caller": "OKPD2 / reference",
+      "entry": "app/Services/Platforms/Eis/Filters/Okpd2NodeSynchronizer.php",
+      "engine": "LegacyOutboundClient → bounded project operation → OutboundExecutor → CallerAttemptGate"
+    },
+    {
+      "caller": "reference CSV",
+      "entry": "app/Services/Platforms/Eis/EisListingSource.php",
+      "engine": "AcquisitionPlatformOutbound → OutboundExecutor → CallerAttemptGate",
+      "semantics": [
+        "Windows-1251",
+        "partial rows and original CSV fixtures retained"
+      ]
+    },
+    {
+      "caller": "UID verification",
+      "entry": "app/Console/Platforms/Eis/VerifyDocumentUid.php",
+      "engine": "LegacyOutboundClient → diagnostic operation → OutboundExecutor → CallerAttemptGate"
+    },
+    {
+      "caller": "declared safe network probes",
+      "entry": "app/Services/Procurement/Network/NetworkProbeReconcileCategory.php",
+      "engine": "LegacyOutboundClient probe owner → CallerAttemptGate → ProbeCoordinator"
+    },
+    {
+      "caller": "LLM generation and file/cache operations",
+      "entry": "app/Services/Procurement/Extraction/AnalysisGeneration.php",
+      "composition": [
+        "AnalysisProviderSendGate",
+        "ProviderNetwork",
+        "StructuredCallExecutor",
+        "ProviderAssetManager",
+        "PreparedProviderTransport"
+      ],
+      "engine": "persisted selector → joint financial/network claim → package PhysicalTransport",
+      "semantics": [
+        "P9.3 joint claim retained",
+        "provider GET probe is read-only diagnostic",
+        "unowned OpenAI remains denied"
+      ]
+    },
+    {
+      "caller": "Telegram notification",
+      "entry": "app/Notifications/PipelineAlert.php",
+      "engine": "persisted selector → TelegramOutbound → project diagnostic owner → CallerAttemptGate",
+      "semantics": [
+        "configured notification target is provisioned before transfer",
+        "ambiguous POST has one attempt",
+        "dedup key only after successful delivery",
+        "legacy delivery remains default until drain"
+      ]
+    },
+    {
+      "caller": "transport implementations",
+      "entry": "app/Services/Procurement/Network/HttpTransport.php",
+      "composition": [
+        "PinnedCurlHandler",
+        "Proxyma PhysicalHttpTransport"
+      ],
+      "engine": "selector invokes exactly one transport for each physical attempt",
+      "semantics": [
+        "legacy retained inactive until removal phase",
+        "no directory exemption"
+      ]
+    },
+    {
+      "caller": "resolvers / binding only",
+      "entry": "app/Services/Procurement/Proxy/ProxyResolver.php",
+      "composition": [
+        "ProxyBindingResolver",
+        "RouteSelector",
+        "AdapterCanaryRouteSelector",
+        "BindingAdapter",
+        "ProviderNetwork"
+      ],
+      "engine": "no socket; source profile/membership preserved, active package owns health/quotas"
+    }
+  ],
+  "runtime_removal": {
+    "item": "P10.3",
+    "evidence": "integration/agelto/legacy-removal.json",
+    "proxyma_head": "066d1047b12af869d66ec45c2aedbc5d3aee6e3e",
+    "note": "paths describes the current runtime. before_runtime_removal_paths and checks retain P9.4 provenance; final runtime/replay acceptance remains conductor-owned."
   }
 }

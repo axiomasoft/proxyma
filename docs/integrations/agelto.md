@@ -5,13 +5,17 @@
 Базовые revisions: Agelto `f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f`, Proxyma
 `93fc7c9f184e51022e3d901e61131db59c4df021`. Финальные commits и проверки фиксирует координатор.
 
-Persisted `prc_network_authorities` выбирает engine. Legacy остаётся default до drain.
-При package generation общий конечный OutboundExecutor loop использует CallerAttemptGate:
-package catalog, budgets, owner validation, sealed capability, transport и completion.
-Перед legacy claim selector generation проверяется под SQL share lock; package claim проверяет
-тот же selector и атомарно ставит irreversible marker journal. Ошибка package path не запускает legacy.
-Каждый retry/redirect имеет отдельный permit; количество sends и distinct routes ограничивает
-caller loop. Повтор URL блокируется. Cross-origin сохраняет только безопасные payload headers.
+Persisted `prc_network_authorities` разрешает исполнение только после drained cutover на
+package generation. До switch новые отправки получают configuration hold. Generic resolver,
+selector, policy loop, transport, reducer и duplicate UI удалены из Agelto.
+`CallerOutbound` преобразует domain envelope и storage artifact; конечные retries/redirects
+выполняет package `FiniteOutboundExecutor` через `FiniteExecutionPort`.
+Каждый физический send получает отдельный immutable package operation/permit и заново
+проверяет Process owner, текущую policy и adapter health. Redirect использует только явно
+mapped target той же platform/provider/capability; отсутствующий mapping, downgrade и cycle
+запрещены до следующего send. Cross-origin удаляет credentials. Caller ceilings пересекаются
+с текущей policy; задержку задаёт уже разрешённая effective policy, общий send limit не расширяется.
+Package claim проверяет selector generation и атомарно ставит irreversible marker journal.
 
 Adapter health, validation receipt, process work budget, terminal HTTP evidence и source TLS
 остаются Agelto-owned. Package completion служит provenance для validator и diagnostic counters.
@@ -44,9 +48,8 @@ Executor запускает только целевой файл; V1–V4 и и�
 
 Admin panel регистрирует `ProxymaPlugin`. До переключения `prc_network_authorities`
 package pages скрыты и прямые команды запрещены: legacy `ProxyResource` и
-`NetworkRouteProfilesPage` остаются единственными редакторами. После переключения
-источник чтения и команды выбираются тем же selector; legacy UI сохраняется до P10.3,
-но больше не принимает изменения. Нет dual-write и автоматического fallback.
+`NetworkRouteProfilesPage` остаются единственными редакторами. Редакторы используют только package catalog и проверяют тот же selector;
+старые ProxyResource и NetworkRouteProfilesPage удалены. Нет dual-write и автоматического fallback.
 
 Consumer `UiTenantContext` выводит `system` tenant и operator из authenticated User.
 `UiAuthorizer` проверяет точный actor и tenant, затем AzGuard `ProxyPermission` для
@@ -83,12 +86,15 @@ Consumer `ProxymaUiAuthorityTest.php` проверяет pre/post-switch writes,
 подмену permission/actor/tenant, exact membership, write-only credentials и embedded
 patch. `scenario-transfers.json` ссылается на точные исходные file/name и эти consumer
 тесты; package test names не заменяют Agelto JUnit. Frozen original baseline и
-`scenario_proof` не меняются. Пока legacy UI сохранён, исходные UI-тесты также остаются.
+`scenario_proof` не меняются. Удалённые implementation tests сохранены в архиве `RetiredNetwork`; их точные
+исторические identities связаны с consumer UI и native contract replay.
 
 До проверки нужен coordinator commit/repin обоих пакетов на один SHA и refresh
 изолированного rig. Карта transfer задаёт обязательства проверки; успешность доказывает
-только actual consumer JUnit финального candidate. P10.3 может удалить старые тесты
-лишь с сохранённым source-to-replay mapping и прошедшими replacements.
+только actual consumer JUnit финального candidate. `proxyma-contract-replay.json`
+фиксирует source paths/hashes package tests; consumer исполняет их в отдельных disposable
+схемах guarded `agelto_test`. Все перенаправления остаются обязательствами до зелёного JUnit
+кондуктора; Unit ownership test не заменяет migration, upgrade или regression checks.
 
 Runtime использует production `AgeltoTenantContext`/`AgeltoAuthorizer`: UI по-прежнему
 проходит через AzGuard, а worker получает короткий `RuntimeCaller` execution grant только
@@ -125,3 +131,37 @@ Download probe preflight читает effective package profile с теми же
 owner chain, затем использует текущий membership и health для выбора candidates.
 Пустой legacy membership после переключения не блокирует маршрут, добавленный через
 package UI; legacy catalog при этом не меняется.
+
+
+## Историческая совместимость после удаления runtime
+
+`App\Models\Procurement\Crawler\Proxy` содержит только table attribute `prc_proxies`.
+Единственный caller — неизменная migration `2026_07_04_100040`. Три additive forward migrations
+`2026_11_11_100000`–`100002` используют отдельные `Legacy*` table carriers; изменены только
+imports/getTable identities, DDL сохранён (ответ владельца Q1). Runtime imports этих carriers
+запрещает `ProxymaOwnershipBoundaryTest`.
+
+Исторические route/profile/budget/permit/request и FK tables физически сохранены. Inventory,
+transfer и cutover читают их через точные read-only exceptions. Download ceiling, adapter
+provenance и historical reader сохраняют старые physical IDs. Ни reaper, ни provider, ни
+operator command больше не записывает legacy network tables. Profile snapshot adapter читает
+старые IDs/version без secrets, hooks и route selection; после switch использует mappings.
+
+Proxy seed credentials больше не создаются из URL/environment в Agelto. `EisCrawlerProxySeeder`
+проверяет заранее созданные package profiles; audit seeder использует mapped `eis.audit` и
+продолжает отвергать reseed активного Process run. Новую конфигурацию оператор создаёт через
+Proxyma UI/commands. Crawler сохраняет scheduling/filter и historical profile identity.
+
+Ответ Q2 реализован additive package port: immutable operation target не меняется при redirect;
+следующий hop получает новый operation с явным mapped target. SQL authority/schema и совместный
+LLM financial claim не меняются. HTTP/DNS/secrets/artifact I/O остаются вне SQL transactions.
+
+`integration/agelto/legacy-removal.json` перечисляет точные paths обоих checkout и revisions.
+Координатор квалифицирует финальный SHA: V1 ownership, V2 manifests/layout, V3 два clean resets
+полного migration graph, V4 populated old baseline upgrade. После первой новой authorization
+поддерживается pause + roll-forward fix; возврат одного legacy кода не является rollback.
+
+При проверке старого acquisition snapshot adapter сначала ищет immutable mapping по точным
+source profile ID и version, в том числе до switch. Current historical profile revision
+используется только пока mapping отсутствует; неизвестная версия отклоняется. Повреждённый
+cutover checkpoint останавливает перенос, не подменяя сохранённые фазы пустым состоянием.
