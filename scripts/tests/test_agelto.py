@@ -113,6 +113,24 @@ class AgeltoLauncherTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "outside"):
                 launcher.verify(self.root, self.head)
 
+    def test_adapter_paths_require_matching_checkout_and_revision(self):
+        path = self.root / "integration/agelto/adapter-changes.json"
+        value = {"schema": "proxyma-agelto-adapter-changes/v1", "agelto_head": self.head,
+                 "external_root": str(self.root), "external_changed_paths":
+                 ["adapter.txt", "integration/agelto/adapter-changes.json"]}
+        path.write_text(json.dumps(value))
+        (self.root / "adapter.txt").write_text("adapter")
+        with patch.object(launcher, "ROOT", self.root):
+            launcher.verify(self.root, self.head)
+            for field, invalid in (("agelto_head", "a" * 40), ("external_root", str(self.root / "other"))):
+                path.write_text(json.dumps({**value, field: invalid}))
+                with self.assertRaisesRegex(ValueError, "same checkout"):
+                    launcher.verify(self.root, self.head)
+            path.write_text(json.dumps(value))
+            (self.root / "foreign.txt").write_text("outside authority")
+            with self.assertRaisesRegex(ValueError, "outside"):
+                launcher.verify(self.root, self.head)
+
     def test_consumer_vendor_and_snapshot_contract(self):
         consumer = launcher.resolve_root()
         command = [sys.executable, "-B", "-m", "unittest", "discover", "-s", "docker/tests/process-core", "-p", "test_rig.py", "-v"]

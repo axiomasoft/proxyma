@@ -52,6 +52,14 @@ def verify(root, baseline):
     require(git(root, "rev-parse", "HEAD") == baseline, "consumer HEAD differs from expected baseline")
     artifact = json.loads((ROOT / "integration/agelto/vendor-changes.json").read_text())
     allowed = set(artifact["external_changed_paths"])
+    adapter_path = ROOT / "integration/agelto/adapter-changes.json"
+    if adapter_path.is_file():
+        adapters = json.loads(adapter_path.read_text())
+        require(adapters.get("schema") == "proxyma-agelto-adapter-changes/v1"
+                and adapters.get("agelto_head") == baseline
+                and Path(adapters.get("external_root", "")).resolve() == root,
+                "adapter changes require the same checkout and expected baseline")
+        allowed.update(adapters["external_changed_paths"])
     dirty = git(root, "status", "--porcelain=v1", "--untracked-files=all", "-z")
     # Rename records include two names; rejecting them prevents an unchecked source path.
     for record in dirty.split("\0"):
