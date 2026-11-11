@@ -1,0 +1,9 @@
+{
+  "projects": [
+    {
+      "name": "agelto",
+      "repo": "/home/vostrikov/projects/agelto/agelto",
+      "enabled": true
+    }
+  ]
+}

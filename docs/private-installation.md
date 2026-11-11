@@ -67,10 +67,72 @@ test -z "$(git -C local/vendors/proxyma status --porcelain --untracked-files=all
 и выполните те же detach/SHA/dirty checks. Существующий dirty checkout не
 перезаписывайте и не reset-ите. Нет нужного объекта — остановитесь.
 
-Agelto baseline vendor-sync v1 пока знает только Azguard; v2 migration и multi-repo
-sync принадлежат следующей фазе. Не заменяйте текущий lock вручную по этому примеру.
-Сохраните Azguard entries и их строгие origin/dirty guards. Оба Proxyma subpaths
-в v2 относятся к одному checkout key и одному полному commit SHA.
+Agelto vendor-sync читает strict v2 `repositories[]`; v1 Azguard нормализуется без
+перезаписи исходного manifest. Allowlist: checkout `azguard` →
+`axiomasoft/azguard-private`, `proxyma` → `axiomasoft/proxyma`, только github.com,
+полный SHA и два уникальных package name/path/version на repository. Текущий consumer
+pin Proxyma: `cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03`, Azguard:
+`ebd613cb99b1d72b7b303032e0d7ed0dd7774f4f`. Pin не меняется при последующих правках
+integration scripts: оба package payload остаются byte-identical candidate.
+
+Из Proxyma root задайте **явный** consumer checkout или используйте единственную
+зарегистрированную maind binding:
+
+```bash
+export PROXYMA_AGELTO_ROOT=/absolute/path/to/agelto
+python3 -B scripts/agelto.py run -- bash docker/scripts/vendor-sync.sh --check
+python3 -B scripts/agelto.py run -- make core-test-up
+```
+
+Для запуска без переменной окружения зарегистрируйте checkout в maind. Файл
+`integration/agelto/maind-binding.json` содержит явную привязку этой машины;
+на другой машине сначала задайте в нём нужный абсолютный путь:
+
+```bash
+maind projects sync --from brain --path integration/agelto/maind-binding.json
+python3 -B scripts/agelto.py run -- pwd
+```
+
+Это только registry import, без onboarding skills/hooks/memory. В формате импорта
+поле `repo` содержит **локальный путь**; maind превращает его в `local_path` и
+оставляет GitHub slug пустым. Launcher принимает такую единственную active/enabled
+запись с `id=agelto`, затем обязательно проверяет настоящий origin, baseline и diff.
+Конфликтующий GitHub slug, duplicate/disabled/inactive bindings отвергаются;
+папки не ищутся. Явный `PROXYMA_AGELTO_ROOT` сохраняет приоритет.
+
+Launcher печатает фактические cwd и HEAD, проверяет canonical credential-free origin,
+точный ожидаемый baseline и diff только в declared integration paths. Default baseline —
+`f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f`. После coordinator commit передайте его полный
+SHA через `run --expected-head SHA -- command...` или `PROXYMA_AGELTO_BASELINE`;
+launcher никогда не выбирает checkout по имени папки и не делает reset.
+
+`vendor-sync.sh` сначала проверяет все существующие origins и dirty trees, затем
+получает отсутствующие Git objects и detach на pin. При наличии локальных объектов
+sync не делает fetch; `--check` никогда не клонирует и не fetch-ит. Dirty или symlink
+checkout не перезаписывается. `--composer-check` дополнительно сверяет path repositories,
+versions и lock references с raw manifest из закреплённого source commit, затем запускает
+Composer validate/dry-run. При nested packages Composer `reference:auto` тоже использует
+config hash, если `.git` отсутствует именно в package subdirectory.
+
+Для Composer checks helper выбирает установленный `php8.5`, затем `php8.4`, затем
+`php`, проверяя фактическую версию: текущему Agelto lock нужен PHP >=8.4.1 <9.
+`AGELTO_PHP_BINARY` явно задаёт интерпретатор; несовместимое явное значение вызывает
+отказ без fallback. Platform checks Composer сохраняются, `--ignore-platform-reqs`
+не применяется. Системный PHP 8.3 не мешает проверке при установленном PHP 8.4/8.5.
+
+CI готовит Proxyma через checkout exact SHA с repository-scoped read-only
+`PROXYMA_READ_TOKEN`, `persist-credentials:false`. Нужный commit должен быть доступен
+CI; local-only qualification не подразумевает push. На deploy host helper создаёт
+раздельные `github-agelto`, `github-azguard`, `github-proxyma` identities, проверяет
+host fingerprint, origin, dirty state и read-only права. Создание/зачисление реальных
+production ключей в этот пункт не входит. Contract использует fake git/ssh.
+
+Rig экспортирует новые Git metadata и только оба package subtrees каждого vendor,
+сверяет source SHA/payload SHA-256 из `runtime-inputs.json` и монтирует snapshots read-only.
+Build context исключает `.git`, `.env*`, `auth.json`, credentials/keys, secrets и лишние
+vendor source paths; dependency stages копируют оба подпакета, application/doctor
+получают собранный vendor. Stale/incomplete snapshots требуют остановки isolated rig
+и refresh по его протоколу; живые shared data не удаляются.
 
 ## Composer root consumer
 
@@ -115,7 +177,7 @@ test ! -L vendor/axiomasoft/proxyma-filament
 floating branch или обращением к сети. В production image копируются package
 subtrees и собранный vendor, без `.git`, `.env`, `auth.json`, SSH keys и fixture
 secrets. Проверяйте файлы **в image**. Docker/CI allowlist и runtime-input hashes
-Agelto обновляются отдельной consumer-фазой.
+Agelto закреплены вместе с private-vendors v2 manifest.
 
 ## Конфигурация и начальная проверка
 
@@ -211,3 +273,12 @@ python3 -B docs/tests/test_package_check.py
 Synthetic fixtures этого теста не являются consumer evidence. Сохраняйте package
 report, JUnit/log/receipt refs и consumer originals вместе с resolved/accepted
 descriptors: возраст файла и имя версии не заменяют hashes.
+
+Целевой integration self-check (без БД, live providers и enrollment):
+
+```bash
+PROXYMA_AGELTO_ROOT=/absolute/path/to/agelto python3 -B scripts/tests/test_agelto.py
+```
+
+Он включает `test_rig.py`, offline Git/Composer fixtures, fake deploy git/ssh и
+минимальный Docker scratch context export. Полные consumer gates выполняет coordinator.

@@ -1,0 +1,566 @@
+{
+  "schema": "proxyma-agelto-vendor-changes/v1",
+  "item": "P9.1",
+  "external_root": "/home/vostrikov/projects/agelto/agelto",
+  "external_changed_paths": [
+    ".dockerignore",
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "composer.json",
+    "composer.lock",
+    "docker/compose.core-test.yml",
+    "docker/host/production-profile.example",
+    "docker/php/Dockerfile",
+    "docker/private-vendors.lock.json",
+    "docker/scripts/deploy-repositories.sh",
+    "docker/scripts/vendor-sync.sh",
+    "docker/scripts/vendor_manifest.py",
+    "docker/tests/deploy-repositories-contract.sh",
+    "docker/tests/process-core/rig.py",
+    "docker/tests/process-core/test_rig.py",
+    "docker/tests/vendor-contract.sh",
+    "docs/dev/runbooks/process-test-rig.md",
+    "docs/operators/production/repositories.md",
+    "tests/Fixtures/ProcessCore/runtime-inputs.json"
+  ],
+  "source_refs": {
+    "proxyma": {
+      "repository": "axiomasoft/proxyma",
+      "source_commit": "cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03"
+    },
+    "agelto": {
+      "repository": "axiomasoft/agelto",
+      "baseline_commit": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+      "final_head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+      "final_commit": null,
+      "state": "uncommitted product changes; coordinator owns commit"
+    }
+  },
+  "vendor_pins": {
+    "version": 2,
+    "repositories": [
+      {
+        "key": "azguard",
+        "repository": {
+          "host": "github.com",
+          "path": "axiomasoft/azguard-private"
+        },
+        "commit": "ebd613cb99b1d72b7b303032e0d7ed0dd7774f4f",
+        "packages": [
+          {
+            "name": "axiomasoft/azguard",
+            "path": "packages/core",
+            "version": "dev-main"
+          },
+          {
+            "name": "axiomasoft/azguard-filament",
+            "path": "packages/filament",
+            "version": "dev-main"
+          }
+        ]
+      },
+      {
+        "key": "proxyma",
+        "repository": {
+          "host": "github.com",
+          "path": "axiomasoft/proxyma"
+        },
+        "commit": "cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03",
+        "packages": [
+          {
+            "name": "axiomasoft/proxyma",
+            "path": "packages/core",
+            "version": "0.1.0"
+          },
+          {
+            "name": "axiomasoft/proxyma-filament",
+            "path": "packages/filament",
+            "version": "0.1.0"
+          }
+        ]
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "target",
+      "command": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto python3 -B scripts/tests/test_agelto.py",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 1,
+      "evidence": "integration/agelto/p91-target-tests.log",
+      "assertions": [
+        "Three launcher cases passed in the initial invocation.",
+        "The delegated rig invocation ran 52 cases: 50 passed, two errors require the absent original GSFX fixture.",
+        "All nine VendorDeliveryTest scenarios passed, including real offline Composer copies and Docker context export."
+      ],
+      "evidence_status": "historical reference; file absent in resumed workspace"
+    },
+    {
+      "id": "rig-target",
+      "command": "/usr/bin/python3 -B -m unittest discover -s docker/tests/process-core -p test_rig.py -v",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 1,
+      "evidence": "integration/agelto/p91-rig-tests.log",
+      "assertions": [
+        "No live provider, application database reset or real key enrollment.",
+        "Existing DB/egress/mount guard negatives retained."
+      ],
+      "evidence_status": "historical reference; file absent in resumed workspace"
+    },
+    {
+      "id": "launcher-rename",
+      "command": "python3 -B scripts/tests/test_agelto.py AgeltoLauncherTest.test_rename_with_secondary_modified_status_is_rejected",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "evidence": "integration/agelto/p91-launcher-rename-test.log",
+      "assertions": [
+        "RM rename is rejected before an undeclared old path can be interpreted as another status record."
+      ],
+      "evidence_status": "historical reference; file absent in resumed workspace"
+    },
+    {
+      "id": "pint",
+      "command": "php8.4 vendor/bin/pint docker/scripts/vendor_manifest.py docker/tests/process-core/rig.py docker/tests/process-core/test_rig.py",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "evidence": "integration/agelto/p91-pint.log",
+      "evidence_status": "historical reference; file absent in resumed workspace"
+    },
+    {
+      "id": "diff-proxyma",
+      "command": "git diff --check",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "evidence": "integration/agelto/p91-proxyma-diff-check.log",
+      "evidence_status": "historical reference; file absent in resumed workspace"
+    },
+    {
+      "id": "diff-agelto",
+      "command": "git diff --check",
+      "cwd": "/home/vostrikov/projects/agelto/agelto",
+      "exit": 0,
+      "evidence": "integration/agelto/p91-agelto-diff-check.log",
+      "evidence_status": "historical reference; file absent in resumed workspace"
+    }
+  ],
+  "acceptance": {
+    "owner": "conductor",
+    "not_run": [
+      "V1",
+      "V2",
+      "V3",
+      "V4",
+      "V5"
+    ]
+  },
+  "public_behavior": [
+    "Strict v2 repositories with checked v1 Azguard normalization; credential-free canonical origins and exact full SHA.",
+    "Both nested Proxyma packages are copied at version 0.1.0 from the same source SHA, alongside unchanged Azguard pins.",
+    "Launcher uses explicit root or unique maind repo binding, validates expected HEAD/declared diff and preserves command exit.",
+    "Offline cached source sync, three repository-specific readonly deploy aliases, exact sanitized readonly runtime snapshots."
+  ],
+  "setup": {
+    "command": "/usr/bin/php8.4 /usr/local/bin/composer install --no-scripts --no-interaction --no-progress --prefer-dist",
+    "cwd": "/home/vostrikov/projects/agelto/agelto",
+    "exit": 0,
+    "evidence": "integration/agelto/p91-composer-install.log",
+    "note": "Initial network-disabled install failed with exit 100 because the existing Agelto download cache was incomplete; normal install then populated the locked dependencies. New offline contract fixtures passed independently."
+  },
+  "source_to_test": {
+    "docker/scripts/vendor_manifest.py": [
+      "VendorDeliveryTest.test_v2_and_v1_azguard_compatibility_install_from_offline_git_cache",
+      "VendorDeliveryTest.test_strict_manifest_rejects_unknown_repo_traversal_duplicate_and_missing_packages",
+      "VendorDeliveryTest.test_all_supported_origins_and_credential_wrong_repo_rejection",
+      "VendorDeliveryTest.test_sha_dirty_missing_package_and_symlink_refuse_without_mutation",
+      "VendorDeliveryTest.test_composer_offline_copies_both_repositories_and_rejects_forged_lock",
+      "ComposerRuntimeTest: interpreter selection, explicit refusal and real offline Composer checks",
+      "VendorDeliveryTest.test_snapshots_preserve_raw_pinned_blobs_with_git_export_attributes"
+    ],
+    "docker/tests/process-core/rig.py": [
+      "VendorDeliveryTest.test_snapshots_bind_both_source_hashes_reject_missing_stale_dirty_and_credentials",
+      "VendorDeliveryTest.test_snapshot_sources_reject_credentials_and_symlinks_inside_package_payload",
+      "RigGuardsTest.test_vendor_mounts_require_both_sanitized_readonly_snapshots"
+    ],
+    "docker/scripts/deploy-repositories.sh": [
+      "VendorDeliveryTest.test_deploy_contract_uses_fake_git_and_ssh_for_three_separate_readonly_aliases",
+      "docker/tests/deploy-repositories-contract.sh"
+    ],
+    ".dockerignore, docker/php/Dockerfile": [
+      "VendorDeliveryTest.test_build_context_excludes_credentials_git_env_and_unrelated_vendor_sources",
+      "docker/tests/vendor-contract.sh: production-image checks reserved for conductor"
+    ],
+    "scripts/agelto.py": [
+      "scripts/tests/test_agelto.py: AgeltoLauncherTest",
+      "AgeltoLauncherTest.test_imported_maind_binding_resolves_by_declared_id_and_still_checks_origin",
+      "AgeltoLauncherTest.test_imported_maind_binding_rejects_conflict_disabled_inactive_and_duplicates"
+    ]
+  },
+  "pending": [
+    {
+      "kind": "environment",
+      "checks": [
+        "V1",
+        "V4",
+        "V5"
+      ],
+      "text": "Default unix:///var/run/docker.sock is absent. Active rootless Docker is reachable at unix:///run/user/1000/docker.sock; conductor Docker checks need DOCKER_HOST set to this endpoint.",
+      "evidence": "integration/agelto/p912-resume-environment.log"
+    }
+  ],
+  "handoff": [
+    "Coordinator commits Agelto product paths separately; final_commit is deliberately null until that action.",
+    "P9.2 keeps both package pins at cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03 until an intentional package-source update.",
+    "After a consumer commit, pass its full SHA via PROXYMA_AGELTO_BASELINE or run --expected-head; refresh stopped rig metadata through its lifecycle.",
+    "CI needs the exact source commit to be available and a repository-scoped PROXYMA_READ_TOKEN; no push, enrollment or production deployment was performed."
+  ],
+  "corrections": [
+    {
+      "round": "executor.2",
+      "status": "blocked",
+      "changed_paths": [
+        "docker/scripts/vendor_manifest.py",
+        "docker/tests/process-core/test_rig.py",
+        "proxyma:docs/private-installation.md"
+      ],
+      "fix": "Composer checks select a real PHP >=8.4.1 <9 (php8.5/php8.4/php), or honor explicit AGELTO_PHP_BINARY without fallback. Existing platform checks are unchanged.",
+      "source_refs": {
+        "proxyma": "cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "state": "uncommitted correction; coordinator owns commits"
+      },
+      "checks": [
+        {
+          "id": "php-runtime-target",
+          "command": "python3 -B -m unittest discover -s docker/tests/process-core -p test_rig.py -k ComposerRuntimeTest -v",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "assertions": [
+            "Six tests passed.",
+            "Versioned PHP is selected instead of default PHP 8.3; explicit incompatible PHP and missing runtime are rejected.",
+            "PHP 8.4.0 and PHP 9 are rejected; PHP 8.4.1 and PHP 8.5 are accepted.",
+            "Both Composer checks keep the selected interpreter, strict validation and dry-run platform checks.",
+            "Actual Composer validate and install dry-run passed with network disabled."
+          ],
+          "evidence": "integration/agelto/p912-php-runtime-tests.log"
+        },
+        {
+          "id": "pint",
+          "command": "php8.4 vendor/bin/pint docker/scripts/vendor_manifest.py docker/tests/process-core/test_rig.py",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p912-pint.log"
+        },
+        {
+          "id": "diff-proxyma",
+          "command": "git diff --check",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p912-proxyma-diff-check.log"
+        },
+        {
+          "id": "diff-agelto",
+          "command": "git diff --check",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p912-agelto-diff-check.log"
+        }
+      ],
+      "runtime_evidence": "integration/agelto/p912-php-runtime.log",
+      "remaining_blocker": {
+        "checks": [
+          "V3",
+          "V4",
+          "V5"
+        ],
+        "source": "estimates/files/Администрация культуры и спорта 3.gsfx",
+        "size_bytes": 6240192,
+        "sha256": "d175edac8b7a3032eee20cfd941cb2178b471e75f288e3fcc4fc8e44fc52708b",
+        "evidence": "integration/agelto/p912-rig-environment.log",
+        "action": "Owner must restore the exact original binary. V4 stops before runtime startup, so V5 has no isolated runtime. No fixture/hash/guard changes or acceptance reruns were made."
+      }
+    },
+    {
+      "round": "executor.2-resumed",
+      "status": "done_pending_checks",
+      "source_refs": {
+        "proxyma": "cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "state": "uncommitted product changes; coordinator owns commits"
+      },
+      "environment_recovery": {
+        "fixture": "estimates/files/Администрация культуры и спорта 3.gsfx",
+        "size_bytes": 6240192,
+        "sha256": "d175edac8b7a3032eee20cfd941cb2178b471e75f288e3fcc4fc8e44fc52708b",
+        "restored_by": "provided in resumed workspace; executor verified exact bytes",
+        "evidence": "integration/agelto/p912-resume-environment.log"
+      },
+      "product_fix": {
+        "cause": "Git archive applies Azguard export-ignore/export-subst, unlike the raw pinned checkout. Four metadata files were omitted from expected snapshot payloads.",
+        "paths": [
+          "docker/scripts/vendor_manifest.py",
+          "docker/tests/process-core/test_rig.py",
+          "tests/Fixtures/ProcessCore/runtime-inputs.json"
+        ],
+        "behavior": "Read only raw regular blobs under the two pinned package paths with ls-tree/cat-file; retain credential and symlink rejection. Refresh only Azguard package hashes; repository commits and Proxyma payload hashes are unchanged.",
+        "regression": "VendorDeliveryTest.test_snapshots_preserve_raw_pinned_blobs_with_git_export_attributes"
+      },
+      "checks": [
+        {
+          "id": "correction-target",
+          "command": "python3 -B -m unittest -v test_rig.ComposerRuntimeTest test_rig.RigGuardsTest.test_historical_fixtures_use_readonly_test_mount_without_plan_aliases test_rig.RigGuardsTest.test_pure_unit_suite_does_not_require_a_migrated_domain_schema",
+          "cwd": "/home/vostrikov/projects/agelto/agelto/docker/tests/process-core",
+          "exit": 0,
+          "assertions": [
+            "Six PHP/Composer tests and both formerly failing rig cases passed."
+          ],
+          "evidence": "integration/agelto/p912-resume-target.log"
+        },
+        {
+          "id": "blob-target",
+          "command": "python3 -B -m unittest -v test_rig.VendorDeliveryTest.test_snapshots_preserve_raw_pinned_blobs_with_git_export_attributes test_rig.VendorDeliveryTest.test_snapshot_sources_reject_credentials_and_symlinks_inside_package_payload test_rig.VendorDeliveryTest.test_composer_offline_copies_both_repositories_and_rejects_forged_lock",
+          "cwd": "/home/vostrikov/projects/agelto/agelto/docker/tests/process-core",
+          "exit": 0,
+          "assertions": [
+            "Raw metadata files are preserved despite export-ignore.",
+            "Export-subst does not change pinned bytes.",
+            "Credential/symlink rejection and offline copied installs still pass."
+          ],
+          "evidence": "integration/agelto/p912-resume-blob-tests.log"
+        },
+        {
+          "id": "pint",
+          "command": "php8.4 vendor/bin/pint docker/scripts/vendor_manifest.py docker/tests/process-core/test_rig.py",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p912-resume-pint.log"
+        },
+        {
+          "id": "diff-proxyma",
+          "command": "git diff --check",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p912-resume-proxyma-diff-check.log"
+        },
+        {
+          "id": "diff-agelto",
+          "command": "git diff --check",
+          "cwd": "/home/vostrikov/projects/agelto/agelto",
+          "exit": 0,
+          "evidence": "integration/agelto/p912-resume-agelto-diff-check.log"
+        }
+      ],
+      "snapshot_setup": {
+        "docker_host": "unix:///run/user/1000/docker.sock",
+        "owning_protocol": "rig.project_lock -> rig.identity(allow_empty=True) -> rig.prepare_metadata",
+        "exit": 0,
+        "assertions": [
+          "No isolated runtime containers existed.",
+          "Only the incomplete snapshot created by the first failed setup was removed; no volumes or database data were touched.",
+          "Both real vendor snapshots match exact pinned raw source hashes."
+        ],
+        "metadata": "integration/agelto/runtime-metadata.json",
+        "evidence": "integration/agelto/p912-resume-snapshots-final.log",
+        "initial_failure_evidence": "integration/agelto/p912-resume-snapshots.log"
+      },
+      "acceptance": {
+        "owner": "conductor",
+        "not_rerun": [
+          "V1",
+          "V2",
+          "V3",
+          "V4",
+          "V5"
+        ]
+      }
+    },
+    {
+      "round": "executor.3",
+      "status": "done",
+      "scope": "Only checks.2 launcher binding failures V1-V5; acceptance bodies were not rerun.",
+      "source_refs": {
+        "proxyma": "cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03",
+        "agelto": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+        "state": "uncommitted product changes; coordinator owns commits"
+      },
+      "product_fix": "Accept the native maind importer shape id=agelto/local_path/repo=null as well as explicit GitHub slug bindings. Still require one active/enabled binding and verify actual origin, baseline and declared diff. No checkout-path guessing or third resolution source.",
+      "binding_document": "integration/agelto/maind-binding.json",
+      "environment_fix": {
+        "command": "maind projects sync --from brain --path /home/vostrikov/projects/packages/proxyma/integration/agelto/maind-binding.json",
+        "exit": 0,
+        "assertions": [
+          "Exactly one Agelto project binding added.",
+          "All existing project records preserved.",
+          "No skills, hooks or memory onboarding executed."
+        ],
+        "evidence": "integration/agelto/p913-binding-setup.log"
+      },
+      "checks": [
+        {
+          "id": "launcher-target",
+          "command": "python3 -B scripts/tests/test_agelto.py AgeltoLauncherTest.test_explicit_root_and_unique_maind_binding_without_directory_guessing AgeltoLauncherTest.test_expected_head_origin_and_declared_diff_are_checked_without_reset AgeltoLauncherTest.test_cli_delegates_exact_argv_cwd_and_exit_after_verification AgeltoLauncherTest.test_rename_with_secondary_modified_status_is_rejected AgeltoLauncherTest.test_imported_maind_binding_resolves_by_declared_id_and_still_checks_origin AgeltoLauncherTest.test_imported_maind_binding_rejects_conflict_disabled_inactive_and_duplicates",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "assertions": [
+            "Six launcher cases passed.",
+            "Explicit env retains priority; missing, duplicate, disabled, inactive and conflicting repo bindings fail closed.",
+            "Imported binding resolves and the actual wrong origin still fails.",
+            "Baseline, declared-diff, rename and delegated argv/cwd/exit checks retained."
+          ],
+          "evidence": "integration/agelto/p913-launcher-tests.log"
+        },
+        {
+          "id": "no-env-smoke",
+          "command": "env -u PROXYMA_AGELTO_ROOT python3 -B scripts/agelto.py run -- python3 -c 'import os; assert os.getcwd() == \"/home/vostrikov/projects/agelto/agelto\"; print(\"Registry-only command delegation: passed\")'",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-no-env-smoke.log"
+        },
+        {
+          "id": "pint",
+          "command": "php8.4 vendor/bin/pint scripts/agelto.py scripts/tests/test_agelto.py",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-pint.log"
+        },
+        {
+          "id": "diff-check",
+          "command": "git diff --check",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-diff-check.log"
+        }
+      ],
+      "acceptance": {
+        "owner": "conductor",
+        "not_rerun": [
+          "V1",
+          "V2",
+          "V3",
+          "V4",
+          "V5"
+        ]
+      }
+    },
+    {
+      "round": "executor.3-continuation",
+      "status": "done",
+      "same_failure_ids": "checks.2 V1-V5",
+      "product_state": "Previously implemented importer-shaped maind binding support and its tests are retained. No new product change was necessary for this duplicate correction delivery.",
+      "no_diff_cause": {
+        "class": "environment",
+        "text": "The registry binding fixing the original missing-root environment failure remains registered. Earlier output logs were absent in the resumed workspace; fresh evidence verifies the existing environment fix and unchanged product correction without re-registering or inventing another code change.",
+        "evidence": "integration/agelto/p913-binding-state.log"
+      },
+      "checks": [
+        {
+          "id": "launcher-target",
+          "command": "python3 -B scripts/tests/test_agelto.py AgeltoLauncherTest.test_explicit_root_and_unique_maind_binding_without_directory_guessing AgeltoLauncherTest.test_expected_head_origin_and_declared_diff_are_checked_without_reset AgeltoLauncherTest.test_cli_delegates_exact_argv_cwd_and_exit_after_verification AgeltoLauncherTest.test_rename_with_secondary_modified_status_is_rejected AgeltoLauncherTest.test_imported_maind_binding_resolves_by_declared_id_and_still_checks_origin AgeltoLauncherTest.test_imported_maind_binding_rejects_conflict_disabled_inactive_and_duplicates",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-launcher-tests.log"
+        },
+        {
+          "id": "no-env-smoke",
+          "command": "env -u PROXYMA_AGELTO_ROOT python3 -B scripts/agelto.py run -- python3 -c 'import os; assert os.getcwd() == \"/home/vostrikov/projects/agelto/agelto\"; print(\"Registry-only command delegation: passed\")'",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-no-env-smoke.log"
+        },
+        {
+          "id": "pint",
+          "command": "php8.4 vendor/bin/pint scripts/agelto.py scripts/tests/test_agelto.py",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-pint.log"
+        },
+        {
+          "id": "diff-check",
+          "command": "git diff --check",
+          "cwd": "/home/vostrikov/projects/packages/proxyma",
+          "exit": 0,
+          "evidence": "integration/agelto/p913-diff-check.log"
+        }
+      ],
+      "acceptance": {
+        "owner": "conductor",
+        "not_rerun": [
+          "V1",
+          "V2",
+          "V3",
+          "V4",
+          "V5"
+        ]
+      }
+    }
+  ],
+  "runtime_snapshot_metadata": {
+    "candidate_head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+    "dependencies": {
+      "azguard": {
+        "commit": "ebd613cb99b1d72b7b303032e0d7ed0dd7774f4f",
+        "packages": {
+          "packages/core": "d29108a6bcaa49f434d9a391bcdab28f75fa3800af4145eedbd6221ef0e586a7",
+          "packages/filament": "b72245c8977039b4f299c9e41e221704c02702bd081509923388cbe7390e8af8"
+        }
+      },
+      "proxyma": {
+        "commit": "cad9aa1f529f28c8e5bfeda4f05b1befbaa3ab03",
+        "packages": {
+          "packages/core": "0c2097c6ddff91733ed245abf48fd459fc116f012dce00eb19a65647c3e75c10",
+          "packages/filament": "e96a0204f0d46c7b8c203851a847a7be231062b09d12a881fe27d7efe14655ea"
+        }
+      }
+    }
+  },
+  "historical_evidence_unavailable_in_resumed_workspace": [
+    "integration/agelto/p91-agelto-diff-check.log",
+    "integration/agelto/p91-composer-install.log",
+    "integration/agelto/p91-launcher-rename-test.log",
+    "integration/agelto/p91-pint.log",
+    "integration/agelto/p91-proxyma-diff-check.log",
+    "integration/agelto/p91-rig-tests.log",
+    "integration/agelto/p91-target-tests.log",
+    "integration/agelto/p912-agelto-diff-check.log",
+    "integration/agelto/p912-php-runtime-tests.log",
+    "integration/agelto/p912-php-runtime.log",
+    "integration/agelto/p912-pint.log",
+    "integration/agelto/p912-proxyma-diff-check.log",
+    "integration/agelto/p912-rig-environment.log"
+  ],
+  "operator_retry_handoff": {
+    "round": "executor.3-operator-retry",
+    "status": "done_pending_checks",
+    "operator_note_sha256": "c555121c55eb893d50e649243f3d37a7658324ca3fe848d67ea5cbfa356f09e4",
+    "product_state": "Existing launcher and integration changes retained; no new product correction required for the supplied checks.2 root-resolution failure.",
+    "environment_evidence": {
+      "gsfx_sha256": "d175edac8b7a3032eee20cfd941cb2178b471e75f288e3fcc4fc8e44fc52708b",
+      "agelto_tasks_symlink_absent": true,
+      "temporary_p91_logs_absent": true,
+      "launcher_without_explicit_root": {
+        "command": "env -u PROXYMA_AGELTO_ROOT python3 -B scripts/agelto.py run -- python3 -c 'import os; assert os.getcwd() == \"/home/vostrikov/projects/agelto/agelto\"; print(\"Registry-only command delegation: passed\")'",
+        "cwd": "/home/vostrikov/projects/packages/proxyma",
+        "exit": 0,
+        "verified_consumer_sha": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f"
+      }
+    },
+    "historical_conductor_evidence": {
+      "directory": "/home/vostrikov/.local/share/swissknifeman/workspaces/axioma/projects/proxyma/local/state/orch/conductor/cnd-20261110T214322Z-fe058b/P9.1/attempts/3/checks/3",
+      "V1": "Stored log still ends with Docker COPY failure for missing /tasks; current tasks symlink is absent. Operator reports subsequent success, but that success is not established by this log.",
+      "V2": "Stored log reports contract passed, with rg command-not-found diagnostics; no exit code independently established here.",
+      "V3": "Stored log reports 59 tests, OK.",
+      "V4": "Stored rig result exit 0.",
+      "V5": "Stored rig result exit 0."
+    },
+    "acceptance": {
+      "owner": "conductor",
+      "not_run_by_executor": [
+        "V1",
+        "V2",
+        "V3",
+        "V4",
+        "V5"
+      ],
+      "next": "Run checks.3 on retained candidate; this report does not assert acceptance success."
+    }
+  }
+}
