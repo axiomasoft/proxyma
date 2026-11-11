@@ -53,7 +53,8 @@ def verify(root, baseline):
     artifact = json.loads((ROOT / "integration/agelto/vendor-changes.json").read_text())
     allowed = set(artifact["external_changed_paths"])
     for filename, schema in (("adapter-changes.json", "proxyma-agelto-adapter-changes/v1"),
-                             ("llm-changes.json", "proxyma-agelto-llm-changes/v1")):
+                             ("llm-changes.json", "proxyma-agelto-llm-changes/v1"),
+                             ("caller-map.json", "proxyma-agelto-caller-map/v1")):
         adapter_path = ROOT / "integration/agelto" / filename
         if adapter_path.is_file():
             adapters = json.loads(adapter_path.read_text())
