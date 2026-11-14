@@ -7,7 +7,6 @@ namespace Proxyma\Infrastructure\Database;
 use DateTimeImmutable;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Domain\Admission\AdmissionRejected;
-use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Budgets\BudgetKey;
 use Proxyma\Domain\Execution\DemandState;
 use Proxyma\Domain\Execution\DemandTicket;
@@ -72,16 +71,8 @@ final readonly class DemandRepository
             $unique[$key->orderKey()] = $row;
         }
         ksort($unique, SORT_STRING);
-        $result = [];
-        foreach ($unique as $row) {
-            $locked = $this->locks->rows(AuthorityLockTier::Budget, new TenantKey($row->tenant_key), [$row->scope_key], $tx)[0];
-            if ($locked->id !== $row->id) {
-                throw new AdmissionRejected('budget_identity_changed');
-            }
-            $result[] = $locked;
-        }
 
-        return $result;
+        return $this->locks->budgetRows(array_values($unique), $tx);
     }
 
     public function byAttempt(TenantKey $tenant, Uuid $operation, Uuid $attempt): ?stdClass

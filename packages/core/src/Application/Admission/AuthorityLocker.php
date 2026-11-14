@@ -197,6 +197,48 @@ final class AuthorityLocker
         return $locked;
     }
 
+    /**
+     * @param  list<stdClass>  $budgets
+     * @return list<stdClass>
+     */
+    public function budgetRows(array $budgets, LockedTransactionContext $transaction): array
+    {
+        $requested = [];
+        foreach ($budgets as $budget) {
+            $requested[$budget->scope_key."\0".$budget->tenant_key] = $budget;
+        }
+        ksort($requested, SORT_STRING);
+        $locked = [];
+        foreach (array_chunk($requested, 128, preserve_keys: true) as $chunk) {
+            foreach ($chunk as $key => $budget) {
+                $this->enter(AuthorityLockTier::Budget, $key, $transaction);
+            }
+            $query = $this->scope->connection->table(PackageSchema::tables()['budgets']);
+            $query->where(function ($query) use ($chunk): void {
+                foreach ($chunk as $budget) {
+                    $query->orWhere(function ($query) use ($budget): void {
+                        $query->where('tenant_key', $budget->tenant_key)->where('scope_key', $budget->scope_key);
+                    });
+                }
+            });
+            $found = [];
+            foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lock('FOR UPDATE')->get() as $row) {
+                $found[$row->scope_key."\0".$row->tenant_key] = $row;
+            }
+            if (array_keys($found) !== array_keys($chunk)) {
+                throw new AdmissionRejected('required_state_missing');
+            }
+            foreach ($chunk as $key => $budget) {
+                if ($found[$key]->id !== $budget->id) {
+                    throw new AdmissionRejected('budget_identity_changed');
+                }
+                $locked[] = $found[$key];
+            }
+        }
+
+        return $locked;
+    }
+
     public function guard(string $id, LockedAdmissionGuard $guard, WireRequest $request, LockedOwnerState $owner, LockedTransactionContext $transaction): void
     {
         if ($guard->tier() !== AdmissionLockTier::AdapterGuard || ! $guard instanceof SqlConnectionParticipant) {

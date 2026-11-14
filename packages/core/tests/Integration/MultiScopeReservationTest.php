@@ -26,6 +26,7 @@ use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Domain\Policy\UpdatePolicyCommand;
 use Proxyma\Infrastructure\Database\BudgetRepository;
 use Proxyma\Infrastructure\Database\DatabaseClock;
+use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\ReservationSchema;
 use Proxyma\Tests\Support\CatalogTestCase;
 use Proxyma\Tests\Support\DemandFixtures;
@@ -40,6 +41,63 @@ uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class);
 
 beforeEach(function (): void {
     $this->initializeReservationFixture();
+});
+
+it('блокирует budget scopes пакетно в каноническом порядке и сохраняет exclusive fence', function (): void {
+    $this->budget('batch:z');
+    $this->budget('batch:a');
+    $this->budget('batch:a', TenantKey::system());
+    $rows = $this->table('budgets')->whereIn('scope_key', ['batch:a', 'batch:z'])->get()->all();
+    $queries = 0;
+    $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
+        if (str_contains($sql, 'pxm_budgets') && str_contains(strtolower($sql), 'for update')) {
+            $queries++;
+        }
+    });
+    $repository = $this->app->make(DemandRepository::class);
+    $locked = $this->app->make(TransactionCoordinator::class)->run(function ($tx) use ($repository, $rows): array {
+        $locked = $repository->lockBudgets(array_reverse($rows), $tx);
+        $other = $this->connectionPdo();
+        $other->beginTransaction();
+        try {
+            expect(fn () => $other->query("SELECT id FROM pxm_budgets WHERE tenant_key = 'acme' AND scope_key = 'batch:a' FOR UPDATE NOWAIT"))
+                ->toThrow(PDOException::class, '55P03');
+        } finally {
+            $other->rollBack();
+        }
+
+        return $locked;
+    });
+    expect($queries)->toBe(1)->and(array_map(fn ($row) => $row->scope_key."\0".$row->tenant_key, $locked))
+        ->toBe(['batch:a'."\0".'acme', 'batch:a'."\0".TenantKey::SYSTEM, 'batch:z'."\0".'acme']);
+    $missing = clone $rows[0];
+    $missing->scope_key = 'batch:missing';
+    expect(fn () => $this->app->make(TransactionCoordinator::class)->run(fn ($tx) => $repository->lockBudgets([$missing], $tx)))
+        ->toThrow(AdmissionRejected::class, 'required_state_missing');
+    $wrong = clone $rows[0];
+    $wrong->id = Uuid::random()->value;
+    expect(fn () => $this->app->make(TransactionCoordinator::class)->run(fn ($tx) => $repository->lockBudgets([$wrong], $tx)))
+        ->toThrow(AdmissionRejected::class, 'budget_identity_changed');
+});
+
+it('сохраняет порядок budget locks между ограниченными пакетами', function (): void {
+    $insert = [];
+    for ($i = 0; $i < 129; $i++) {
+        $insert[] = ['id' => Uuid::random()->value, 'tenant_key' => $this->tenant->value,
+            'scope_key' => sprintf('batch:%03d', $i), 'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => 1];
+    }
+    $this->table('budgets')->insert($insert);
+    $rows = $this->table('budgets')->where('scope_key', 'like', 'batch:%')->orderByDesc('scope_key')->get()->all();
+    $queries = 0;
+    $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
+        if (str_contains($sql, 'pxm_budgets') && str_contains(strtolower($sql), 'for update')) {
+            $queries++;
+        }
+    });
+    $locked = $this->app->make(TransactionCoordinator::class)->run(
+        fn ($tx) => $this->app->make(DemandRepository::class)->lockBudgets($rows, $tx),
+    );
+    expect($queries)->toBe(2)->and(array_column($locked, 'scope_key'))->toBe(array_column($insert, 'scope_key'));
 });
 
 it('резервирует origin route egress probe и system scopes одним immutable permit', function (): void {
