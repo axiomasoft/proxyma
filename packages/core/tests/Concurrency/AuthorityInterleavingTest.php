@@ -246,7 +246,7 @@ it('probe claim vs normal send сохраняет общий origin accounting �
     $this->workers->start($one, 'one');
     $this->workers->awaitLock($one, 'one', 'pxm_budgets');
     $this->workers->start($two, 'two');
-    $this->workers->awaitLock($two, 'two', 'pxm_route_profiles');
+    $this->workers->awaitLock($two, 'two', 'pxm_route_health');
     $this->workers->release();
     expect($this->workers->result($one, 'one')['status'])->toBe('sent')
         ->and($this->workers->result($two, 'two')['status'])->toBe('health_unavailable')
