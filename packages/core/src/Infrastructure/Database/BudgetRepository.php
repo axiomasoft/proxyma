@@ -20,11 +20,19 @@ final readonly class BudgetRepository
     {
         $result = [];
         $t = PackageSchema::tables();
+        $debts = [];
+        foreach (array_chunk(array_unique(array_column($rows, 'id')), 512) as $ids) {
+            $batch = $this->scope->connection->table($t['budgets'])->whereIn('id', $ids)
+                ->selectRaw('id, CASE WHEN isfinite(tat) THEN (extract(epoch FROM tat) * 1000000)::bigint END AS tat,
+                    CASE WHEN isfinite(send_tat) THEN (extract(epoch FROM send_tat) * 1000000)::bigint END AS send,
+                    CASE WHEN isfinite(cooldown_until) THEN (extract(epoch FROM cooldown_until) * 1000000)::bigint END AS cooldown,
+                    tat::text AS tat_text, send_tat::text AS send_text')->get();
+            foreach ($batch as $debt) {
+                $debts[$debt->id] = $debt;
+            }
+        }
         foreach ($rows as $row) {
-            $debt = $this->scope->connection->selectOne("SELECT CASE WHEN isfinite(tat) THEN (extract(epoch FROM tat) * 1000000)::bigint END AS tat,
-                CASE WHEN isfinite(send_tat) THEN (extract(epoch FROM send_tat) * 1000000)::bigint END AS send,
-                CASE WHEN isfinite(cooldown_until) THEN (extract(epoch FROM cooldown_until) * 1000000)::bigint END AS cooldown,
-                tat::text AS tat_text, send_tat::text AS send_text FROM {$t['budgets']} WHERE id = ?", [$row->id]);
+            $debt = $debts[$row->id] ?? throw new AdmissionRejected('required_state_missing');
             if ($debt->tat_text === 'infinity' || $debt->send_text === 'infinity') {
                 throw new AdmissionRejected('invalid_gcra_debt');
             }

@@ -100,6 +100,50 @@ it('сохраняет порядок budget locks между ограничен
     expect($queries)->toBe(2)->and(array_column($locked, 'scope_key'))->toBe(array_column($insert, 'scope_key'));
 });
 
+it('читает все budget debts одним снимком с микросекундной точностью и отказывает при отсутствии строки', function (): void {
+    $other = $this->budget('batch:debt');
+    $instant = new DateTimeImmutable('2030-06-01T10:10:00.123456Z');
+    $this->table('budgets')->where('id', $other)->update([
+        'tat' => $instant->format('Y-m-d H:i:s.uP'),
+        'send_tat' => $instant->format('Y-m-d H:i:s.uP'),
+        'cooldown_until' => $instant->format('Y-m-d H:i:s.uP'),
+    ]);
+    $rows = $this->table('budgets')->orderBy('scope_key')->get()->all();
+    $queries = 0;
+    $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
+        if (str_contains($sql, 'isfinite(tat)')) {
+            $queries++;
+        }
+    });
+    $repository = $this->app->make(BudgetRepository::class);
+    $snapshots = $repository->read($rows);
+    $expected = (int) $instant->format('Uu');
+    expect($queries)->toBe(1)->and($snapshots[$other]['tat'])->toBe($expected)
+        ->and($snapshots[$other]['send'])->toBe($expected)->and($snapshots[$other]['cooldown'])->toBe($expected);
+    $missing = clone $rows[0];
+    $missing->id = Uuid::random()->value;
+    expect(fn () => $repository->read([$missing]))->toThrow(AdmissionRejected::class, 'required_state_missing');
+});
+
+it('читает большой набор budget debts ограниченными группами без потери строк', function (): void {
+    $insert = [];
+    for ($i = 0; $i < 513; $i++) {
+        $insert[] = ['id' => Uuid::random()->value, 'tenant_key' => $this->tenant->value,
+            'scope_key' => sprintf('debts:%03d', $i), 'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => 1];
+    }
+    $this->table('budgets')->insert($insert);
+    $rows = $this->table('budgets')->where('scope_key', 'like', 'debts:%')->get()->all();
+    $queries = 0;
+    $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
+        if (str_contains($sql, 'isfinite(tat)')) {
+            $queries++;
+        }
+    });
+    $snapshots = $this->app->make(BudgetRepository::class)->read($rows);
+    expect($queries)->toBe(2)->and(count($snapshots))->toBe(513)
+        ->and(array_keys($snapshots))->toBe(array_column($rows, 'id'));
+});
+
 it('резервирует origin route egress probe и system scopes одним immutable permit', function (): void {
     $intent = $this->demandOperation(purpose: DemandPurpose::Probe);
     $this->budget($intent['request']->url->origin->probeScopeKey());
