@@ -109,8 +109,7 @@ lanes; owner validation уже применяет `FOR SHARE`, а изменяю
 одного запроса за серию. Это экономия около 0,274 мс на один набор из четырёх строк;
 она не объясняет весь недостающий throughput и не заменяет полный профиль.
 Реализация source `3c17339` ограничивает размер группы, сохраняет вычисления PostgreSQL,
-проверку infinity и отказ при исчезнувшей строке. Она ещё не установлена в Agelto и
-не прошла полную qualification. Тесты: `MultiScopeReservationTest` — 23/145,
+проверку infinity и отказ при исчезнувшей строке. Тесты: `MultiScopeReservationTest` — 23/145,
 `GcraReservationTest` — 5/60, `SealedWireTest` — 34/229,
 `HealthCompletionTest` — 5/51; целевые Pint и PHPStan прошли.
 
@@ -121,3 +120,22 @@ lanes; owner validation уже применяет `FOR SHARE`, а изменяю
 разные PostgreSQL PID: первый worker ждал budget и отправил один запрос, второй ждал
 route health и получил `health_unavailable`. Все остальные assertions сохранены.
 Изменение теста инвалидирует прежний fingerprint package qualification.
+
+Следующий suite обнаружил недетерминированный порядок writer/claim в `QuotaBoundaryTest`.
+Теперь настоящий PostgreSQL barrier удерживает claim на profile до commit writer; test
+дополнительно проверяет разные PID и все прежние assertions, отдельный прогон — 5/62.
+Первый запуск `PhysicalTransportTest` завершился ошибкой SOCKS-сценария под высокой
+нагрузкой хоста; повтор того же файла без изменения timeout или assertions прошёл 37/319.
+Причина первого отказа не установлена; его лог сохранён в `/tmp/proxyma-plan2-physical-failure.log`.
+
+Полная package qualification source `a61d7b9254c74d01a06668e3bf4c5bb4f3ed2c4a`:
+53 файла, 672 сценария и 30 invariants, `make quality` exit 0. Отчёт
+`build/test-report.json`, SHA-256 `6053b3c6a79c823b7b52d44637969dda4e0b6467dd5b562639e10ebb0d87a6dd`.
+После штатных candidate/resolve и offline re-pin оба установленных пакета используют этот
+source; consumer `34450112aa1d1b1ab1e5b5f6090982edf85b580c`. На нём прошли
+`core-quality`, `core-test-install` и `core-test-execution` (361 сценарий).
+`core-test-network` также прошёл: 501 сценарий, 3053 assertions; native report
+`storage/app/testing/process-core/reports/20261114T093408.335004Z-1965617`.
+Последнее изменение пакетного чтения не измерялось в полном load gate. На общем хосте
+другие агенты и Docker вызывают переменную нагрузку, поэтому имеющиеся полные прогоны
+не позволяют надёжно оценить абсолютную скорость; приватная 0.1 не объявлена принятой.
