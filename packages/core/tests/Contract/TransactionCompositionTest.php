@@ -257,7 +257,7 @@ it('соблюдает owner finance network adapter budget порядок и з
         'pxm_operations', 'pxm_route_profiles', 'pxm_routes', 'pxm_targets', 'fixture_adapter', 'pxm_budgets']);
 });
 
-it('batch policy heads сохраняет writer fence и отказывает для отсутствующего состояния', function (): void {
+it('batch policy heads разделяет read lock, сохраняет writer fence и отказывает для отсутствующего состояния', function (): void {
     $this->table('policy_heads')->insert([
         ['tenant_key' => $this->tenant->value, 'scope_key' => 'alpha'],
         ['tenant_key' => TenantKey::SYSTEM, 'scope_key' => 'beta'],
@@ -265,7 +265,7 @@ it('batch policy heads сохраняет writer fence и отказывает �
     ]);
     $queries = 0;
     $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
-        if (str_contains($sql, 'pxm_policy_heads') && str_contains(strtolower($sql), 'for update')) {
+        if (str_contains($sql, 'pxm_policy_heads') && str_contains(strtolower($sql), 'for share')) {
             $queries++;
         }
     });
@@ -275,15 +275,23 @@ it('batch policy heads сохраняет writer fence и отказывает �
             ['tenant' => new TenantKey(TenantKey::SYSTEM), 'scopeKey' => 'beta'],
             ['tenant' => $this->tenant, 'scopeKey' => 'alpha'],
         ], $tx);
-        $other = $this->connectionPdo();
-        $other->beginTransaction();
+        $reader = $this->connectionPdo();
+        $reader->beginTransaction();
         try {
-            expect(function () use ($other): void {
-                $statement = $other->prepare("SELECT id FROM pxm_policy_heads WHERE tenant_key = 'acme' AND scope_key = 'alpha' FOR SHARE NOWAIT");
+            $statement = $reader->prepare("SELECT id FROM pxm_policy_heads WHERE tenant_key = 'acme' AND scope_key = 'alpha' FOR SHARE NOWAIT");
+            $statement->execute();
+        } finally {
+            $reader->rollBack();
+        }
+        $writer = $this->connectionPdo();
+        $writer->beginTransaction();
+        try {
+            expect(function () use ($writer): void {
+                $statement = $writer->prepare("SELECT id FROM pxm_policy_heads WHERE tenant_key = 'acme' AND scope_key = 'alpha' FOR UPDATE NOWAIT");
                 $statement->execute();
             })->toThrow(PDOException::class, '55P03');
         } finally {
-            $other->rollBack();
+            $writer->rollBack();
         }
 
         return $locked;

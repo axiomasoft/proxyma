@@ -161,7 +161,7 @@ final class AuthorityLocker
             }
         });
         $locked = [];
-        foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lockForUpdate()->get() as $row) {
+        foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lock('FOR SHARE')->get() as $row) {
             $locked[$row->scope_key."\0".$row->tenant_key] = $row;
         }
         if (array_keys($locked) !== array_keys($requested)) {
