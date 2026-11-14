@@ -167,8 +167,25 @@ it('limit writer перед ожидающим claim сохраняет reserved
     $prepared = $this->quotaPrepared();
     $before = $this->accounting();
     $ids = $this->table('quota_windows')->orderBy('id')->pluck('id')->all();
-    $results = quotaRace($this, [quotaWorker($this, $prepared, 'one', 'configure'), quotaWorker($this, $prepared, 'two', 'claim')]);
+    $writer = quotaWorker($this, $prepared, 'one', 'configure');
+    $claim = quotaWorker($this, $prepared, 'two', 'claim');
+    $this->barrier->beginTransaction();
+    $profileLock = $this->barrier->prepare('SELECT id FROM pxm_route_profiles WHERE id = ? FOR UPDATE');
+    $profileLock->execute([$this->catalog['profile']->value]);
+    try {
+        $claim->start();
+        quotaAwait($this, 1);
+        $blocked = $this->observer->prepare("SELECT query FROM pg_stat_activity WHERE application_name = ? AND wait_event_type = 'Lock'");
+        $blocked->execute(['proxyma-p41-'.$this->workerSchema.'-two']);
+        expect($blocked->fetchColumn())->toContain('pxm_route_profiles');
+        $writer->start();
+        $written = quotaResult($writer);
+    } finally {
+        $this->barrier->rollBack();
+    }
+    $results = [$written, quotaResult($claim)];
     expect($results[0]['status'])->toBe('configured')->and($results[1]['status'])->toBe('claim_evidence_changed')
+        ->and($results[0]['pid'])->not->toBe($results[1]['pid'])
         ->and(array_sum(array_column($results, 'bytes')))->toBe(0)->and($this->accounting())->toBe($before)
         ->and($this->table('quota_windows')->orderBy('id')->pluck('id')->all())->toBe($ids)
         ->and((int) $this->table('quota_windows')->sum('reserved'))->toBe(2)->and((int) $this->table('quota_windows')->sum('spent'))->toBe(0);
