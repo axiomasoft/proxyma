@@ -84,6 +84,27 @@ it('completion сохраняет receipt и release атомарно; duplicate
     $this->rejectedSql(fn () => $this->table('permits')->update(['lease_released_at' => null]));
 });
 
+it('completion reads policy and catalogue state under shared writer fences', function (): void {
+    $this->app->make(PolicyCommands::class)->update(new UpdatePolicyCommand(
+        Uuid::random(), $this->tenant, PolicyScope::Tenant, $this->tenant->value,
+        '{"schema_version":1,"operations":{}}', $this->actor(),
+    ));
+    $prepared = $this->authorized();
+    $queries = [];
+    $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
+        $sql = strtolower($sql);
+        if (str_contains($sql, 'for share')) {
+            $queries[] = $sql;
+        }
+    });
+
+    expect($this->completion->recordLateReceipt($this->late($prepared))->receiptPersisted)->toBeTrue();
+
+    $shared = implode("\n", $queries);
+    expect($shared)->toContain('pxm_policy_heads')->toContain('pxm_route_profiles')
+        ->toContain('pxm_routes')->toContain('pxm_targets');
+});
+
 it('late receipt разрешает unknown после release и потери owner, stale epoch не стирает факт', function (): void {
     $prepared = $this->authorized();
     $receipt = $this->late($prepared);

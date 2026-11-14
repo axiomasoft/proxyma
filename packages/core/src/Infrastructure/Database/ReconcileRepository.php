@@ -56,10 +56,11 @@ final readonly class ReconcileRepository
             $heads[$head->scope_key."\0".$head->tenant_key] = [$head->tenant_key, $head->scope_key];
         }
         ksort($heads, SORT_STRING);
-        foreach ($heads as [$owner, $key]) {
-            $this->locks->rows(AuthorityLockTier::Policy, new TenantKey($owner), [$key], $tx);
-        }
-        $this->locks->rows(AuthorityLockTier::Profile, $tenant, [$root->profile_id], $tx);
+        $this->locks->policyRows(array_map(
+            static fn (array $head): array => ['tenant' => new TenantKey($head[0]), 'scopeKey' => $head[1]],
+            array_values($heads),
+        ), $tx);
+        $this->locks->catalogueRows(AuthorityLockTier::Profile, $tenant, [$root->profile_id], $tx);
         $routes = $db->table($t['routes'])->whereIn('id', array_column($permits, 'route_id'))->get()->all();
         $endpoints = $db->table($t['endpoints'])->whereIn('id', array_unique([...$pinnedEndpoints, ...array_filter(array_column($routes, 'endpoint_id'))]))->get()->all();
         $tiers = [[AuthorityLockTier::Endpoint, $endpoints], [AuthorityLockTier::Route, $routes]];
@@ -76,7 +77,9 @@ final readonly class ReconcileRepository
         foreach ($tiers as [$tier, $rows]) {
             usort($rows, static fn ($a, $b) => strcmp($a->id, $b->id));
             foreach ($rows as $row) {
-                $locked = $this->locks->rows($tier, new TenantKey($row->tenant_key), [$row->id], $tx)[0];
+                $locked = in_array($tier, [AuthorityLockTier::Endpoint, AuthorityLockTier::Route, AuthorityLockTier::Target], true)
+                    ? $this->locks->catalogueRows($tier, new TenantKey($row->tenant_key), [$row->id], $tx)[0]
+                    : $this->locks->rows($tier, new TenantKey($row->tenant_key), [$row->id], $tx)[0];
                 if (isset($locked->health_epoch)) {
                     $name = match ($tier) {
                         AuthorityLockTier::RouteHealth => 'route_health', AuthorityLockTier::RouteTargetHealth => 'route_target_health', default => 'target_health',
