@@ -69,7 +69,7 @@ final readonly class ReservationCatalogLocks
             }
             $versions['head:'.$owner->value.':'.$key] = (int) $row->revision;
         }
-        $profile = $this->locks->rows(AuthorityLockTier::Profile, $tenant, [$input->profile->id->value], $tx)[0];
+        $profile = $this->locks->catalogueRows(AuthorityLockTier::Profile, $tenant, [$input->profile->id->value], $tx)[0];
         if ($profile->retired_at !== null || (int) $profile->revision !== $input->profile->revision
             || ! $db->table($t['route_profile_members'])->where('tenant_key', $tenant->value)->where('profile_id', $profile->id)
                 ->where('route_id', $input->route->id->value)->where('route_owner_tenant_key', $input->route->tenantKey->value)->exists()) {
@@ -77,7 +77,7 @@ final readonly class ReservationCatalogLocks
         }
         $versions['profile:'.$profile->id] = (int) $profile->revision;
         if ($input->route->endpointId !== null) {
-            $endpoint = $this->locks->rows(AuthorityLockTier::Endpoint, $input->route->tenantKey, [$input->route->endpointId->value], $tx)[0];
+            $endpoint = $this->locks->catalogueRows(AuthorityLockTier::Endpoint, $input->route->tenantKey, [$input->route->endpointId->value], $tx)[0];
             if ($endpoint->retired_at !== null || ProxyProtocol::tryFrom($endpoint->protocol) === null
                 || (int) ($endpoint->credential_version ?? 1) !== $input->selection->credentialVersion
                 || (int) $endpoint->revision !== $input->route->endpointRevision) {
@@ -85,7 +85,7 @@ final readonly class ReservationCatalogLocks
             }
             $versions['endpoint:'.$endpoint->id] = (int) $endpoint->revision;
         }
-        $route = $this->locks->rows(AuthorityLockTier::Route, $input->route->tenantKey, [$input->route->id->value], $tx)[0];
+        $route = $this->locks->catalogueRows(AuthorityLockTier::Route, $input->route->tenantKey, [$input->route->id->value], $tx)[0];
         if (! $route->enabled || $route->retired_at !== null || (int) $route->revision !== $input->route->revision
             || $route->egress_key !== $input->selection->egress->key || $route->endpoint_id !== $input->selection->endpointId?->value) {
             throw new AdmissionRejected('route_revision_changed');
@@ -115,7 +115,7 @@ final readonly class ReservationCatalogLocks
             $epochs[$name.':'.$id] = (int) $health->health_epoch;
             $versions[$name.':'.$id] = (int) $health->state_version;
         }
-        $target = $this->locks->rows(AuthorityLockTier::Target, $tenant, [$input->target->id->value], $tx)[0];
+        $target = $this->locks->catalogueRows(AuthorityLockTier::Target, $tenant, [$input->target->id->value], $tx)[0];
         $originAllowed = $target->canonical_origin === $input->request->url->origin->value()
             || ResolvedUrl::isUrlVerifiedForTarget($input->target->id, $input->request->url, (int) $target->revision, (new SafeUrl($target->canonical_origin))->origin);
         if ($target->retired_at !== null || (int) $target->revision !== $input->target->revision

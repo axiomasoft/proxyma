@@ -26,6 +26,7 @@ use Proxyma\Domain\Health\HealthEpochMap;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
 use Proxyma\Infrastructure\Database\ConnectionScope;
+use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Tests\Support\CatalogTestCase;
 use Proxyma\Tests\Support\FinancialLedger;
 use Proxyma\Tests\Support\NamedLockTrace;
@@ -301,6 +302,77 @@ it('batch policy heads разделяет read lock, сохраняет writer f
     expect(fn () => $this->transactions->run(fn ($tx) => $this->locks->policyRows([
         ['tenant' => $this->tenant, 'scopeKey' => 'missing'],
     ], $tx)))->toThrow(AdmissionRejected::class, 'required_state_missing');
+});
+
+it('catalogue admission reads share profile endpoint route and target locks without relaxing writer fences', function (): void {
+    $endpoint = Uuid::random();
+    $this->table('endpoints')->insert([
+        'id' => $endpoint->value,
+        'tenant_key' => $this->tenant->value,
+        'protocol' => 'http',
+        'host' => 'proxy.test',
+        'port' => 8080,
+    ]);
+    $catalogue = [
+        [AuthorityLockTier::Profile, $this->tenant, $this->catalog['profile']->value, 'route_profiles'],
+        [AuthorityLockTier::Endpoint, $this->tenant, $endpoint->value, 'endpoints'],
+        [AuthorityLockTier::Route, $this->tenant, $this->catalog['route']->value, 'routes'],
+        [AuthorityLockTier::Target, $this->tenant, $this->catalog['target']->value, 'targets'],
+    ];
+    $shared = [];
+    $this->db->beforeExecuting(function (string $sql) use (&$shared, $catalogue): void {
+        $sql = strtolower($sql);
+        if (! str_contains($sql, 'for share')) {
+            return;
+        }
+        foreach ($catalogue as [, , , $key]) {
+            if (str_contains($sql, PackageSchema::tables()[$key])) {
+                $shared[$key] = true;
+            }
+        }
+    });
+
+    $locked = $this->transactions->run(function ($tx) use ($catalogue): array {
+        $locked = [];
+        foreach ($catalogue as [$tier, $tenant, $id, $key]) {
+            $table = PackageSchema::tables()[$key];
+            $locked[$key] = $this->locks->catalogueRows($tier, $tenant, [$id], $tx)[0]->id;
+            $reader = $this->connectionPdo();
+            $reader->beginTransaction();
+            try {
+                $statement = $reader->prepare("SELECT id FROM {$table} WHERE tenant_key = ? AND id = ? FOR SHARE NOWAIT");
+                $statement->execute([$tenant->value, $id]);
+                expect($statement->fetchColumn())->toBe($id);
+            } finally {
+                $reader->rollBack();
+            }
+            $writer = $this->connectionPdo();
+            $writer->beginTransaction();
+            try {
+                expect(function () use ($writer, $table, $tenant, $id): void {
+                    $statement = $writer->prepare("SELECT id FROM {$table} WHERE tenant_key = ? AND id = ? FOR UPDATE NOWAIT");
+                    $statement->execute([$tenant->value, $id]);
+                })->toThrow(PDOException::class, '55P03');
+            } finally {
+                $writer->rollBack();
+            }
+        }
+
+        return $locked;
+    });
+
+    expect($locked)->toBe([
+        'route_profiles' => $this->catalog['profile']->value,
+        'endpoints' => $endpoint->value,
+        'routes' => $this->catalog['route']->value,
+        'targets' => $this->catalog['target']->value,
+    ])->and(array_keys($shared))->toBe(['route_profiles', 'endpoints', 'routes', 'targets']);
+    expect(fn () => $this->transactions->run(fn ($tx) => $this->locks->catalogueRows(
+        AuthorityLockTier::Profile, $this->tenant, [Uuid::random()->value], $tx,
+    )))->toThrow(AdmissionRejected::class, 'required_state_missing');
+    expect(fn () => $this->transactions->run(fn ($tx) => $this->locks->catalogueRows(
+        AuthorityLockTier::Budget, $this->tenant, ['origin:fixture'], $tx,
+    )))->toThrow(LogicException::class, 'Only catalogue rows');
 });
 
 it('запрещает ранний adapter guard и откатывает finance при deny-only guard', function (): void {

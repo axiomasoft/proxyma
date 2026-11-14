@@ -99,6 +99,32 @@ final class AuthorityLocker
      */
     public function rows(AuthorityLockTier $tier, TenantKey $tenant, array $keys, LockedTransactionContext $transaction): array
     {
+        return $this->lockedRows($tier, $tenant, $keys, $transaction, 'FOR UPDATE');
+    }
+
+    /**
+     * Reads immutable catalogue rows under a writer fence for admission validation.
+     *
+     * @param  list<string>  $keys
+     * @return list<stdClass>
+     */
+    public function catalogueRows(AuthorityLockTier $tier, TenantKey $tenant, array $keys, LockedTransactionContext $transaction): array
+    {
+        if (! in_array($tier, [AuthorityLockTier::Profile, AuthorityLockTier::Endpoint, AuthorityLockTier::Route, AuthorityLockTier::Target], true)) {
+            throw new LogicException('Only catalogue rows support shared admission locks.');
+        }
+
+        return $this->lockedRows($tier, $tenant, $keys, $transaction, 'FOR SHARE');
+    }
+
+    /**
+     * Locks only existing materialized rows; callers validate the returned state before mutation.
+     *
+     * @param  list<string>  $keys
+     * @return list<stdClass>
+     */
+    private function lockedRows(AuthorityLockTier $tier, TenantKey $tenant, array $keys, LockedTransactionContext $transaction, string $lock): array
+    {
         [$name, $column] = match ($tier) {
             AuthorityLockTier::Operation => ['operations', 'id'],
             AuthorityLockTier::Policy => ['policy_heads', 'scope_key'],
@@ -123,7 +149,7 @@ final class AuthorityLocker
         foreach ($keys as $key) {
             $this->enter($tier, $key."\0".$tenant->value, $transaction);
             $row = $this->scope->connection->table(PackageSchema::tables()[$name])
-                ->where('tenant_key', $tenant->value)->where($column, $key)->lockForUpdate()->first();
+                ->where('tenant_key', $tenant->value)->where($column, $key)->lock($lock)->first();
             if ($row === null) {
                 throw new AdmissionRejected('required_state_missing');
             }
