@@ -61,8 +61,9 @@ final readonly class ReservationCatalogLocks
             }
         }
         ksort($heads, SORT_STRING);
+        $policyHeads = $this->locks->policyRows(array_map(static fn (array $head): array => ['tenant' => $head[0], 'scopeKey' => $head[1]], array_values($heads)), $tx);
         foreach ($heads as [$owner, $key, $revision]) {
-            $row = $this->locks->rows(AuthorityLockTier::Policy, $owner, [$key], $tx)[0];
+            $row = $policyHeads[$key."\0".$owner->value];
             if ((int) $row->revision !== $revision) {
                 throw new AdmissionRejected('policy_revision_changed');
             }

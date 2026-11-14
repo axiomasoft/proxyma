@@ -160,7 +160,11 @@ final readonly class FiniteOutboundExecutor
             min($caller->maxRedirects, $effective->maxRedirects), $delays);
     }
 
-    /** @param list<X\Uuid> $ids */
+    /**
+     * @param  list<X\Uuid>  $ids
+     *
+     * @param-out null $last
+     */
     private function deferred(FiniteExecutionPort $port, X\DeferralReason $reason, array $ids, ?X\ResponseDescriptor &$last): X\ExecutionDeferred
     {
         $response = $last;

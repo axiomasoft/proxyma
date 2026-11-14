@@ -23,6 +23,7 @@ use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\SealedWire;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthEpochMap;
+use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Admission\DatabaseOwnerAuthority;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Tests\Support\CatalogTestCase;
@@ -254,6 +255,44 @@ it('соблюдает owner finance network adapter budget порядок и з
     });
     expect($trace->names)->toBe(['fixture_control', 'fixture_subject', 'fixture_work', 'fixture_attempt', 'fixture_finance',
         'pxm_operations', 'pxm_route_profiles', 'pxm_routes', 'pxm_targets', 'fixture_adapter', 'pxm_budgets']);
+});
+
+it('batch policy heads сохраняет writer fence и отказывает для отсутствующего состояния', function (): void {
+    $this->table('policy_heads')->insert([
+        ['tenant_key' => $this->tenant->value, 'scope_key' => 'alpha'],
+        ['tenant_key' => TenantKey::SYSTEM, 'scope_key' => 'beta'],
+        ['tenant_key' => $this->tenant->value, 'scope_key' => 'omega'],
+    ]);
+    $queries = 0;
+    $this->db->beforeExecuting(function (string $sql) use (&$queries): void {
+        if (str_contains($sql, 'pxm_policy_heads') && str_contains(strtolower($sql), 'for update')) {
+            $queries++;
+        }
+    });
+    $locked = $this->transactions->run(function ($tx): array {
+        $locked = $this->locks->policyRows([
+            ['tenant' => $this->tenant, 'scopeKey' => 'omega'],
+            ['tenant' => new TenantKey(TenantKey::SYSTEM), 'scopeKey' => 'beta'],
+            ['tenant' => $this->tenant, 'scopeKey' => 'alpha'],
+        ], $tx);
+        $other = $this->connectionPdo();
+        $other->beginTransaction();
+        try {
+            expect(function () use ($other): void {
+                $statement = $other->prepare("SELECT id FROM pxm_policy_heads WHERE tenant_key = 'acme' AND scope_key = 'alpha' FOR SHARE NOWAIT");
+                $statement->execute();
+            })->toThrow(PDOException::class, '55P03');
+        } finally {
+            $other->rollBack();
+        }
+
+        return $locked;
+    });
+    expect($queries)->toBe(1)
+        ->and(array_keys($locked))->toBe(['alpha'."\0".'acme', 'beta'."\0".TenantKey::SYSTEM, 'omega'."\0".'acme']);
+    expect(fn () => $this->transactions->run(fn ($tx) => $this->locks->policyRows([
+        ['tenant' => $this->tenant, 'scopeKey' => 'missing'],
+    ], $tx)))->toThrow(AdmissionRejected::class, 'required_state_missing');
 });
 
 it('запрещает ранний adapter guard и откатывает finance при deny-only guard', function (): void {

@@ -133,6 +133,44 @@ final class AuthorityLocker
         return $rows;
     }
 
+    /**
+     * Locks policy heads for several tenants in the same canonical order as rows().
+     *
+     * @param  list<array{tenant: TenantKey, scopeKey: string}>  $heads
+     * @return array<string, stdClass> keyed by "{scopeKey}\0{tenantKey}"
+     */
+    public function policyRows(array $heads, LockedTransactionContext $transaction): array
+    {
+        $requested = [];
+        foreach ($heads as ['tenant' => $tenant, 'scopeKey' => $scopeKey]) {
+            $requested[$scopeKey."\0".$tenant->value] = [$tenant, $scopeKey];
+        }
+        ksort($requested, SORT_STRING);
+        foreach ($requested as [$tenant, $scopeKey]) {
+            $this->enter(AuthorityLockTier::Policy, $scopeKey."\0".$tenant->value, $transaction);
+        }
+        if ($requested === []) {
+            return [];
+        }
+        $query = $this->scope->connection->table(PackageSchema::tables()['policy_heads']);
+        $query->where(function ($query) use ($requested): void {
+            foreach ($requested as [$tenant, $scopeKey]) {
+                $query->orWhere(function ($query) use ($tenant, $scopeKey): void {
+                    $query->where('tenant_key', $tenant->value)->where('scope_key', $scopeKey);
+                });
+            }
+        });
+        $locked = [];
+        foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lockForUpdate()->get() as $row) {
+            $locked[$row->scope_key."\0".$row->tenant_key] = $row;
+        }
+        if (array_keys($locked) !== array_keys($requested)) {
+            throw new AdmissionRejected('required_state_missing');
+        }
+
+        return $locked;
+    }
+
     public function guard(string $id, LockedAdmissionGuard $guard, WireRequest $request, LockedOwnerState $owner, LockedTransactionContext $transaction): void
     {
         if ($guard->tier() !== AdmissionLockTier::AdapterGuard || ! $guard instanceof SqlConnectionParticipant) {
