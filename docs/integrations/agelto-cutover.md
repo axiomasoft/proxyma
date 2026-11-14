@@ -132,3 +132,11 @@ report дополнительно требует actual regression JUnit для 
 После первого нового durable authorization поддерживается только pause и roll-forward;
 финальная qualification не добавляет reverse migration или post-claim rollback.
 Все прогоны — isolated fixtures, без production DB и live traffic.
+
+Reservation проверяет существование switched/accepted journal для активной generation,
+но не ставит `first_authorized_at`. Marker записывается при claim существующего
+reserved permit в той же transaction, что и authorization. Отказ до claim сохраняет
+границу обратимости; marker после durable claim запрещает rollback даже до socket.
+Fixture assertion проверяет пустой marker непосредственно после INSERT permit и
+непустой после joint claim. Тестовый reset снимает fences только в guarded disposable
+`agelto_test`; runtime rollback их не отключает.

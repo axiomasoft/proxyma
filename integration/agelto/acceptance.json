@@ -1,0 +1,834 @@
+{
+  "schema": "proxyma-agelto-acceptance-preparation/v1",
+  "status": "closed_with_deviations_not_accepted",
+  "version": "0.1.0",
+  "scope": "isolated fixtures only; no production run or public release",
+  "observed": {
+    "proxyma_source_commit": "d564574e94ab6d854f498596c3a098a28d4e8529",
+    "agelto_head": "8c38a2b165723a47d6e45b6f82b70e61fadd4109",
+    "installed_package_pin": "d564574e94ab6d854f498596c3a098a28d4e8529",
+    "agelto_state": "committed checkpoint; final acceptance deferred to PLAN2:P1.1"
+  },
+  "qualification": {
+    "status": "pending_final_source_requalification",
+    "current_source_commit": "d564574e94ab6d854f498596c3a098a28d4e8529",
+    "last_fully_qualified_source_commit": "06861ce54fcff36da99d3e56c81facc6627e23cc",
+    "required": "PLAN2:P1.1; original full qualification and final installed acceptance without lowered thresholds"
+  },
+  "required_before_acceptance": [
+    "Measured performance diagnosis and optimization without weakening guards",
+    "Full package qualification of final source, candidate/resolve and stopped runtime snapshot refresh",
+    "Full final consumer V1-V17, both original 1800-second/1000-document WIDTH=10 and WIDTH=20 profiles, collector and independent acceptance review"
+  ],
+  "correction": {
+    "round": "P10.4 executor.2",
+    "source_state": "uncommitted package correction on observed proxyma_source_commit; installed source and prior qualification are stale",
+    "behavior": "Full package rollback removes the imported health window trigger with its table before dropping pxm_append_only_guard; repeat migration restores the registered table.",
+    "registered_migration_count": 15,
+    "targeted_package_checks": {
+      "source": "working tree on e519b0b11094f6cb0163e2edabee0f62f97c504c",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "runner_cwd": "/work",
+      "command_prefix": "DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/test-rig.py file",
+      "files": [
+        "packages/core/tests/Contract/SecretRotationTest.php",
+        "packages/core/tests/Integration/CatalogSchemaTest.php",
+        "tests/Installation/PackageInstallTest.php"
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "scope": "targeted correction proof only; does not qualify final installed Agelto"
+    },
+    "acceptance_status": "pending conductor checks on committed and re-pinned candidate"
+  },
+  "rollback_step_correction": {
+    "round": "P10.4 executor.2 final rollback steps",
+    "status": "targeted_checks_passed; final acceptance remains pending",
+    "source_commit": "e519b0b11094f6cb0163e2edabee0f62f97c504c",
+    "source_state": "working tree correction; coordinator owns final commit and re-pin",
+    "source_sha256": "d76118f6727f7ef5fd96baf1c4cb2292eb4696617098683453e90c6ad1079739",
+    "host_cwd": "/home/vostrikov/projects/packages/proxyma",
+    "runner_cwd": "/work",
+    "behavior": "SettingPatch rollback now takes 13 steps and reaches the policy audit history refusal. AdminAudit rollback now takes 14 steps and leaves one baseline migration before replaying the upgrade, preserving catalog data and redacting audit snapshots.",
+    "checks": [
+      {
+        "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/test-rig.py file packages/core/tests/Contract/SettingPatchTest.php",
+        "exit": 0,
+        "tests": 8,
+        "assertions": 105,
+        "log": "/tmp/p104-executor2-setting-patch.log",
+        "junit": "build/junit/e519b0b11094f6cb0163e2edabee0f62f97c504c/d76118f6727f7ef5fd96baf1c4cb2292eb4696617098683453e90c6ad1079739/1c1df5fce75af92396e3c38f94cc1c86fa156e140de7206a7a0f8b9dfd0c201f.xml"
+      },
+      {
+        "cmd": "DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/test-rig.py file packages/core/tests/Integration/AdminAuditTest.php",
+        "exit": 0,
+        "tests": 6,
+        "assertions": 70,
+        "log": "/tmp/p104-executor2-admin-audit.log",
+        "junit": "build/junit/e519b0b11094f6cb0163e2edabee0f62f97c504c/d76118f6727f7ef5fd96baf1c4cb2292eb4696617098683453e90c6ad1079739/ecb00df5d5e8d9a5b0614d59b9c2239223afe004625696b789adf1139591c140.xml"
+      },
+      {
+        "cmd": "vendor/bin/pint packages/core/tests/Contract/SettingPatchTest.php packages/core/tests/Integration/AdminAuditTest.php",
+        "exit": 0,
+        "log": "/tmp/p104-executor2-pint.log"
+      }
+    ],
+    "qualification": "Prior package qualification remains invalidated; these two targeted files do not establish final installed consumer acceptance. V1-V17 remain conductor-owned."
+  },
+  "runbook": "docs/integrations/agelto-acceptance.md",
+  "targeted_php_check": {
+    "status": "red_before_worker_environment_fix; correction awaits conductor",
+    "report": "storage/app/testing/process-core/reports/20261111T220650.207423Z-4067246",
+    "tests": 6,
+    "assertions": 6,
+    "shell_exit": 2
+  },
+  "p104_current_correction": {
+    "status": "pending_conductor_checks",
+    "package_source_commit": "393ec0f68eb38eef0fb698734d3e3e6da85fb2af",
+    "consumer_base_commit": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+    "scope": "consumer-only correction; package payloads, qualification report and candidate descriptor unchanged",
+    "latest_observed_install": {
+      "manifest_pin": "393ec0f68eb38eef0fb698734d3e3e6da85fb2af",
+      "packages": [
+        {
+          "name": "axiomasoft/proxyma",
+          "version": "0.1.0",
+          "reference": "79c44ea426865862cfca1e00077e674cf15a8ee3",
+          "lock_installed_reference_agree": true,
+          "no_symlink": true
+        },
+        {
+          "name": "axiomasoft/proxyma-filament",
+          "version": "0.1.0",
+          "reference": "240166ff0f024a1187f339ae01746fe45e4c4773",
+          "lock_installed_reference_agree": true,
+          "no_symlink": true
+        }
+      ]
+    },
+    "target": {
+      "command": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 /tmp/p104-correction-target.py",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "consumer_cwd": "/var/www/html",
+      "exit": 2,
+      "tests": {
+        "executed": 152,
+        "passed": 131,
+        "failed": 21,
+        "assertions": 1204,
+        "failures": [
+          {
+            "class": "Tests.Feature.Document.DocumentDownloaderTest",
+            "name": "новый downloader восстанавливает missing corrupt object без новой source revision with data set \"(false)\""
+          },
+          {
+            "class": "Tests.Feature.Document.DocumentDownloaderTest",
+            "name": "новый downloader восстанавливает missing corrupt object без новой source revision with data set \"(true)\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Acquisition.AcquisitionDiagnosticTest",
+            "name": "standalone adapter canary validates through the new owner without domain publication"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Llm.ExtractionWorkerKillTest",
+            "name": "an unclaimed denied send preserves a known-safe retry directive and is never misclassified as paid unknown"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.AdapterCallerValidationTest",
+            "name": "process diagnose исполняет полный canary при acquisition pause без domain writes и cursor advance"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.AdapterOutcomeTest",
+            "name": "полная canary проверка двух вкладок имеет одного owner и один итоговый факт с реальными request IDs"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.AdapterOutcomeTest",
+            "name": "semantic rejection отзывает старых owners до canary и восстанавливает ramp только с capacity два with data set \"(App\\Enums\\Procurement\\Network\\AdapterVerdict Enum (ContractFailure, 'contract_failure'))\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.AdapterOutcomeTest",
+            "name": "semantic rejection отзывает старых owners до canary и восстанавливает ramp только с capacity два with data set \"(App\\Enums\\Procurement\\Network\\AdapterVerdict Enum (HandlerFault, 'handler_fault'))\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ProxymaCallerParityTest",
+            "name": "package CSV caller сохраняет win1251 partial и не публикует неполную строку"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ProxymaCallerParityTest",
+            "name": "package path не даёт OpenAI caller присвоить provider без financial owner"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "encrypted store migration изолирована и обратима вместе с package schema"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "rotation между reserve и claim отклоняет подготовленный secret без charges и bytes"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "missing prepared secret отклоняется final CAS, корректный default resolved secret допускается"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "не выполняет encrypt или decrypt в SQL transaction, включая raw PDO"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "tampered ciphertext, неверный key и подмена payload identity закрывают decrypt без утечки with data set \"('tampered')\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "tampered ciphertext, неверный key и подмена payload identity закрывают decrypt без утечки with data set \"('key')\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "tampered ciphertext, неверный key и подмена payload identity закрывают decrypt без утечки with data set \"('identity')\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "previous encryption key читает старый secret, rotation переписывает новым key"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "кодирует delimiters отдельно и отклоняет malformed credentials без значений в exception"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "secret scanning исключений, log context, diagnostics и serialized request не находит sentinels"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Observability.AuditObservabilityRegressionTest",
+            "name": "PipelineAlert ставит дедупликационный ключ в кэш только после успешной доставки в Telegram и указывает process:status"
+          }
+        ]
+      },
+      "evidence": "/tmp/p104-correction-command-record.json"
+    },
+    "post_run_corrections": "After the one PHP run: platform fairness cohort prefix, semantic diagnostic projection via operation purpose, package health/budget fixture writes, observation package provenance, caller fixture authority reset, explicit replay migration database/paths, declared provider fixture and PipelineAlert fixture transaction cleanup. ExecutionInterrupted propagation restored. No PHP test repeated.",
+    "formatter_exit": 0,
+    "consumer_source_hashes": {
+      "app/Notifications/PipelineAlert.php": "f141a6a9fc1f691f6c6ab28d92f8891dfe13f692ae5af06d1364f3358824d160",
+      "app/Providers/InactiveProxymaServiceProvider.php": "0679347044150a43c71a56473179f6de83ba6efdea91c4b1c504eb908e447f6c",
+      "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php": "ac0b1f70f4fb3382da1b66ab804bbd732d52561e39509fad92e796e93be4316d",
+      "app/Services/Procurement/Proxyma/AdapterSendGuard.php": "b03c8ad3a57aebbe902ddb700c9e0fc632a1d7e2761ac0afc364043a946952e0",
+      "app/Services/Procurement/Proxyma/CallerExecutionPort.php": "b6d124cedc16f2ec8a2b9827804cb36543c9128a6574f9df02da9751d35d4e49",
+      "app/Services/Procurement/Proxyma/CallerOutbound.php": "6eee39b56f318f1fa1a22ba40478c5dedb5bad392c4f279fed8544531fd1b55f",
+      "app/Services/Procurement/Proxyma/ProviderNetwork.php": "cc2a85b96f6348201290f5253b29f8dbf9d5e3fe3e85758b793a02bbbf045ac9",
+      "app/Services/Procurement/Proxyma/RuntimeCaller.php": "5e7fc05c9eeeab8758f0db9da59708295cf1461abf544b53d4dd939a02012f14",
+      "docker/tests/process-core/acceptance_report.py": "08aebadb9f813fe6e61b1cf3e8c46881780f2bd867ac42df4469dd37ce18de77",
+      "docker/tests/process-core/test_acceptance_report.py": "f9bf2351feccedef859008a46c0ca299d490e785511aaf87d6d066102910b929",
+      "docker/tests/vite-contract.sh": "509b3a68701082206d31202b175f564b9e83f5becc0cdfd67d5afc7cfce78bcb",
+      "tests/Feature/Document/DocumentDownloaderTest.php": "630ee3faf241fd64b79236a4e3ad4017a4985e855d581b763889d50a7bad21ee",
+      "tests/Feature/ProcessCore/Acquisition/AcquisitionDiagnosticTest.php": "dab3d83c29023673ed72410c49481ac1ed4a6b0b144fd2e79ffabc6f694c6e03",
+      "tests/Feature/ProcessCore/Acquisition/WorkAdapterValidationTest.php": "9d2b4e50c1abd4a6c194e2271d0ab9767a967c0e2edfea7074afa88ce01506ff",
+      "tests/Feature/ProcessCore/Llm/AssetContinuationTest.php": "39eadd3de10f19aa75403203b8de00b5ea2f32a8602c1e80ce9f77be822ecdff",
+      "tests/Feature/ProcessCore/Llm/ExtractionWorkerKillTest.php": "57a5ae2b07272c75ac90216291e2dbc2c91a7eb57d664368b5f43f9a9a294c0f",
+      "tests/Feature/ProcessCore/Llm/StructuredChainAcceptanceTest.php": "3606b2afb2bddb37d4398d5277f2c3bb0e05d02c6847c96b094f6f0b3c6c5d9f",
+      "tests/Feature/ProcessCore/Network/AdapterCallerValidationTest.php": "8fb88d95556d48411317b3500f7f3a8fe1ffd9d3b8099f8d8d9a160810873bbc",
+      "tests/Feature/ProcessCore/Network/AdapterOutcomeTest.php": "8b2242d4ea35bd3389fff8c00e2afd7921dfaddff644e35fe938704c0c1ca618",
+      "tests/Feature/ProcessCore/Network/DetailDispatcherEligibilityTest.php": "93860aa7a8e3a7557f7a148bff45741314b962e9373f365acbb4b9ce74c34380",
+      "tests/Feature/ProcessCore/Network/LegacyBridgeSchemaTest.php": "29ef7297b1688ac98c9ee717b09f167342c1eb9bd7fad1813f2cc63db0bbb79a",
+      "tests/Feature/ProcessCore/Network/PackageNetworkFactsTest.php": "b87923cc92eb5f4839ff691d65b2dda2fcd38942588617adc0f853c6acdd7330",
+      "tests/Feature/ProcessCore/Network/ProxymaCallerParityTest.php": "09e02d84e5d0e135ca3c3f9d63fbddedb670096889a50004887f98b584ade441",
+      "tests/Feature/ProcessCore/Network/ProxymaRollbackTest.php": "352b66f87eb71118c034dd639164a912766676f1e031ed2507f8f07134e8584a",
+      "tests/Feature/ProcessCore/Network/ReplayCatalogCommandTest.php": "19799b9ea7fc948c56dd6eee22ff787083d8cbf9cc81cc9556677184b60f5a10",
+      "tests/Feature/ProcessCore/Network/ReplaySecretRotationTest.php": "c3ee7d093717dbf47bf92195932726856e15899918159ab60d6042558d34d700",
+      "tests/Feature/ProcessCore/Network/SourceCatalogSyncTest.php": "d7d1aaae80d4458abc74c2a5ed7762c9c0b0212f3e88cb8ed0deaf00c2df23a2",
+      "tests/Feature/ProcessCore/Observability/AuditObservabilityRegressionTest.php": "430ed7ec48d809f1020441d4f202449150f209d3b7cfb727c999c2b0b763c389",
+      "tests/Feature/ProcessCore/Observability/PostCommitSinksTest.php": "413ed65bd95ef3764f71dc60b64891914a7087ad8bef1a6cf87c291ae80d329e",
+      "tests/Feature/ProcessCore/Observability/TelemetrySanitizerTest.php": "9ba4af4e0b094a62efd3eed7759f73622a5971451282fc66d34cf24b93ec3c29",
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json": "6e5087a88a0498c53116934d23e3bb2381b7044e34c58d450d34b5774c476387",
+      "tests/Fixtures/ProcessCore/manifest.json": "3fd4877d36333e80aea7803e7a7fd00fb9bebcaceec9ff9f008bd4cc4b31b5c2",
+      "tests/Fixtures/ProcessCore/proxyma-contract-replay.json": "4ab030d2d9816f13d6bee7d59f941c0d4e23faec36c4085c4c0864ef1ac0606b",
+      "tests/Integration/ProcessCore/Concurrency/CatalogConcurrencyTest.php": "ff16d7bb0df0445ce25b4fa8a4b271e4dac4661f629119d8862a25409386f73f",
+      "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php": "436d5b44d5efe811db1aaa92f585b33728700b5f541f69e16a9659a0ca3ad271",
+      "tests/Integration/ProcessCore/Concurrency/ProxymaCutoverTest.php": "87aa573c941cd4230b3095bc1fd520d13e05ed741d1fa453fd53823742798099",
+      "tests/Support/ProcessCore/DownloadFixtures.php": "11ca5f3ac31c92b5d48ac65b66d33649d4ddb3e3984f9c8b5fc10bd89bc179ed",
+      "tests/Support/ProcessCore/PackageNetworkFacts.php": "356ddb4ba6ac7697ade36dff2cc7a24d88ac0a3d024cf88db92cec5b3b42531b",
+      "tests/Support/ProcessCore/ProxymaCallerFixtures.php": "031c184998ada060fa146d902906f0175b1065e95c425f7f92d30ca507521832",
+      "tests/Support/ProcessCore/ProxymaFixtures.php": "1f252b53617dc60d9757874b788abcd8dd41e5ef4e75b91a063b4c8ff4e82688",
+      "tests/Support/ProcessCore/ProxymaProviderFixtures.php": "964e404d65611419b950f5c2390ceed7c5b0291dbe7ddb11b2ce02efe343c2c8",
+      "tests/Support/ProcessCore/ProxymaReplay/CatalogTestCase.php": "ad1e18593ca0e3717e794d1e967d0e1dd7052285de04b3c5383948b8b8d1c39b"
+    },
+    "acceptance": "V1-V17 not run by executor. Targeted run predates final corrections and is not final candidate evidence. Final consumer gates/collector and commits remain conductor/coordinator-owned; no production run or public release."
+  },
+  "p104_answer_b_correction": {
+    "status": "pending_conductor_checks",
+    "decision": "Q104_correction_ownership=b (user)",
+    "package_source_commit": "393ec0f68eb38eef0fb698734d3e3e6da85fb2af",
+    "consumer_base_commit": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+    "consumer_state": "uncommitted correction; coordinator owns commits",
+    "approved_exceptions": [
+      "Consumer PhysicalTransport fork preserves download headers and partial decoded counters.",
+      "Consumer initializes unknown package health to due open before package probe using PostgreSQL clock_timestamp()."
+    ],
+    "upstream_transport": {
+      "path": "packages/core/src/Infrastructure/Http/PhysicalHttpTransport.php",
+      "sha256": "da1bf17067cce9ba373e0cd797a075511086a777dcacd3ea013efc478ce39e41"
+    },
+    "changed_consumer_paths": [
+      "app/Providers/InactiveProxymaServiceProvider.php",
+      "app/Services/Procurement/Document/RuntimeDownloadHandler.php",
+      "app/Services/Procurement/Proxyma/AdapterSendGuard.php",
+      "app/Services/Procurement/Proxyma/AgeltoPhysicalHttpTransport.php",
+      "app/Services/Procurement/Proxyma/CallerExecutionPort.php",
+      "app/Services/Procurement/Proxyma/CallerOutbound.php",
+      "app/Services/Procurement/Proxyma/ProcessOwnerAuthority.php",
+      "tests/Feature/ProcessCore/Acquisition/AcquisitionRawEvidenceTest.php",
+      "tests/Feature/ProcessCore/Acquisition/AuditAcquisitionRegressionTest.php",
+      "tests/Feature/ProcessCore/Documents/DocumentRuntimeTest.php",
+      "tests/Feature/ProcessCore/Documents/DownloadRevalidationTest.php",
+      "tests/Feature/ProcessCore/Llm/AuditLlmRegressionTest.php",
+      "tests/Feature/ProcessCore/Llm/ExtractionWorkerKillTest.php",
+      "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php",
+      "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json",
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json",
+      "tests/Fixtures/ProcessCore/manifest.json",
+      "tests/Fixtures/ProcessCore/proxyma-contract-replay.json",
+      "tests/Support/Architecture/ProxymaOwnershipRules.php",
+      "tests/Support/ProcessCore/AcquisitionProfileFixtures.php",
+      "tests/Support/ProcessCore/DownloadFixtures.php",
+      "tests/Support/ProcessCore/Http/PermitFixtures.php",
+      "tests/Support/ProcessCore/PackageNetworkFacts.php",
+      "tests/Support/ProcessCore/ProxymaReplay/CatalogTestCase.php",
+      "tests/Support/ProcessCore/ProxymaReplay/QuotaWorker.php",
+      "tests/Unit/ProcessCore/ProxymaOwnershipBoundaryTest.php"
+    ],
+    "consumer_hashes": {
+      "app/Providers/InactiveProxymaServiceProvider.php": "1fd3eee4fb07f4abd70ba97f9853de5dd4afbf78b471c77828f6acc921a480d6",
+      "app/Services/Procurement/Document/RuntimeDownloadHandler.php": "8c7c3a34a59c3531fc3af5071b3f05c50944a9645845eee8b4e28f16af38ad82",
+      "app/Services/Procurement/Proxyma/AdapterSendGuard.php": "ef60ce4d702a496fbe12800c499c479989edc0bec4575aae2f64ae9f8863288a",
+      "app/Services/Procurement/Proxyma/AgeltoPhysicalHttpTransport.php": "c385a7b5eca394882015931ef44927cb22d2c2ee6820805431d289c694476e43",
+      "app/Services/Procurement/Proxyma/CallerExecutionPort.php": "57fa2f975dd54c553310dd41957b8bd9626a38773404b53f0399863917c2164b",
+      "app/Services/Procurement/Proxyma/CallerOutbound.php": "3e854d339a051d3dd5e5287365964c0abe4019fb18b5f8c3cce5fbc12dd64932",
+      "app/Services/Procurement/Proxyma/ProcessOwnerAuthority.php": "3cc1dd1d1601a9b8648979b5eb70c38e49c2479ce93c65174294f33a5eb5cb79",
+      "tests/Feature/ProcessCore/Acquisition/AcquisitionRawEvidenceTest.php": "10ee876e9035a1b2f17c86213191f0bfdef1bb489742bd15c2abfb98ae77678f",
+      "tests/Feature/ProcessCore/Acquisition/AuditAcquisitionRegressionTest.php": "92099581eb7fc8e9c818603dc9a25f01a79174c15d1cc6b545c493b8415a93ae",
+      "tests/Feature/ProcessCore/Documents/DocumentRuntimeTest.php": "8418ff0132a4e03261ec87bce444972fc48d207a11bcc5c92b4d65d9e9d16791",
+      "tests/Feature/ProcessCore/Documents/DownloadRevalidationTest.php": "f09b0524589ca0c65d89753c08163513b35d0250f5c75ad69a37bdcb465809a4",
+      "tests/Feature/ProcessCore/Llm/AuditLlmRegressionTest.php": "51863c73eada26c3a64408d949748ab963f70b2962667d82bb61dd17814145eb",
+      "tests/Feature/ProcessCore/Llm/ExtractionWorkerKillTest.php": "bd2e97bc432f66c1a3bba32477725129cdb3021c382c84db7322419cfb484359",
+      "tests/Feature/ProcessCore/Network/DownloadSendAccountingTest.php": "bddde270800c61896d336705456326c3c486d48c5df13355d5f99ae34a7a3841",
+      "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "ac6bf65c78b25c0dd90d1f0dfafe84a366569de5649a97db1f181a082ac9dec5",
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json": "08de28fdd60301a5c7dfe09ce32cb8bdf64f1b5c951e2777f51ef22ec91b5c55",
+      "tests/Fixtures/ProcessCore/manifest.json": "cefcfa6163823a03d72520201d80e909a56a946c7ce87d00346228ea397d2af0",
+      "tests/Fixtures/ProcessCore/proxyma-contract-replay.json": "0ad1e1ac3441896f6c54005ff60732fcf354d4cb501736c4a7ad53c8c5b525b6",
+      "tests/Support/Architecture/ProxymaOwnershipRules.php": "adccc2bad12cc44eb1ef40f9ac7d1ac21cadb6f18a7c2f0c48b299e41479f04b",
+      "tests/Support/ProcessCore/AcquisitionProfileFixtures.php": "68b26b2196ba600b3fe22a8356af6bc06eef6ef647ca70bc30b1d6b00aa6c7cf",
+      "tests/Support/ProcessCore/DownloadFixtures.php": "5cd98cf2797e7fe67d7301e96a3e2daf8ca9f927217d02e171bddb9cc83b1fa9",
+      "tests/Support/ProcessCore/Http/PermitFixtures.php": "69c8c240f933086f71cab4aa84fd35b86ed9efce552008766d78bff47506d5fa",
+      "tests/Support/ProcessCore/PackageNetworkFacts.php": "c2b160271315c1df1725bf967131a6ece3c9d028d2ec8e74b45a20a5d9f366f0",
+      "tests/Support/ProcessCore/ProxymaReplay/CatalogTestCase.php": "4538fd58c89fe66322401e77a9041ad84c9b29e590638a80911936871118494d",
+      "tests/Support/ProcessCore/ProxymaReplay/QuotaWorker.php": "898a513db627b327b6539ed1423aa18c2b7e2ab8fc752b6ded879daeff286704",
+      "tests/Unit/ProcessCore/ProxymaOwnershipBoundaryTest.php": "74f8a2794f6b3c1e9c0641441f8ed52960ae323705cbce1d1540780b93078805"
+    },
+    "target": {
+      "command": "PROXYMA_AGELTO_ROOT=/home/vostrikov/projects/agelto/agelto DOCKER_HOST=unix:///run/user/1000/docker.sock python3 scripts/agelto.py run -- python3 /tmp/p104-round-b-target.py",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "consumer_cwd": "/var/www/html",
+      "exit": 2,
+      "tests": {
+        "executed": 215,
+        "passed": 191,
+        "failed": 24,
+        "assertions": 1174,
+        "failures": [
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplayQuotaWindowTest",
+            "name": "UTC rollover освобождает старый permit и требует новую physical attempt with data set \"(true)\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "rotation между reserve и claim отклоняет подготовленный secret без charges и bytes"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "missing prepared secret отклоняется final CAS, корректный default resolved secret допускается"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "не выполняет encrypt или decrypt в SQL transaction, включая raw PDO"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "tampered ciphertext, неверный key и подмена payload identity закрывают decrypt без утечки with data set \"('tampered')\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "tampered ciphertext, неверный key и подмена payload identity закрывают decrypt без утечки with data set \"('key')\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "tampered ciphertext, неверный key и подмена payload identity закрывают decrypt без утечки with data set \"('identity')\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "previous encryption key читает старый secret, rotation переписывает новым key"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "кодирует delimiters отдельно и отклоняет malformed credentials без значений в exception"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.ReplaySecretRotationTest",
+            "name": "secret scanning исключений, log context, diagnostics и serialized request не находит sentinels"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "download и один signed refresh входят в тот же package physical ceiling with data set \"dataset \"identity\"\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "download и один signed refresh входят в тот же package physical ceiling with data set \"dataset \"gzip\"\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "исчерпанный download ceiling запрещает HTTP после signed refresh"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "дочерний canary учитывается по стабильному parent attempt при отдельном operation owner"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "download с чужой platform в ancestry не отправляет bytes"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "download после UI добавления package route игнорирует пустой legacy membership with data set \"dataset \"healthy package route\"\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Network.DownloadSendAccountingTest",
+            "name": "download после UI добавления package route игнорирует пустой legacy membership with data set \"dataset \"due package probe\"\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Acquisition.AcquisitionRawEvidenceTest",
+            "name": "actual EIS card timeout retains numeric HTTP and byte phases without a raw exception or canonical mutation with data set \"dataset \"without headers\"\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Acquisition.AcquisitionRawEvidenceTest",
+            "name": "actual EIS card timeout retains numeric HTTP and byte phases without a raw exception or canonical mutation with data set \"dataset \"partial body\"\""
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Acquisition.AdapterAdmissionConcurrencyTest",
+            "name": "work and standalone validation owners serialize on one adapter capacity"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Acquisition.AuditAcquisitionRegressionTest",
+            "name": "команда process:diagnose с флагом --proxy-budgets выводит бюджеты профили стадий и статистику запросов 403/429 по каждому прокси"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Documents.DocumentRuntimeTest",
+            "name": "missing document route profile даёт configuration hold без handler fault и HTTP"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Documents.DownloadRevalidationTest",
+            "name": "source outage после bytes не отменяет готовый result и immutable storage"
+          },
+          {
+            "class": "Tests.Feature.ProcessCore.Llm.ExtractionWorkerKillTest",
+            "name": "an unclaimed denied send preserves a known-safe retry directive and is never misclassified as paid unknown"
+          }
+        ]
+      },
+      "evidence": "/tmp/p104-round-b-command-record.json"
+    },
+    "ownership": {
+      "executed": 19,
+      "passed": 19,
+      "failed": 0,
+      "assertions": 66,
+      "failures": []
+    },
+    "targeted_static_and_formatter": "/tmp/p104-round-b-extra-commands.json; /tmp/p104-round-b-pint-command.json",
+    "post_run_corrections": [
+      "Drop replay audit trigger function and quota finance fixture table before schema reuse.",
+      "Reuse the registry created by DownloadFixtures.",
+      "Use -infinity for non-null cooldown fixture.",
+      "Reset authority before post-download source retirement.",
+      "Preserve actual partial decoded bytes and observed failure timestamp in test projections.",
+      "Check missing route profile before document adapter resolution."
+    ],
+    "remaining_observed_failures": [
+      "AdapterAdmissionConcurrencyTest: work and standalone validation owners serialize on one adapter capacity (barrier timeout).",
+      "ExtractionWorkerKillTest: known-safe denied-send retry expected ready, observed deferred."
+    ],
+    "acceptance": "V1-V17 remain conductor-owned. Source corrections after target were not retested. Previous consumer evidence is stale; package payload and candidate/qualification files are unchanged. No final acceptance, production run or public release claimed."
+  },
+  "p104_v6_correction": {
+    "status": "pending_conductor_checks",
+    "scope": "consumer E2E/fault/load fixture correction; package payload, qualification and candidate remain unchanged",
+    "consumer_base_commit": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+    "package_source_commit": "393ec0f68eb38eef0fb698734d3e3e6da85fb2af",
+    "external_changed_paths": [
+      "app/Services/Procurement/Proxyma/CallerExecutionPort.php",
+      "tests/Feature/ProcessCore/E2e/OperatorNavigationE2eTest.php",
+      "tests/Feature/ProcessCore/E2e/ProcessPipelineE2eTest.php",
+      "tests/Feature/ProcessCore/Network/ProxymaCallerParityTest.php",
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json",
+      "tests/Fixtures/ProcessCore/manifest.json",
+      "tests/Integration/ProcessCore/E2e/HorizonPipelineTest.php",
+      "tests/Integration/ProcessCore/E2e/MultiProcessPipelineE2eTest.php",
+      "tests/Integration/ProcessCore/Faults/HorizonCrashTest.php",
+      "tests/Integration/ProcessCore/Load/LoadTest.php",
+      "tests/Support/ProcessCore/AcceptanceRuntime.php",
+      "tests/Support/ProcessCore/AcceptanceScenario.php",
+      "tests/Support/ProcessCore/PipelineHorizonRuntime.php"
+    ],
+    "consumer_source_hashes": {
+      "app/Services/Procurement/Proxyma/CallerExecutionPort.php": "edc0a2981d24caa2ace97533ded8b78a51c62b097858610bce44e13e4730fb6b",
+      "tests/Feature/ProcessCore/E2e/OperatorNavigationE2eTest.php": "422d23e6c1217302169e9772d9a5b57798d3267776a52f49b06b9f45a9b083c7",
+      "tests/Feature/ProcessCore/E2e/ProcessPipelineE2eTest.php": "e3749536d35ff54dc6e268f9e0cdeaa285fc3687186e3cf21438b670184bac80",
+      "tests/Feature/ProcessCore/Network/ProxymaCallerParityTest.php": "81080e9db7a85121ef57eee15baca5eebe7390a8f96239add1eec6467feced87",
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json": "0cd3f36360f0be85ef04ee69fa732d5bf0c5825c916224c7bc7bb5ba17e5b39b",
+      "tests/Fixtures/ProcessCore/manifest.json": "0901231ee72c835ed9a8b936d81829cea6b0a4e3448a664b1e79b3026fa34d0e",
+      "tests/Integration/ProcessCore/E2e/HorizonPipelineTest.php": "492642321dd8d7c7cf92fe6e9b8c0df9e10573188a8d243490c686124e0000b9",
+      "tests/Integration/ProcessCore/E2e/MultiProcessPipelineE2eTest.php": "2d2bd6ce9e27e0e4364748c291e7ff65b5b9d5de49b22b38a90659ec09d8e122",
+      "tests/Integration/ProcessCore/Faults/HorizonCrashTest.php": "f4f6f617d842b16ea9d493a08509210fecde6a62fa57705a51b3c0400325cd44",
+      "tests/Integration/ProcessCore/Load/LoadTest.php": "fe9dc0d3b03513ecf1b2d9f4d29f5c0d40b0670ccbf96096173315b7e851cf88",
+      "tests/Support/ProcessCore/AcceptanceRuntime.php": "46c6b1d74f4ccda7e4e85bfadf1faaa7dc72e691b6653c2dc4156ee95355c55e",
+      "tests/Support/ProcessCore/AcceptanceScenario.php": "ced0d22ec5430bf6b127a2fc1b1d71fca4c734598d9271c46ef7c53b704c228c",
+      "tests/Support/ProcessCore/PipelineHorizonRuntime.php": "d35e7b081a64b9f3012b33eab5fccd8493b06b97097327198e91c13347de537d"
+    },
+    "runtime_inputs": "unchanged; no affected path is tracked by runtime-inputs.json",
+    "acceptance": "The V6 correction is not final acceptance. Conductor must collect candidate-bound V1-V17 evidence after the consumer commit."
+  },
+  "p104_catalog_retirement_correction": {
+    "status": "pending_conductor_checks",
+    "scope": "remove synthetic policy/catalog workarounds and prove the supported native CatalogCommands retirement route",
+    "external_changed_paths": [
+      "app/Services/Procurement/Network/SourceCatalogSync.php",
+      "app/Services/Procurement/Proxyma/CallerPolicyContext.php",
+      "tests/Fixtures/ProcessCore/manifest.json",
+      "tests/Integration/ProcessCore/Concurrency/SourceCatalogRetirementTest.php",
+      "tests/Support/ProcessCore/AcquisitionProfileFixtures.php"
+    ],
+    "consumer_source_hashes": {
+      "app/Services/Procurement/Network/SourceCatalogSync.php": "f471a2875cb625e19ebb12731d2549a45c8bd4a0a8b5103231e4ea280ad8b0da",
+      "app/Services/Procurement/Proxyma/CallerPolicyContext.php": "c4f82b920a7e633fa03e5244727f8031c8597641246fc533f78536c2d0a4db97",
+      "tests/Fixtures/ProcessCore/manifest.json": "3fd4877d36333e80aea7803e7a7fd00fb9bebcaceec9ff9f008bd4cc4b31b5c2",
+      "tests/Integration/ProcessCore/Concurrency/SourceCatalogRetirementTest.php": "7e4e411c555a6e3469abd165ce120fd26d6410c99080ccdda322086d38c1767e",
+      "tests/Support/ProcessCore/AcquisitionProfileFixtures.php": "68b26b2196ba600b3fe22a8356af6bc06eef6ef647ca70bc30b1d6b00aa6c7cf"
+    },
+    "runtime_inputs": "unchanged; no corrected path is tracked by runtime-inputs.json",
+    "acceptance": "Targeted consumer proof only; final candidate-bound V1-V17 remains conductor-owned."
+  },
+  "p104_final_inventory_correction": {
+    "status": "pending_conductor_checks",
+    "external_changed_paths": [
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json",
+      "tests/Fixtures/ProcessCore/manifest.json"
+    ],
+    "consumer_source_hashes": {
+      "tests/Fixtures/ProcessCore/acceptance-report-v1.json": "faec539d4d7d56768469b3b62dfc20d3ac7865a3ad74dd5a026a6b43523739c0",
+      "tests/Fixtures/ProcessCore/manifest.json": "3fd4877d36333e80aea7803e7a7fd00fb9bebcaceec9ff9f008bd4cc4b31b5c2"
+    },
+    "inventory": {
+      "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php": {
+        "count": 29,
+        "names_sha256": "55ea3d2ee4211b44f32a43dcf09810a14a023a2c40d3dbe59836f845ebecf5b6"
+      },
+      "tests/Feature/ProcessCore/Documents/DownloadProxyFailoverTest.php": {
+        "count": 2,
+        "names_sha256": "a523f8422e38438206366a529a49eeed9d925d39ce4bdab87e1535bc0d6e7868"
+      },
+      "tests/Integration/ProcessCore/Concurrency/SourceCatalogRetirementTest.php": {
+        "count": 1,
+        "names_sha256": "61590195289891a8f2f371223cc52fc87fefac4f69f894c8c09c3956dafd69b0"
+      }
+    },
+    "audit": "/tmp/proxyma-p104-complete-inventory-audit.json: 0 mismatching_locations, 0 unresolved, 0 group_binding_errors"
+  },
+  "p104_v1_quality_correction": {
+    "status": "pending_conductor_checks",
+    "scope": "narrow PHPStan state narrowing, Pint import cleanup, and active manifest provenance refresh",
+    "external_changed_paths": [
+      "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php",
+      "app/Services/Procurement/Proxyma/RuntimeCaller.php",
+      "app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php",
+      "tests/Feature/ProcessCore/Documents/DownloadRevalidationTest.php",
+      "tests/Fixtures/ProcessCore/manifest.json",
+      "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php",
+      "tests/Support/ProcessCore/DownloadFixtures.php",
+      "tests/Support/ProcessCore/Http/PermitFixtures.php",
+      "tests/Support/ProcessCore/ProxymaCallerFixtures.php"
+    ],
+    "consumer_source_hashes": {
+      "app/Services/Procurement/Extraction/AnalysisProviderSendGate.php": "ac0b1f70f4fb3382da1b66ab804bbd732d52561e39509fad92e796e93be4316d",
+      "app/Services/Procurement/Proxyma/RuntimeCaller.php": "5e7fc05c9eeeab8758f0db9da59708295cf1461abf544b53d4dd939a02012f14",
+      "app/Services/Procurement/Proxyma/RuntimePhysicalTransport.php": "f2fee929e686dae017d07eea26ffb24bdc8e01914bd572bd5e2f6291d14ccb23",
+      "tests/Feature/ProcessCore/Documents/DownloadRevalidationTest.php": "f09b0524589ca0c65d89753c08163513b35d0250f5c75ad69a37bdcb465809a4",
+      "tests/Fixtures/ProcessCore/manifest.json": "3fd4877d36333e80aea7803e7a7fd00fb9bebcaceec9ff9f008bd4cc4b31b5c2",
+      "tests/Integration/ProcessCore/Concurrency/ProviderJointSendTest.php": "436d5b44d5efe811db1aaa92f585b33728700b5f541f69e16a9659a0ca3ad271",
+      "tests/Support/ProcessCore/DownloadFixtures.php": "11ca5f3ac31c92b5d48ac65b66d33649d4ddb3e3984f9c8b5fc10bd89bc179ed",
+      "tests/Support/ProcessCore/Http/PermitFixtures.php": "5a6ba6b02fc7e7ef6f7952a72c85fadff280cfe2e71fa7575288926e9a8f56ae",
+      "tests/Support/ProcessCore/ProxymaCallerFixtures.php": "031c184998ada060fa146d902906f0175b1065e95c425f7f92d30ca507521832"
+    },
+    "manifest_assertion": "Every current manifest path was compared with its recorded SHA-256 before V1 rerun; historical archives remain unchanged."
+  },
+  "p104_v7_fault_correction": {
+    "status": "pending_conductor_checks",
+    "scope": "storage write becomes the existing FilesystemException deferral; paid-response kill remains at the real post-send/pre-ledger boundary with child package fixture wiring and a DB-policy-derived recovery wait",
+    "external_changed_paths": [
+      "app/Services/Procurement/Proxyma/CallerOutbound.php",
+      "tests/Fixtures/ProcessCore/manifest.json",
+      "tests/Integration/ProcessCore/Faults/PaidResponseKillTest.php"
+    ],
+    "consumer_source_hashes": {
+      "app/Services/Procurement/Proxyma/CallerOutbound.php": "6b09b863915d3d13481be6bc4191699e28c1f523e0f7ea9e25832e960112647d",
+      "tests/Fixtures/ProcessCore/manifest.json": "3fd4877d36333e80aea7803e7a7fd00fb9bebcaceec9ff9f008bd4cc4b31b5c2",
+      "tests/Integration/ProcessCore/Faults/PaidResponseKillTest.php": "d5daeee64ad5b03c6a81ccd5685818b257e2000398cea06a4cbee0016b4a99de"
+    },
+    "targeted_checks": [
+      "core-test-file DownloadPublicationFaultTest: exit 0",
+      "core-test-file PaidResponseKillTest: exit 0; 2 passed, 34 assertions"
+    ]
+  },
+  "p104_v4_physical_quota_correction": {
+    "status": "pending_conductor_checks",
+    "scope": "replay fixture waits for the public quota-window retry point and reserves the unchanged ticket/input once",
+    "external_changed_paths": [
+      "tests/Fixtures/ProcessCore/manifest.json",
+      "tests/Support/ProcessCore/ProxymaReplay/PhysicalFixtures.php"
+    ],
+    "consumer_source_hashes": {
+      "tests/Fixtures/ProcessCore/manifest.json": "3fd4877d36333e80aea7803e7a7fd00fb9bebcaceec9ff9f008bd4cc4b31b5c2",
+      "tests/Support/ProcessCore/ProxymaReplay/PhysicalFixtures.php": "edeadff491ddfdff907294a78f20cc8631af8d64a90d2f67a0e3a95d80e8435a"
+    },
+    "invariants": "Only DemandWait(quota_window_wait) enters a five-second monotonic wait driven by DatabaseClock; quota 20/40, 1500ms request timeout, original ticket/input, and one-minute operation deadline remain unchanged.",
+    "inventory": "unchanged: 181 active files"
+  },
+  "p104_policy_batch_correction": {
+    "status": "uncommitted_source_repin_required",
+    "base_source_commit": "393ec0f68eb38eef0fb698734d3e3e6da85fb2af",
+    "scope": "Reservation policy heads retain key-plus-tenant canonical admission ordering and FOR UPDATE writer fences while being loaded by one bounded query.",
+    "changed_source_hashes": {
+      "packages/core/src/Application/Admission/AuthorityLocker.php": "fa77445f89e2fc77ab6f583bfb03f956ebe7320b2b60285c35d3a8a3666061a8",
+      "packages/core/src/Infrastructure/Admission/ReservationCatalogLocks.php": "4fd95a0a96cf9aedd16968eb3ee1406473ed87e2b44ab34dd71ecb4e1126bc7a",
+      "packages/core/tests/Contract/TransactionCompositionTest.php": "c5c1142b3cbaa8db97f755f4da1b0a10b800390aa4713a8f7eff1fb013ea6f54"
+    },
+    "targeted_package_check": {
+      "command": "make test-file TEST_FILE=packages/core/tests/Contract/TransactionCompositionTest.php",
+      "cwd": "/home/vostrikov/projects/packages/proxyma",
+      "exit": 0,
+      "tests": 22,
+      "assertions": 102,
+      "invariants": [
+        "one locked policy-head query",
+        "independent PostgreSQL FOR SHARE NOWAIT is denied with 55P03",
+        "missing policy head is rejected"
+      ]
+    },
+    "current_consumer_fault_checks": [
+      {
+        "command": "python3 scripts/agelto.py run -- make core-test-file TEST_FILE=tests/Integration/ProcessCore/Faults/PaidResponseKillTest.php",
+        "cwd": "/home/vostrikov/projects/packages/proxyma",
+        "exit": 0,
+        "tests": 2,
+        "assertions": 34,
+        "report": "storage/app/testing/process-core/reports/20261114T043717.107592Z-1130198"
+      },
+      {
+        "command": "python3 scripts/agelto.py run -- make core-test-file TEST_FILE=tests/Feature/ProcessCore/Documents/DownloadPublicationFaultTest.php",
+        "cwd": "/home/vostrikov/projects/packages/proxyma",
+        "exit": 0,
+        "tests": 3,
+        "assertions": 16,
+        "report": "storage/app/testing/process-core/reports/20261114T043938.894848Z-1139138"
+      }
+    ],
+    "qualification": "The copied consumer vendor remains pinned to base_source_commit. Coordinator must commit this Core source, re-pin both packages to the resulting same SHA with scripts/agelto-pin.py, and refresh runtime inputs before package qualification and final V1-V17 acceptance."
+  },
+  "p104_finite_outbound_phpstan_correction": {
+    "status": "pending_conductor_checks",
+    "scope": "FiniteOutboundExecutor::deferred() documents that its by-reference response slot is always cleared after preserving its previous value in ExecutionDeferred.",
+    "source_hash": {
+      "packages/core/src/Application/Execution/FiniteOutboundExecutor.php": "58d37a3fdcda17b00b7d8b21d5453976dd2fb1f7f401c4b503c41ef0393f5c9e"
+    },
+    "checks": [
+      {
+        "command": "vendor/bin/pint packages/core/src/Application/Execution/FiniteOutboundExecutor.php",
+        "cwd": "/home/vostrikov/projects/packages/proxyma",
+        "exit": 0,
+        "note": "The proxyma_test bind mount is read-only for formatter writes; host formatter changed only PHPDoc spacing and alignment."
+      },
+      {
+        "command": "docker compose -p proxyma_test -f docker/compose.test.yml exec -T runner vendor/bin/phpstan analyse --no-progress",
+        "cwd": "/home/vostrikov/projects/packages/proxyma",
+        "exit": 0
+      }
+    ],
+    "qualification": "No test suite was repeated for this annotation-only correction. The existing package and consumer qualification remain invalidated until the coordinator commits and re-pins the combined Core source."
+  },
+  "p104_core_requalification": {
+    "status": "qualified_package_pending_consumer_acceptance",
+    "owner_authorization": "User explicitly authorized Core correction and requalification in this session, 2026-11-14.",
+    "source_commit": "06861ce54fcff36da99d3e56c81facc6627e23cc",
+    "previous_source_commit": "393ec0f68eb38eef0fb698734d3e3e6da85fb2af",
+    "source_sha256": "ce53029960389f4ce678151211245ea7f70b775cfad78221be46ec354cad0a0d",
+    "qualification": {
+      "path": "build/test-report.json",
+      "sha256": "1aa05440c46e0f649a97cf8bd81ee5cdb56ac787d42d1c92d75cbf565eca5706",
+      "files": 53,
+      "scenarios": 666,
+      "invariants": 30,
+      "quality_exit": 0
+    },
+    "historical_qualification": {
+      "path": "build/qualification-history/p104-before-core-batch-20261114.json",
+      "sha256": "046613424be74ea1ea07a1a242cff2370d1f4304be28a511ba8b27563075fb53"
+    },
+    "package_source_hashes": {
+      "packages/core/src/Application/Admission/AuthorityLocker.php": "fa77445f89e2fc77ab6f583bfb03f956ebe7320b2b60285c35d3a8a3666061a8",
+      "packages/core/src/Application/Execution/FiniteOutboundExecutor.php": "58d37a3fdcda17b00b7d8b21d5453976dd2fb1f7f401c4b503c41ef0393f5c9e",
+      "packages/core/src/Infrastructure/Admission/ReservationCatalogLocks.php": "4fd95a0a96cf9aedd16968eb3ee1406473ed87e2b44ab34dd71ecb4e1126bc7a",
+      "packages/core/tests/Contract/TransactionCompositionTest.php": "c5c1142b3cbaa8db97f755f4da1b0a10b800390aa4713a8f7eff1fb013ea6f54"
+    },
+    "current_consumer_source_hashes": {
+      "composer.lock": "ee193845e6decc7a88ed64c62da755ed66eca51439e28d502220ef3fc474d6cb",
+      "docker/private-vendors.lock.json": "a3e4d52df4270143647f97c0095347d0e474abd03d9b82c76a17521134dd3018",
+      "tests/Fixtures/ProcessCore/runtime-inputs.json": "3423f7ecef5be40276279f75f90587580c8a06e9c8110c6f936f63e366451284",
+      "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "ac6bf65c78b25c0dd90d1f0dfafe84a366569de5649a97db1f181a082ac9dec5",
+      "tests/Fixtures/ProcessCore/manifest.json": "18f0f1810588bdd99a33093ab527ba11dd51e80fb471c12b233fafcbb9bad685"
+    },
+    "preserved": "Historical correction maps and source evidence remain unchanged; final V1-V17 and independent review are pending.",
+    "consumer_commit": "365a93cdbe4d537c70f5c6e1517e6f7d4491ed85",
+    "consumer_state": "clean committed integration; final fixture acceptance pending",
+    "runtime_provisioning": {
+      "status": "started_with_previously_verified_image",
+      "reason": "PECL/Debian unavailable during Docker rebuild; reused exact image from prior green core-quality, with current readonly sources/vendor and all original isolation checks",
+      "image": "sha256:7086b0cb4492d8d89d1072e5efc1197ca815bc09afd8a362eafad44e74997764",
+      "receipt": "/tmp/proxyma-p104-cached-runtime-provisioning-20261114/receipt.json",
+      "failed_up_reports": [
+        "storage/app/testing/process-core/reports/20261114T050857.897128Z-1355892/result.json",
+        "storage/app/testing/process-core/reports/20261114T051124.378892Z-1365920/result.json"
+      ]
+    }
+  },
+  "p104_policy_read_correction": {
+    "status": "diagnostic_candidate_pending_full_qualification",
+    "decision": "PLAN1/D16",
+    "source_commit": "5754d81b10b709597595f1a626e54ad896b69ec0",
+    "consumer_base_commit": "365a93cdbe4d537c70f5c6e1517e6f7d4491ed85",
+    "source_sha256": "d7e4066e193070479a60beafbd9542c5a71e2474f0f3359c8e223824e84ed7dc",
+    "behavior": "Policy-head readers use FOR SHARE; writers remain excluded, all other lock tiers and guards unchanged.",
+    "targeted_checks": {
+      "TransactionCompositionTest": {
+        "tests": 22,
+        "assertions": 102,
+        "exit": 0
+      },
+      "pint": 0,
+      "phpstan": 0
+    },
+    "previous_short_run": "storage/app/testing/process-core/reports/20261114T051523.360960Z-1398091/result.json",
+    "previous_measured_requests_per_second": 1.4437918594362746,
+    "package_source_hashes": {
+      "packages/core/src/Application/Admission/AuthorityLocker.php": "05a138f536a59bec47d020839031a4963f4aaa70390ee003f344d4517ed0d02c",
+      "packages/core/tests/Contract/TransactionCompositionTest.php": "a2df98e8220edc48e7ddc496ce44332ab7ed567d895cce7c88793955df273b09"
+    },
+    "current_consumer_source_hashes": {
+      "composer.lock": "ee193845e6decc7a88ed64c62da755ed66eca51439e28d502220ef3fc474d6cb",
+      "docker/private-vendors.lock.json": "73003747ccdeac734cc59fed8a5b3a6400b3a98774b466a27dd421f92c3b6b78",
+      "tests/Fixtures/ProcessCore/runtime-inputs.json": "cdaccb725266e3ce022ea8f7ba3d2de6e96de052f90bea36a8897339fac28517",
+      "tests/Fixtures/ProcessCore/Llm/acceptance-v1.json": "ac6bf65c78b25c0dd90d1f0dfafe84a366569de5649a97db1f181a082ac9dec5",
+      "tests/Fixtures/ProcessCore/manifest.json": "18f0f1810588bdd99a33093ab527ba11dd51e80fb471c12b233fafcbb9bad685"
+    },
+    "qualification": "Targeted checks only; prior 06861ce full qualification is historical. No final acceptance claimed."
+  },
+  "p104_catalogue_read_correction": {
+    "status": "diagnostic_candidate_pending_throughput_and_full_qualification",
+    "decision": "PLAN1/D17",
+    "source_commit": "40f938290aefe21ce00f35ca2d061180bb7f9b3a",
+    "source_sha256": "bcc96316b029d1e7d062ed80a444d0bf909dbf58d7204269869ec4c39df18202",
+    "consumer_base_commit": "365a93cdbe4d537c70f5c6e1517e6f7d4491ed85",
+    "behavior": "Shared writer-fenced catalogue reads limited to Profile/Endpoint/Route/Target; full Process prefix restored and every mutable health/accounting tier remains exclusive.",
+    "targeted_checks": {
+      "TransactionCompositionTest": {
+        "tests": 23,
+        "assertions": 121,
+        "exit": 0
+      },
+      "pint": 0,
+      "targeted_phpstan": 0
+    },
+    "package_source_hashes": {
+      "packages/core/src/Application/Admission/AuthorityLocker.php": "6953b65a8ce46ccfaafd6f725ff90f384c0c0ced9f60354584eb53fa1c38ac46",
+      "packages/core/src/Infrastructure/Admission/ReservationCatalogLocks.php": "e36b6a161490ec7fcf1e036a0e3b45601f6ab31bb90f0615711a94f2fc7411d3",
+      "packages/core/tests/Contract/TransactionCompositionTest.php": "bf6ba719be1a4a92aa3e6806578527979f8deaf8c18a12ae26bd25676e695905"
+    },
+    "current_consumer_source_hashes": {
+      "docker/private-vendors.lock.json": "795f8f32b02407a2caa7ece31160290c74bc9e826a664651fd232fa293ca4826",
+      "tests/Fixtures/ProcessCore/runtime-inputs.json": "fad3b5c42df3640f6f4dbb6bc827e8ce5b74e15f5a3043ecbe07536c41c75239",
+      "tests/Fixtures/ProcessCore/manifest.json": "18f0f1810588bdd99a33093ab527ba11dd51e80fb471c12b233fafcbb9bad685"
+    },
+    "causal_profile": "storage/app/testing/process-core/reports/20261114T054036.696252Z-1649949/load.json",
+    "discarded_preflight_experiment": "storage/app/testing/process-core/reports/20261114T055249.964682Z-1792851/result.json",
+    "historical_qualification_06861ce": "build/qualification-history/p104-policy-batch-06861ce-20261114.json",
+    "qualification": "Only targeted checks exist for this exact source; no final acceptance claimed."
+  },
+  "p104_owner_closure": {
+    "status": "closed_with_deviations_by_owner",
+    "decision": "PLAN1:D19",
+    "owner_instruction": "если решения не очевидно, давай закрываем чтобы можно было закрыть пункт. А над оптимизацией работать уже в рамках новой задачи",
+    "follow_up": "PLAN2:P1.1",
+    "follow_up_document": "integration/agelto/performance-followup.md",
+    "proxyma_source_commit": "d564574e94ab6d854f498596c3a098a28d4e8529",
+    "agelto_head": "8c38a2b165723a47d6e45b6f82b70e61fadd4109",
+    "accepted_private_0_1": false,
+    "qualification": "Current source has targeted checks and make quality, but no full package requalification. Full prior 53-file/666-scenario/30-invariant proof applies to 06861ce only.",
+    "consumer_acceptance": "Final source/runtime/input-bound V1-V17 matrix is incomplete; historical green results are not current acceptance.",
+    "last_diagnostic": {
+      "report": "20261114T063449.818292Z-1982630",
+      "documents": 12,
+      "receipts": 36,
+      "authorization_window_seconds": 37.852804,
+      "requests_per_second": 0.9510523975978108,
+      "scope": "small correctness diagnostic; not a sustained throughput qualification"
+    },
+    "deferred": [
+      "Measured performance diagnosis and optimization without weakening guards",
+      "Full package qualification of final source, candidate/resolve and stopped runtime snapshot refresh",
+      "Full final consumer V1-V17, both original 1800-second/1000-document WIDTH=10 and WIDTH=20 profiles, collector and independent acceptance review"
+    ],
+    "safety": "Original thresholds and fail-closed collectors unchanged; no live procurement, production rollout or public release."
+  },
+  "historical_observed": {
+    "proxyma_source_commit": "e519b0b11094f6cb0163e2edabee0f62f97c504c",
+    "agelto_head": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
+    "agelto_state": "uncommitted consumer integration; coordinator owns final commit",
+    "installed_package_pin": "e519b0b11094f6cb0163e2edabee0f62f97c504c",
+    "installed_packages": [
+      {
+        "name": "axiomasoft/proxyma",
+        "version": "0.1.0",
+        "no_symlink": true,
+        "lock_reference": "79c44ea426865862cfca1e00077e674cf15a8ee3",
+        "installed_reference": "79c44ea426865862cfca1e00077e674cf15a8ee3",
+        "expected_reference": "79c44ea426865862cfca1e00077e674cf15a8ee3",
+        "runtime_files_compared": 375
+      },
+      {
+        "name": "axiomasoft/proxyma-filament",
+        "version": "0.1.0",
+        "no_symlink": true,
+        "lock_reference": "240166ff0f024a1187f339ae01746fe45e4c4773",
+        "installed_reference": "240166ff0f024a1187f339ae01746fe45e4c4773",
+        "expected_reference": "240166ff0f024a1187f339ae01746fe45e4c4773",
+        "runtime_files_compared": 27
+      }
+    ],
+    "sanitized_snapshot_source_commit": "066d1047b12af869d66ec45c2aedbc5d3aee6e3e"
+  },
+  "historical_qualification": {
+    "status": "invalidated_by_changed_source_inputs",
+    "source_correction": "Standalone catalog, policy, binding, credential and health mutations use the existing standalone fence only when no consumer CatalogMutationFence binding exists. Imported health window rollback drops its model-derived table before the shared append-only function; the schema registry includes imported_health_samples. Migration assertions include all 15 registered migrations (14 database files plus Laravel migration 000014). Final package qualification and installed consumer re-pin remain required.",
+    "previous_source_commit": "5a046f699b32facfa7512e2f75c7079ef3a451e3",
+    "required": "full package qualification on final committed source, then candidate/resolve"
+  }
+}

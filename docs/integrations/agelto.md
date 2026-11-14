@@ -1,5 +1,9 @@
 # Agelto: callers и предел физических отправок
 
+P10.4 закрыт по решению владельца D19 с отклонениями. Полная приёмка приватной 0.1
+остаётся незавершённой; оптимизация и исходная матрица проверок перенесены в
+[PLAN2:P1.1](../../integration/agelto/performance-followup.md).
+
 `integration/agelto/caller-map.json` перечисляет каждый outbound entry и его composition;
 `caller-inventory.log` сохраняет конкретные rg callsites. Directory allowlist отсутствует.
 Базовые revisions: Agelto `f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f`, Proxyma
@@ -89,8 +93,11 @@ patch. `scenario-transfers.json` ссылается на точные исход
 `scenario_proof` не меняются. Удалённые implementation tests сохранены в архиве `RetiredNetwork`; их точные
 исторические identities связаны с consumer UI и native contract replay.
 
-До проверки нужен coordinator commit/repin обоих пакетов на один SHA и refresh
-изолированного rig. Карта transfer задаёт обязательства проверки; успешность доказывает
+До проверки нужен coordinator commit Agelto, подтверждение общего установленного SHA
+обоих пакетов и refresh изолированного rig. Исправление Core требует повторной
+package qualification и общего re-pin обоих пакетов; точный SHA хранится в
+`integration/agelto/candidate.json` и сверяется с установленным vendor.
+Карта transfer задаёт обязательства проверки; успешность доказывает
 только actual consumer JUnit финального candidate. `proxyma-contract-replay.json`
 фиксирует source paths/hashes package tests; consumer исполняет их в отдельных disposable
 схемах guarded `agelto_test`. Все перенаправления остаются обязательствами до зелёного JUnit
@@ -108,6 +115,21 @@ provider transport повторяет проверку owner перед свои
 совместную финансовую/network claim и receipt/settlement. Отдельный receipt-only grant
 проверяет immutable attempt/operation и исходные owner token/generation; потеря live
 owner после HTTP не мешает завершению, но не даёт повторного права отправить запрос.
+
+Для повторной проверки уже running Process owner `NetworkOwnerFence` использует
+`FOR SHARE` только на capacity lanes. Work, subjects и storage domains сохраняют
+эксклюзивные блокировки; порядок полного authority prefix и проверки token/generation,
+lease, controls, handler, intent и exact membership не меняются. Admission, finalize,
+recovery и остальные mutation paths используют прежний `FOR UPDATE` по умолчанию.
+Совместный financial/network claim не изменяет Process lanes после этой проверки.
+
+Этот режим допускает независимые проверки владельцев и сохраняет запрет изменения
+lane до завершения транзакции: [PostgreSQL `FOR SHARE`](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS)
+конфликтует с изменением строки. Регрессия `ProxymaOwnerAdapterTest` проверяет две
+реальные PostgreSQL-сессии: совместимый reader проходит, capacity writer и reader
+при mutation prefix получают `55P03`. Локальный отчёт
+`20261114T024924.655348Z-921259` содержит 26 тестов и 48 assertions. Это доказательство
+границы блокировки; итоговая installed-приёмка остаётся незавершённой из-за throughput.
 
 Caller берёт panel/slot формы (`agelto.acquisition/listing|detail|status_refresh`,
 `agelto.document/download`, `agelto.reference/reference`) и trusted subject chain
@@ -186,3 +208,22 @@ hashes файлов установленных пакетов внутри app c
 references сверяются с pinned manifest; symlink vendor не считается установкой.
 Установка в fixture не разрешает production rollout или публичный release.
 Полная последовательность — [agelto-acceptance.md](agelto-acceptance.md).
+
+Consumer adapters сохраняют отдельный отказ `paused` и проверяют financial/owner state
+во время ограниченного ожидания provider reservation вне SQL transaction. Runtime
+fact projections читают package journals; diagnostic purpose берётся из operation,
+поскольку FIFO queue использует собственные значения `normal/probe`. В adapter
+observation package request IDs остаются в immutable `details.request_ids`, а legacy
+`request_id` FK остаётся пустым для package attempts.
+
+Telegram endpoint в Agelto допускает `services.telegram.api_url` с прежним default
+`https://api.telegram.org`. Изолированный тест задаёт локальный wire endpoint,
+явный source catalog и URL policy; уведомления проходят тот же package send gate.
+
+Ответ `Q104_correction_ownership=b` разрешает точное исключение из удаления runtime
+дублей: Agelto содержит `AgeltoPhysicalHttpTransport`, основанный на package source
+`393ec0f68eb38eef0fb698734d3e3e6da85fb2af`, с сохранением download headers и partial
+decoded-byte counters. Ownership guard допускает cURL только в этом consumer классе.
+Также разрешён перевод начальных package health rows из `unknown` в due `open`
+перед probe; существующие holds не сбрасываются, время задаёт PostgreSQL.
+Эти consumer exceptions учитываются отдельно от package qualification текущего candidate.

@@ -2,10 +2,10 @@
   "schema": "proxyma-private-supply/v1",
   "status": "candidate",
   "repository": "axiomasoft/proxyma",
-  "qualification_source_commit": "c96ef4132cd5411de9915b7d506d21e78b740eb7",
+  "qualification_source_commit": "06861ce54fcff36da99d3e56c81facc6627e23cc",
   "qualification": {
     "path": "build/test-report.json",
-    "sha256": "046613424be74ea1ea07a1a242cff2370d1f4304be28a511ba8b27563075fb53"
+    "sha256": "1aa05440c46e0f649a97cf8bd81ee5cdb56ac787d42d1c92d75cbf565eca5706"
   },
   "packages": [
     {
@@ -13,7 +13,7 @@
       "path": "packages/core",
       "version": "0.1.0",
       "manifest_sha256": "c868e4a20c39cc231003b4f8587eb2a3c77b1fee97a68e144a9b287176614f67",
-      "payload_sha256": "333e962e4419f01ae9d1c4ab428ae42f8cfc3601e163740f9a084e4abc935189"
+      "payload_sha256": "174e28b5aead14a23dfde0c09fec92b660dfad7c53fdf925a6981c7177b8d163"
     },
     {
       "name": "axiomasoft/proxyma-filament",
@@ -22,5 +22,9 @@
       "manifest_sha256": "a1e171a54a0268d2213a31ea2178552b75a45346944aa8e7078b924416e7dfec",
       "payload_sha256": "f7b38627f081120bdaea6ca5d78189492ca0fee3ee1a1c87ac1239e195b74864"
     }
-  ]
+  ],
+  "source": {
+    "commit": "06861ce54fcff36da99d3e56c81facc6627e23cc",
+    "sha256": "ce53029960389f4ce678151211245ea7f70b775cfad78221be46ec354cad0a0d"
+  }
 }

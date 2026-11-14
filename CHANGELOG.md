@@ -17,6 +17,11 @@
 
 ### Changed
 
+- P10.4 завершён как integration checkpoint с отклонениями по решению владельца;
+  оптимизация и незавершённая полная приёмка вынесены в PLAN2:P1.1.
+
+- Policy-head блокировки admission получаются одним SQL-запросом с сохранением
+  порядка scope/tenant, проверки revisions и отказа при отсутствующем состоянии.
 - Filament требует `self.version` core: явная path version map задаёт обоим
   0.1.0; development workspace сохраняет согласованный dev-main.
 
