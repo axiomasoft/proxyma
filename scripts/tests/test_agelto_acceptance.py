@@ -138,6 +138,43 @@ class InstalledAcceptanceTest(unittest.TestCase):
         self.assertEqual(('verify', 'acceptance.json', self.f.root),
                          (args.command, args.descriptor, args.consumer_root))
 
+    def test_корректный_legacy_proof_не_создаёт_accepted(self):
+        commit, source = 'a' * 40, 'c' * 40
+        identity = {'consumer_commit': commit, 'source_commit': source,
+                    'inputs_sha256': 'd' * 64, 'runtime_sha256': 'e' * 64}
+        refs = {key: {'sha256': 'f' * 64} for key in ('composer_lock', 'vendor_lock', 'installed')}
+        commands = {'V1': ['make', 'core-test-install'], 'V2': ['make', 'core-test-e2e'],
+                    'V3': ['make', 'core-test-faults'], 'V4': ['make', 'core-test-load', 'WIDTH=10'],
+                    'V5': ['make', 'core-test-load', 'WIDTH=20'],
+                    'V6': ['make', 'core-test-regression'], 'V7': ['make', 'core-quality']}
+        evidence = b'fixture evidence'
+        (self.f.root / 'evidence').write_bytes(evidence)
+        gates = {}
+        for gate, command in commands.items():
+            result = {**identity, 'exit': 0, 'cwd': str(self.f.root.resolve()), 'command': command,
+                      'assertions': 1, 'scenarios': 1, 'duration_seconds': 1800,
+                      'fixture_documents': 1000, 'width': 10 if gate == 'V4' else 20,
+                      'evidence': [{'path': 'evidence', 'sha256': SUPPLY.digest(evidence)}]}
+            raw = json.dumps(result).encode()
+            (self.f.root / gate).write_bytes(raw)
+            gates[gate] = {**identity, 'exit': 0, 'cwd': str(self.f.root.resolve()),
+                           'command': command, 'path': gate, 'sha256': SUPPLY.digest(raw)}
+        proof = {'schema': 'proxyma-consumer-proof/v1', **identity, 'packages': self.installed,
+                 **{key + '_sha256': refs[key]['sha256'] for key in refs}, 'gates': gates}
+        SUPPLY.check_consumer_proof(self.f.root, proof, commit, source, refs, self.installed)
+        descriptor = self.source / 'candidate.json'
+        descriptor.parent.mkdir(parents=True, exist_ok=True)
+        descriptor.write_text(json.dumps({'status': 'candidate', 'source': {'commit': source}}))
+        output = self.source / 'acceptance.json'
+        with patch.object(NATIVE, 'load', return_value=SUPPLY), \
+                patch.object(SUPPLY, 'consumer', return_value={'commit': commit}), \
+                patch.object(sys, 'argv', ['acceptance', '--descriptor', str(descriptor),
+                                           '--consumer-root', str(self.f.root), '--report', 'legacy.json',
+                                           '--output', str(output)]):
+            with self.assertRaisesRegex(ValueError, 'native consumer acceptance required'):
+                NATIVE.main()
+        self.assertFalse(output.exists())
+
     def test_current_input_tree_не_читает_native_plan_и_выявляет_изменение(self):
         self.f.write_text(self.f.root / 'source.php', 'first')
         paths = b'source.php\nplans/plan.json\n.swissknifeman/context.json\n'

@@ -110,6 +110,7 @@ def main():
     paths = {'vendor_lock': 'docker/private-vendors.lock.json', 'composer_json': 'composer.json',
              'composer_lock': 'composer.lock', 'installed': 'vendor/composer/installed.json', 'report': args.report}
     value['consumer'] = supply.consumer(ROOT, value, args.consumer_root.resolve(), paths)
+    need('integration' in value['consumer'], 'native consumer acceptance required')
     value['status'] = 'accepted'
     # integration/ не входит в source fingerprint: commit результата не требует повторять тесты.
     need(args.output.resolve() != args.descriptor.resolve(), 'preserve original pinned descriptor')
