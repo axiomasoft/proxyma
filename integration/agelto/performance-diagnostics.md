@@ -113,3 +113,11 @@ lanes; owner validation уже применяет `FOR SHARE`, а изменяю
 не прошла полную qualification. Тесты: `MultiScopeReservationTest` — 23/145,
 `GcraReservationTest` — 5/60, `SealedWireTest` — 34/229,
 `HealthCompletionTest` — 5/51; целевые Pint и PHPStan прошли.
+
+Первый полный package suite остановился на `AuthorityInterleavingTest`: проверка ожидала
+блокировку второго worker на profile, хотя ранее профильный read lock был изменён на
+совместимый `FOR SHARE`. Ожидаемый barrier обновлён на фактический эксклюзивный
+`route_health`; отдельный повтор файла прошёл 36 тестов / 530 assertions. Trace показал
+разные PostgreSQL PID: первый worker ждал budget и отправил один запрос, второй ждал
+route health и получил `health_unavailable`. Все остальные assertions сохранены.
+Изменение теста инвалидирует прежний fingerprint package qualification.
