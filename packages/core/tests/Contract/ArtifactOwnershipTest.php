@@ -19,7 +19,7 @@ it('передаёт binary bytes один раз и закрывает sink п�
         expect(stream_get_contents($stream))->toBe($wire);
         throw new RuntimeException('consumer failed');
     }))->toThrow(RuntimeException::class);
-    expect(fn () => $artifact->accept(fn () => null))->toThrow(LogicException::class);
+    expect(fn () => $artifact->accept(fn (): null => null))->toThrow(LogicException::class);
     $reader->close();
 });
 
@@ -27,8 +27,8 @@ it('принимает binary lease и закрывает его после ко
     $reader = new ResponseReader(new ResponseProfile('binary'), responseScope());
     $reader->write("\0binary\xff");
     $artifact = $reader->finish();
-    expect($artifact->accept(fn ($stream) => stream_get_contents($stream)))->toBe("\0binary\xff")
-        ->and(fn () => $artifact->accept(fn () => null))->toThrow(LogicException::class);
+    expect($artifact->accept(fn ($stream): string|false => stream_get_contents($stream)))->toBe("\0binary\xff")
+        ->and(fn () => $artifact->accept(fn (): null => null))->toThrow(LogicException::class);
     $reader->close();
 });
 
@@ -37,17 +37,17 @@ it('отклоняет повреждённый artifact до передачи',
     fwrite($stream, 'wrong');
     $artifact = new BinaryBodyArtifact($stream, 5, ContentHash::of('right'), responseScope());
     $called = false;
-    expect(fn () => $artifact->accept(function () use (&$called): void {
+    expect(fn (): mixed => $artifact->accept(function () use (&$called): void {
         $called = true;
     }))->toThrow(LogicException::class)
         ->and($called)->toBeFalse()->and(is_resource($stream))->toBeFalse();
 });
 
 it('запрещает создание sink и приём artifact внутри транзакции', function (): void {
-    expect(fn () => new ResponseReader(new ResponseProfile('binary'), responseScope(true)))->toThrow(LogicException::class);
+    expect(fn (): ResponseReader => new ResponseReader(new ResponseProfile('binary'), responseScope(true)))->toThrow(LogicException::class);
     $stream = tmpfile();
     fwrite($stream, 'x');
     $artifact = new BinaryBodyArtifact($stream, 1, ContentHash::of('x'), responseScope(true));
-    expect(fn () => $artifact->accept(fn () => null))->toThrow(LogicException::class);
+    expect(fn (): mixed => $artifact->accept(fn (): null => null))->toThrow(LogicException::class);
     fclose($stream);
 });

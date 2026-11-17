@@ -6,11 +6,14 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
+use SensitiveParameter;
 
 /**
  * Runtime-only prepared headers with deterministic SHA-256 header digest.
  * Secrets in headers are never serialized or exposed in debug output.
  */
+#[Api(since: '1.0')]
 final readonly class PreparedHeaders
 {
     private const array FORBIDDEN_TRANSPORT_HEADERS = [
@@ -30,7 +33,7 @@ final readonly class PreparedHeaders
     /**
      * @param  array<string, string>  $headers
      */
-    public function __construct(#[\SensitiveParameter] array $headers = [], #[\SensitiveParameter] ?string $digestKey = null)
+    public function __construct(#[SensitiveParameter] array $headers = [], #[SensitiveParameter] ?string $digestKey = null)
     {
         $normalized = [];
         foreach ($headers as $name => $value) {
@@ -100,6 +103,7 @@ final readonly class PreparedHeaders
         throw new LogicException('PreparedHeaders cannot be serialized because they may contain sensitive credentials.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('PreparedHeaders cannot be reconstructed.');

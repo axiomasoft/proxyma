@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Panels;
 
-use Proxyma\Contracts\SubjectResolver;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Bindings\SubjectResolver;
 
+#[Api(since: '1.0')]
 final readonly class SubjectResolverDefinition
 {
     /** @param array<array-key, string> $types */

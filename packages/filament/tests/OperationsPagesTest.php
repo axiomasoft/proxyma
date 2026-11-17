@@ -9,7 +9,7 @@ use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Health\ResetHealth;
 use Proxyma\Application\Health\ReviewedProbe;
-use Proxyma\Contracts\PhysicalTransport;
+use Proxyma\Contracts\Execution\PhysicalTransport;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
@@ -47,13 +47,13 @@ foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'Reservation
 require_once __DIR__.'/Support/WithFilament.php';
 
 uses(CatalogTestCase::class, WithFilament::class, DemandFixtures::class, ReservationFixtures::class,
-    ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, HealthFixtures::class);
+    ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, HealthFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->prepareFilament();
     $this->initializeHealthFixture();
-    $this->app['config']->set('proxyma.policy.project_defaults', ['route.allow_direct' => true]);
-    $this->app->instance(DnsResolver::class, new DnsResolver($this->transactions->scope, static fn () => ['93.184.216.34']));
+    $this->reconfigureProxyma(['policy.project_defaults' => ['route.allow_direct' => true]]);
+    $this->app->instance(DnsResolver::class, new DnsResolver($this->transactions->scope, static fn (): array => ['93.184.216.34']));
     $this->operatorTransport = new class($this->db) implements PhysicalTransport
     {
         public int $sends = 0;
@@ -160,7 +160,7 @@ it('изменяет quota через core с actor reason revision и сохр�
     $this->quotaPrepared();
     $before = $this->table('budgets')->where('id', $this->originBudget->value)->first();
     Livewire::test(BudgetsPage::class)->call('edit', $this->originBudget->value)->set('data.hour_limit', 1)
-        ->set('data.day_limit', null)->set('data.reason', 'Снизить лимит')->set('data.tenant_key', 'foreign')
+        ->set('data.day_limit')->set('data.reason', 'Снизить лимит')->set('data.tenant_key', 'foreign')
         ->call('updateBudget')->assertHasNoErrors();
     $after = $this->table('budgets')->where('id', $this->originBudget->value)->first();
     $audit = $this->table('audit_events')->where('ability', 'catalog.budget.configure')->orderByDesc('revision')->first();
@@ -271,7 +271,7 @@ it('probe отвергает stale catalog health epoch и policy revision до 
         'target' => $this->table('targets')->update(['revision' => 2]),
         'epoch' => $this->table('route_target_health')->update(['health_epoch' => 2]),
         'state_version' => $this->table('target_health')->update(['state_version' => 2]),
-        'policy' => $this->app['config']->set('proxyma.policy.project_defaults', ['route.allow_direct' => false]),
+        'policy' => $this->reconfigureProxyma(['policy.project_defaults' => ['route.allow_direct' => false]]),
     };
     $page->call('probe')->assertHasErrors(['data']);
     expect($this->operatorTransport->sends)->toBe(0)->and($this->table('attempts')->count())->toBe(0)
@@ -287,7 +287,7 @@ it('core reviewed probe отвергает неполный или лишний 
     } else {
         $review['epochs']['route_health:'.Uuid::random()->value] = 1;
     }
-    expect(fn () => operatorCoreProbe($this, $review))->toThrow(CatalogConflict::class)
+    expect(fn (): array => operatorCoreProbe($this, $review))->toThrow(CatalogConflict::class)
         ->and($this->operatorTransport->sends)->toBe(0)->and($this->table('probe_claims')->count())->toBe(0);
 })->with(['missing', 'extra']);
 
@@ -297,7 +297,7 @@ it('core reviewed probe проверяет trusted actor revision и command key
     $review = app(ReviewedProbe::class)->review($subjects, $this->catalog['profile'], $this->catalog['route'], $this->catalog['target']);
     $actor = new CatalogMutationActor(new ActorRef('operator', $bad === 'actor' ? 'forged' : 'fixture-operator'),
         'Проверка actor', $bad === 'revision' ? null : $review['versions']['policy'], $bad === 'key' ? null : Uuid::random()->value);
-    expect(fn () => operatorCoreProbe($this, $review, $actor))->toThrow($bad === 'actor' ? AuthorizationDenied::class : CatalogConflict::class)
+    expect(fn (): array => operatorCoreProbe($this, $review, $actor))->toThrow($bad === 'actor' ? AuthorizationDenied::class : CatalogConflict::class)
         ->and($this->operatorTransport->sends)->toBe(0)->and($this->table('operations')->count())->toBe(0);
 })->with(['actor', 'revision', 'key']);
 
@@ -325,7 +325,7 @@ it('locked claim повторно сверяет reviewed scopes после pref
             $this->table('route_health')->update(['state_version' => 2]);
         }
     });
-    expect(fn () => operatorCoreProbe($this))->toThrow(AdmissionRejected::class, 'probe_review_changed')
+    expect(fn (): array => operatorCoreProbe($this))->toThrow(AdmissionRejected::class, 'probe_review_changed')
         ->and($this->operatorTransport->sends)->toBe(0)->and($this->table('probe_claims')->count())->toBe(0)
         ->and((int) $this->table('quota_windows')->sum('spent'))->toBe(0);
 });

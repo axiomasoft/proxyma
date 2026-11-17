@@ -109,4 +109,15 @@ return [
         'locked_admission_guards' => [],
         'observers' => [],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Runtime Policy Defaults & Hard Bounds
+    |--------------------------------------------------------------------------
+    */
+    'policy' => [
+        'project_defaults' => [],
+        'panel_defaults' => [],
+        'hard_bounds' => [],
+    ],
 ];

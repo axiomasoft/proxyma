@@ -5,19 +5,24 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Secrets;
 
 use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Database\Query\JoinClause;
+use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\SecretResolver;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
+use Proxyma\Contracts\Security\SecretResolver;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Execution\ResolvedSecret;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 use SensitiveParameter;
 use Throwable;
 
+#[Api(since: '1.0')]
 final readonly class EncryptedSecretStore implements SecretResolver
 {
     public function __construct(private ConnectionScope $scope, private Encrypter $encrypter, private CatalogAccess $access,
@@ -34,6 +39,7 @@ final readonly class EncryptedSecretStore implements SecretResolver
         }
     }
 
+    /** @param array<int|string, mixed> $command */
     public function commandHash(#[SensitiveParameter] array $command): string
     {
         $this->scope->assertOutsideTransaction();
@@ -51,7 +57,7 @@ final readonly class EncryptedSecretStore implements SecretResolver
         try {
             $t = PackageSchema::tables();
             $row = $this->scope->connection->table($t['encrypted_secrets'].' as s')
-                ->join($t['endpoints'].' as e', function ($join): void {
+                ->join($t['endpoints'].' as e', function (JoinClause $join): void {
                     $join->on('e.tenant_key', '=', 's.tenant_key')->on('e.id', '=', 's.endpoint_id')
                         ->on('e.credential_ref', '=', 's.reference')->on('e.credential_version', '=', 's.version');
                 })->where('s.tenant_key', $tenant->value)->where('s.reference', $credential->reference)
@@ -63,14 +69,18 @@ final readonly class EncryptedSecretStore implements SecretResolver
         if ($row === null) {
             return null;
         }
-        $this->access->authorize($tenant, 'catalog.credential.resolve', new Uuid($row->endpoint_id));
+        $this->access->authorize($tenant, 'catalog.credential.resolve', new Uuid(RowValues::colStr($row, 'endpoint_id')));
         try {
-            $payload = json_decode($this->encrypter->decrypt($row->ciphertext, false), true, 8, JSON_THROW_ON_ERROR);
+            $decrypted = $this->encrypter->decrypt(RowValues::colStr($row, 'ciphertext'), false);
+            if (! is_string($decrypted)) {
+                throw new SecretStorageFailure;
+            }
+            $payload = json_decode($decrypted, true, 8, JSON_THROW_ON_ERROR);
             if (! is_array($payload) || count($payload) !== 5 || array_slice($payload, 0, 3) !== [$tenant->value, $credential->reference, $credential->version]) {
                 throw new SecretStorageFailure;
             }
 
-            return new ResolvedSecret($credential, $payload[3], $payload[4]);
+            return new ResolvedSecret($credential, RowValues::nullableStr($payload[3]), RowValues::str($payload[4]));
         } catch (Throwable) {
             throw new SecretStorageFailure;
         }
@@ -83,6 +93,6 @@ final readonly class EncryptedSecretStore implements SecretResolver
 
     public function __serialize(): array
     {
-        throw new \LogicException('Secret store cannot be serialized.');
+        throw new LogicException('Secret store cannot be serialized.');
     }
 }

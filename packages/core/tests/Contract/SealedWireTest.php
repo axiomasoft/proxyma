@@ -7,8 +7,8 @@ use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Execution\WireSealer;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Policy\PolicyCommands;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\Route;
@@ -39,7 +39,7 @@ require_once __DIR__.'/../Support/DemandFixtures.php';
 require_once __DIR__.'/../Support/ReservationFixtures.php';
 require_once __DIR__.'/../Support/ClaimFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeClaimFixture();
@@ -60,15 +60,15 @@ it('создаёт inert candidate, затем после outer commit выда�
     expect($this->emitted)->toBe(1);
     expect(fn () => $this->emit($capability))->toThrow(LogicException::class, 'already consumed');
     expect(fn () => $this->claims->activate($candidate))->toThrow(LogicException::class, 'already been activated');
-    expect(fn () => clone $capability)->toThrow(LogicException::class);
-    expect(fn () => serialize($capability))->toThrow(LogicException::class);
-    expect(fn () => serialize($candidate))->toThrow(LogicException::class);
-    expect(fn () => clone $candidate)->toThrow(LogicException::class);
-    expect(fn () => json_encode($candidate, JSON_THROW_ON_ERROR))->toThrow(LogicException::class);
-    expect(fn () => json_encode($capability, JSON_THROW_ON_ERROR))->toThrow(LogicException::class);
+    expect(fn (): object => clone $capability)->toThrow(LogicException::class);
+    expect(fn (): string => serialize($capability))->toThrow(LogicException::class);
+    expect(fn (): string => serialize($candidate))->toThrow(LogicException::class);
+    expect(fn (): object => clone $candidate)->toThrow(LogicException::class);
+    expect(fn (): string => json_encode($candidate, JSON_THROW_ON_ERROR))->toThrow(LogicException::class);
+    expect(fn (): string => json_encode($capability, JSON_THROW_ON_ERROR))->toThrow(LogicException::class);
     foreach ([$capability, $candidate, $wire->request, $wire] as $runtime) {
         $class = $runtime::class;
-        expect(fn () => unserialize('O:'.strlen($class).':"'.$class.'":0:{}'))->toThrow(LogicException::class);
+        expect(fn (): mixed => unserialize('O:'.strlen($class).':"'.$class.'":0:{}'))->toThrow(LogicException::class);
     }
     expect(fn () => $this->claims->claim($permit, $input, $wire))->toThrow(AdmissionRejected::class, 'already_claimed');
     expect($this->emitted)->toBe(1)->and($this->table('attempts')->count())->toBe(1);
@@ -148,12 +148,12 @@ it('keyed headers и body не раскрываются в debug и serializatio
     var_dump($wire, $cap, $wire->request->headers, $wire->request->body, $this->sealer);
     $debug = ob_get_clean();
     expect($debug)->not->toContain('secret-fixture-42', 'body-fixture-42', 'fixture-only-32-byte-hmac-key-value');
-    expect(fn () => serialize($wire))->toThrow(LogicException::class);
+    expect(fn (): string => serialize($wire))->toThrow(LogicException::class);
     foreach ([$wire->request->headers, $wire->request->body] as $runtime) {
         $class = $runtime::class;
-        expect(fn () => unserialize('O:'.strlen($class).':"'.$class.'":0:{}'))->toThrow(LogicException::class);
+        expect(fn (): mixed => unserialize('O:'.strlen($class).':"'.$class.'":0:{}'))->toThrow(LogicException::class);
     }
-    expect(fn () => new PreparedHeaders(['Authorization' => 'one', 'authorization' => 'two']))->toThrow(InvalidArgumentException::class);
+    expect(fn (): PreparedHeaders => new PreparedHeaders(['Authorization' => 'one', 'authorization' => 'two']))->toThrow(InvalidArgumentException::class);
     expect($this->table('attempts')->value('snapshot'))->not->toContain('secret-fixture-42', 'body-fixture-42');
 });
 
@@ -266,12 +266,12 @@ it('manual latch и реконструкция persisted authorization не со
     $forged = $latch->issueCandidate($permit->permitId, $input->request->operationId, $input->request->physicalAttemptId,
         $input->request->fingerprint(), $candidate->authorizedAt, $candidate->expiresAt, 1);
     $latch->markOutermostCommitted(0);
-    expect(fn () => AuthorizedWireRequest::activate($forged, $latch, 0, $wire->request, $cap->snapshot))
+    expect(fn (): AuthorizedWireRequest => AuthorizedWireRequest::activate($forged, $latch, 0, $wire->request, $cap->snapshot))
         ->toThrow(LogicException::class, 'activation authority');
     expect(fn () => $this->transactions->run(function ($tx) use ($candidate, $wire, $cap): void {
         $copy = $this->transactions->issueCandidate($candidate->permitId, $candidate->operationId, $candidate->physicalAttemptId,
             $candidate->wireFingerprint, $candidate->authorizedAt, $candidate->expiresAt, $tx);
-        $this->transactions->bindAuthorization($copy, $cap->snapshot, static fn () => null, $wire, $this->sealer);
+        $this->transactions->bindAuthorization($copy, $cap->snapshot, static fn (): null => null, $wire, $this->sealer);
     }))->toThrow(LogicException::class, 'Missing durable');
     $this->rejectedSql(fn () => $this->table('attempts')->update(['wire_fingerprint' => str_repeat('a', 64)]));
     expect($this->emitted)->toBe(0)->and($this->table('attempts')->count())->toBe(1);
@@ -283,8 +283,8 @@ it('один durable claim нельзя связать со вторым candida
         $candidate = $this->claims->claimSendLocked($permit, $input, $wire, $tx);
         $copy = $this->transactions->issueCandidate($candidate->permitId, $candidate->operationId, $candidate->physicalAttemptId,
             $candidate->wireFingerprint, $candidate->authorizedAt, $candidate->expiresAt, $tx);
-        $bindings = (new ReflectionProperty($this->transactions, 'authorizations'))->getValue($this->transactions);
-        expect(fn () => $this->transactions->bindAuthorization($copy, $bindings[$candidate][0], static fn () => null, $wire, $this->sealer))
+        $bindings = new ReflectionProperty($this->transactions, 'authorizations')->getValue($this->transactions);
+        expect(fn () => $this->transactions->bindAuthorization($copy, $bindings[$candidate][0], static fn (): null => null, $wire, $this->sealer))
             ->toThrow(LogicException::class, 'duplicate binding');
 
         return $candidate;
@@ -300,7 +300,7 @@ it('caller-owned claim требует preflight и отсутствие digest k
     $fresh = $this->app->make(ClaimSend::class);
     expect(fn () => $this->transactions->run(fn ($tx) => $fresh->claimSendLocked($permit, $input, $wire, $tx)))
         ->toThrow(AdmissionRejected::class, 'claim_preparation_required');
-    expect(fn () => new WireSealer($this->transactions->scope, ''))
+    expect(fn (): WireSealer => new WireSealer($this->transactions->scope, ''))
         ->toThrow(AdmissionRejected::class, 'wire_digest_key_required');
     expect($this->accounting())->toBe($before)->and($this->table('attempts')->count())->toBe(0);
 });

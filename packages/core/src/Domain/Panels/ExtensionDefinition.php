@@ -4,18 +4,23 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Panels;
 
-use Proxyma\Contracts\BudgetScopeContributor;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OutboundObserver;
-use Proxyma\Contracts\OutcomePolicy;
-use Proxyma\Contracts\PolicyDefinitionProvider;
-use Proxyma\Contracts\RouteFilter;
-use Proxyma\Contracts\RouteSelectionStrategy;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\BudgetScopeContributor;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Execution\OutboundObserver;
+use Proxyma\Contracts\Execution\OutcomePolicy;
+use Proxyma\Contracts\Policy\PolicyDefinitionProvider;
+use Proxyma\Contracts\Routing\RouteFilter;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Execution\AdmissionLockTier;
 
+#[Api(since: '1.0')]
 final readonly class ExtensionDefinition
 {
-    /** @param array<array-key, string> $dependencies */
+    /**
+     * @param  array<array-key, string>  $dependencies
+     * @param  list<string>  $requiredCapabilities
+     */
     public function __construct(
         public string $id,
         public ExtensionKind $kind,

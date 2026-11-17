@@ -6,8 +6,8 @@ use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
 use Proxyma\Application\Catalog\CatalogStorageFailure;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\SharedRouteCommands;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
@@ -27,12 +27,12 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 it('actor reason revision и idempotency обязательны, отказ не оставляет audit или authority', function (): void {
     $commands = $this->commands();
-    expect(fn () => new CatalogMutationActor('', 'reason'))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new CatalogMutationActor('operator', ' '))->toThrow(InvalidArgumentException::class);
+    expect(fn (): CatalogMutationActor => new CatalogMutationActor('', 'reason'))->toThrow(InvalidArgumentException::class);
+    expect(fn (): CatalogMutationActor => new CatalogMutationActor('operator', ' '))->toThrow(InvalidArgumentException::class);
     foreach ([new CatalogMutationActor('fixture-operator', 'reason'), new CatalogMutationActor('fixture-operator', 'reason', 0)] as $actor) {
         expect(fn () => $commands->upsertTarget(new UpsertTargetCommand(Uuid::random(), $this->tenant, 'fixture', CanonicalOrigin::of('https', 'example.test'), 'default', $actor)))->toThrow(CatalogInvalidMutation::class);
     }
@@ -129,10 +129,11 @@ it('read audit проверяет actor tenant revision и не возвраща
 });
 
 it('upgrade установленной P1.3 схемы сохраняет catalog и replay, удаляя snapshots из audit', function (): void {
-    $this->artisan('migrate:rollback', ['--step' => 14, '--force' => true])->assertExitCode(0);
+    $migrationPath = dirname(__DIR__, 2).'/database/migrations';
+    $this->artisan('migrate:rollback', ['--path' => $migrationPath, '--realpath' => true, '--step' => 14, '--force' => true])->assertExitCode(0);
     expect($this->db->table('migrations')->count())->toBe(1);
     // 000011 поддерживает roll-forward: P1.3 форму восстанавливаем явно только в fixture.
-    $this->db->statement('ALTER TABLE '.(new BudgetRecord)->getTable().' DROP COLUMN cooldown_until');
+    $this->db->statement('ALTER TABLE '.(new BudgetRecord)->getTable().' DROP COLUMN IF EXISTS cooldown_until');
     $id = Uuid::random();
     $auditId = Uuid::random();
     $legacy = ['id' => $id->value, 'tenant_key' => 'acme', 'target_key' => 'legacy', 'canonical_origin' => 'https://legacy.test:443',
@@ -142,7 +143,7 @@ it('upgrade установленной P1.3 схемы сохраняет catalo
         'reason' => 'legacy-secret-reason', 'ability' => 'catalog.target.upsert', 'entity_type' => 'targets', 'entity_id' => $id->value,
         'previous_revision' => 0, 'revision' => 1, 'idempotency_key' => 'legacy-secret-key', 'command_hash' => str_repeat('a', 64),
         'result' => json_encode($legacy, JSON_THROW_ON_ERROR)]);
-    $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+    $this->artisan('migrate', ['--path' => $migrationPath, '--realpath' => true, '--force' => true])->assertExitCode(0);
     expect($this->table('targets')->value('id'))->toBe($id->value);
     $receipt = $this->table('catalog_command_receipts')->first();
     expect($receipt->idempotency_key)->toBe(hash('sha256', 'legacy-secret-key'))

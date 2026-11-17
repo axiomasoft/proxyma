@@ -4,13 +4,20 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Health;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 
+#[Api(since: '1.0')]
 final readonly class ProbeReview
 {
+    /**
+     * @param  array<string, mixed>  $versions
+     * @param  array<string, int>  $epochs
+     */
     public function __construct(public array $versions, public array $epochs, public CatalogMutationActor $actor, public string $hash) {}
 
+    /** @param array{versions: array<string, mixed>, epochs: array<string, int>} $evidence */
     public function assertMatches(array $evidence): void
     {
         $epochs = $evidence['epochs'];

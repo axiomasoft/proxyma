@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Outcomes;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\BlockedReason;
 use Proxyma\Domain\Execution\DeferralReason;
 use Proxyma\Domain\Execution\OutcomeClassification;
@@ -15,6 +16,7 @@ use Proxyma\Domain\Health\HealthAttribution;
  * Результат независимой технической классификации физической попытки.
  * Атрибуция здоровья и инварианты безопасности фиксируются здесь и не могут быть отменены пользовательской политикой.
  */
+#[Api(since: '1.0')]
 final readonly class TechnicalClassification
 {
     public function __construct(

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Outcomes;
 
+use Packman\Attributes\Api;
+
+#[Api(since: '1.0')]
 enum TechnicalFailureKind: string
 {
     case HttpResponse = 'http_response';

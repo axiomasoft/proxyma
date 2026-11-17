@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Proxyma\Application\Routing;
 
 use InvalidArgumentException;
-use Proxyma\Contracts\RandomIndex;
-use Proxyma\Contracts\RouteSelectionStrategy;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Routing\RandomIndex;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\RouteSelectionContext;
 use Proxyma\Domain\Execution\WireRequest;
 use Proxyma\Domain\Routing\Candidate;
 
+#[Api(since: '1.0')]
 final readonly class SelectionStrategy implements RouteSelectionStrategy
 {
     public function __construct(private string $strategyKey, private RandomIndex $random)
@@ -36,11 +38,14 @@ final readonly class SelectionStrategy implements RouteSelectionStrategy
         if ($this->strategyKey === 'least_recent_authorized') {
             usort($candidates, static function (Candidate $a, Candidate $b): int {
                 if ($a->lastAuthorizedAt === null || $b->lastAuthorizedAt === null) {
-                    return ($a->lastAuthorizedAt === null ? 0 : 1) <=> ($b->lastAuthorizedAt === null ? 0 : 1)
-                        ?: strcmp($a->routeId->value, $b->routeId->value);
+                    $cmp = ($a->lastAuthorizedAt === null ? 0 : 1) <=> ($b->lastAuthorizedAt === null ? 0 : 1);
+
+                    return $cmp !== 0 ? $cmp : strcmp($a->routeId->value, $b->routeId->value);
                 }
 
-                return $a->lastAuthorizedAt <=> $b->lastAuthorizedAt ?: strcmp($a->routeId->value, $b->routeId->value);
+                $cmp = $a->lastAuthorizedAt <=> $b->lastAuthorizedAt;
+
+                return $cmp !== 0 ? $cmp : strcmp($a->routeId->value, $b->routeId->value);
             });
 
             return $candidates[0]->route;

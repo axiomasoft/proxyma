@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Proxyma\Contracts\TransactionCoordinator;
+use Proxyma\Contracts\Admission\TransactionCoordinator;
 use Proxyma\Domain\Execution\PermitState;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\SubjectRef;

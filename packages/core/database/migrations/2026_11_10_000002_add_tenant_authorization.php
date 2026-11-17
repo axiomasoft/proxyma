@@ -2,24 +2,18 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Security\TenantSecuritySchema;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
-    public function getConnection(): ?string
-    {
-        return config('proxyma.connection', 'pgsql');
-    }
-
     public function up(): void
     {
-        TenantSecuritySchema::up(DB::connection($this->getConnection()));
+        TenantSecuritySchema::up($this->db());
     }
 
     public function down(): void
     {
-        TenantSecuritySchema::down(DB::connection($this->getConnection()));
+        TenantSecuritySchema::down($this->db());
     }
 };

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Proxyma\Application\Health\ProbeCoordinator;
-use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\Policy\PolicyCommands;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Execution\DemandPurpose;
@@ -23,7 +23,7 @@ foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'Reservation
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
 require_once dirname(__DIR__, 4).'/tests/Support/ConcurrentWorkers.php';
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, AuthorityFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, AuthorityFixtures::class)->group('pg');
 beforeEach(fn () => $this->initializeAuthorityFixture());
 afterEach(fn () => $this->workers->finish());
 

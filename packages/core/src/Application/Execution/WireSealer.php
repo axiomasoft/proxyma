@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Execution;
 
+use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\ContentHash;
@@ -15,10 +17,12 @@ use Proxyma\Domain\Execution\SealedWire;
 use Proxyma\Domain\Execution\TlsTrustConfiguration;
 use Proxyma\Domain\Execution\WireRequest;
 use Proxyma\Infrastructure\Database\ConnectionScope;
+use SensitiveParameter;
 
+#[Api(since: '1.0')]
 final readonly class WireSealer
 {
-    public function __construct(private ConnectionScope $scope, #[\SensitiveParameter] private string $digestKey)
+    public function __construct(private ConnectionScope $scope, #[SensitiveParameter] private string $digestKey)
     {
         if (strlen($digestKey) < 32) {
             throw new AdmissionRejected('wire_digest_key_required');
@@ -83,6 +87,6 @@ final readonly class WireSealer
 
     public function __serialize(): array
     {
-        throw new \LogicException('WireSealer contains a private digest key.');
+        throw new LogicException('WireSealer contains a private digest key.');
     }
 }

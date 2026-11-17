@@ -6,9 +6,11 @@ namespace Proxyma\Domain\Execution;
 
 use Closure;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 
 /** Exclusive temporary lease. The consumer must accept or close it outside SQL. */
+#[Api(since: '1.0')]
 final class BinaryBodyArtifact implements ResponseBody
 {
     private bool $closed = false;
@@ -27,7 +29,11 @@ final class BinaryBodyArtifact implements ResponseBody
         return $this->hash;
     }
 
-    /** The callback must finish copying before returning; it must not retain the stream. */
+    /**
+     * The callback must finish copying before returning; it must not retain the stream.
+     *
+     * @param  Closure(resource, int, ContentHash): mixed  $consumer
+     */
     public function accept(Closure $consumer): mixed
     {
         $this->scope->assertOutsideTransaction();
@@ -63,6 +69,7 @@ final class BinaryBodyArtifact implements ResponseBody
         throw new LogicException('Artifact leases cannot be serialized.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('Artifact leases cannot be reconstructed.');

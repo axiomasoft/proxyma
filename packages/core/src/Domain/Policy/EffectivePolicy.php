@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteProfile;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class EffectivePolicy
 {
     /** @var ?list<string> */
@@ -34,9 +36,6 @@ final readonly class EffectivePolicy
     /** @var array<string, int> */
     public array $layerRevisions;
 
-    /** @var list<string> */
-    public array $appliedLayers;
-
     /** @var array<string, FieldExplanation> */
     public array $explanations;
 
@@ -50,6 +49,7 @@ final readonly class EffectivePolicy
      * @param  array<string, int>  $layerRevisions
      * @param  list<string>  $appliedLayers
      * @param  array<string, FieldExplanation>  $explanations
+     * @param  array<string, int>  $authorityVersions
      */
     public function __construct(
         public TenantKey $tenantKey,
@@ -72,7 +72,7 @@ final readonly class EffectivePolicy
         array $values,
         array $disabledSettings,
         array $layerRevisions,
-        array $appliedLayers,
+        public array $appliedLayers,
         array $explanations,
         public int $effectiveRevision,
         public ContentHash $policyHash,
@@ -110,8 +110,6 @@ final readonly class EffectivePolicy
         ksort($layerRevisions, SORT_STRING);
         $this->layerRevisions = $layerRevisions;
 
-        $this->appliedLayers = $appliedLayers;
-
         ksort($explanations, SORT_STRING);
         $this->explanations = $explanations;
     }
@@ -125,9 +123,37 @@ final readonly class EffectivePolicy
         return $this->values[$key];
     }
 
+    /** @param array<string, int> $versions */
     public function withAuthorityVersions(array $versions): self
     {
-        return new self(...[...get_object_vars($this), 'authorityVersions' => $versions]);
+        return new self(
+            tenantKey: $this->tenantKey,
+            subjectChain: $this->subjectChain,
+            targetId: $this->targetId,
+            destinationPolicyKey: $this->destinationPolicyKey,
+            trafficKey: $this->trafficKey,
+            routeProfileId: $this->routeProfileId,
+            routeProfileKey: $this->routeProfileKey,
+            routeProfileRevision: $this->routeProfileRevision,
+            allowedProfileKeys: $this->allowedProfileKeys,
+            timeouts: $this->timeouts,
+            retryDelaysDisabled: $this->retryDelaysDisabled,
+            allowDirectRoute: $this->allowDirectRoute,
+            strategyKey: $this->strategyKey,
+            outcomePolicyKey: $this->outcomePolicyKey,
+            deniedRoutes: $this->deniedRoutes,
+            allowedDestinations: $this->allowedDestinations,
+            budgets: $this->budgets,
+            values: $this->values,
+            disabledSettings: $this->disabledSettings,
+            layerRevisions: $this->layerRevisions,
+            appliedLayers: $this->appliedLayers,
+            explanations: $this->explanations,
+            effectiveRevision: $this->effectiveRevision,
+            policyHash: $this->policyHash,
+            schemaVersion: $this->schemaVersion,
+            authorityVersions: $versions,
+        );
     }
 
     public function isDisabled(string $key): bool

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
 
+#[Api(since: '1.0')]
 final readonly class RouteSelection
 {
     public function __construct(

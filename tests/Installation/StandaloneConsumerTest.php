@@ -6,7 +6,7 @@ use Illuminate\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 it('независимый Composer consumer выполняет discovery и config cache до migrations', function (string $consumer): void {
-    $directory = dirname(__DIR__).'/Fixtures/Consumers/'.$consumer;
+    $directory = __DIR__.'/../Fixtures/Consumers/'.$consumer;
     expect(is_file($directory.'/vendor/autoload.php'))->toBeTrue('Install the fixture with Composer before running conformance.');
     $runtime = sys_get_temp_dir().'/pxm_consumer_'.bin2hex(random_bytes(8));
     mkdir($runtime);
@@ -38,7 +38,7 @@ it('независимый Composer consumer выполняет discovery и con
         expect($packages)->toHaveKey('axiomasoft/proxyma')->not->toHaveKey('axiomasoft/proxyma-filament');
         $lock = json_decode(file_get_contents($directory.'/composer.lock'), true, flags: JSON_THROW_ON_ERROR);
         $names = array_column($lock['packages'], 'name');
-        expect($names)->not->toContain('axiomasoft/proxyma-filament')->and(array_filter($names, static fn ($name) => str_starts_with($name, 'filament/')))->toBe([]);
+        expect($names)->not->toContain('axiomasoft/proxyma-filament')->and(array_filter($names, static fn ($name): bool => str_starts_with($name, 'filament/')))->toBe([]);
     } finally {
         (new Filesystem)->deleteDirectory($runtime);
     }

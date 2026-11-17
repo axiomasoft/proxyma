@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Execution;
 
+use Packman\Attributes\Api;
+
+#[Api(since: '1.0')]
 final readonly class ClaimDenied
 {
     /** @var array<string, int|float|string|bool|null> */

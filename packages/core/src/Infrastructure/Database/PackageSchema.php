@@ -5,14 +5,43 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
 use Proxyma\Infrastructure\Audit\CatalogCommandReceiptRecord;
-use Proxyma\Infrastructure\Eloquent;
+use Proxyma\Infrastructure\Eloquent\AttemptRecord;
+use Proxyma\Infrastructure\Eloquent\AuditEventRecord;
+use Proxyma\Infrastructure\Eloquent\BindingRecord;
+use Proxyma\Infrastructure\Eloquent\BindingRevisionRecord;
+use Proxyma\Infrastructure\Eloquent\BudgetRecord;
+use Proxyma\Infrastructure\Eloquent\DemandRecord;
+use Proxyma\Infrastructure\Eloquent\DemandScopeRecord;
+use Proxyma\Infrastructure\Eloquent\EndpointRecord;
+use Proxyma\Infrastructure\Eloquent\ImportedHealthSampleRecord;
+use Proxyma\Infrastructure\Eloquent\ObservationApplicationRecord;
+use Proxyma\Infrastructure\Eloquent\ObservationRecord;
+use Proxyma\Infrastructure\Eloquent\OperationRecord;
+use Proxyma\Infrastructure\Eloquent\PermitRecord;
+use Proxyma\Infrastructure\Eloquent\PolicyHeadRecord;
+use Proxyma\Infrastructure\Eloquent\PolicyRevisionRecord;
+use Proxyma\Infrastructure\Eloquent\ProfileHealthRecord;
+use Proxyma\Infrastructure\Eloquent\QuotaReservationRecord;
+use Proxyma\Infrastructure\Eloquent\QuotaWindowRecord;
+use Proxyma\Infrastructure\Eloquent\ReconcileCursorRecord;
+use Proxyma\Infrastructure\Eloquent\ReservationRecord;
+use Proxyma\Infrastructure\Eloquent\RouteHealthRecord;
+use Proxyma\Infrastructure\Eloquent\RouteProfileMemberRecord;
+use Proxyma\Infrastructure\Eloquent\RouteProfileRecord;
+use Proxyma\Infrastructure\Eloquent\RouteRecord;
+use Proxyma\Infrastructure\Eloquent\RouteTargetHealthRecord;
+use Proxyma\Infrastructure\Eloquent\TargetHealthRecord;
+use Proxyma\Infrastructure\Eloquent\TargetRecord;
+use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
 use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretRecord;
 use Proxyma\Infrastructure\Security\SharedRouteGrantRecord;
 use RuntimeException;
 
 /** @internal PostgreSQL authority; имена берутся из внутренних моделей. */
+#[Internal]
 final class PackageSchema
 {
     /** @return array<string, string> */
@@ -20,34 +49,34 @@ final class PackageSchema
     {
         $models = [
             'encrypted_secrets' => EncryptedSecretRecord::class,
-            'endpoints' => Eloquent\EndpointRecord::class,
-            'routes' => Eloquent\RouteRecord::class,
-            'route_profiles' => Eloquent\RouteProfileRecord::class,
-            'route_profile_members' => Eloquent\RouteProfileMemberRecord::class,
-            'targets' => Eloquent\TargetRecord::class,
-            'policy_heads' => Eloquent\PolicyHeadRecord::class,
-            'policy_revisions' => Eloquent\PolicyRevisionRecord::class,
-            'bindings' => Eloquent\BindingRecord::class,
-            'binding_revisions' => Eloquent\BindingRevisionRecord::class,
-            'operations' => Eloquent\OperationRecord::class,
-            'demands' => Eloquent\DemandRecord::class,
-            'demand_scopes' => Eloquent\DemandScopeRecord::class,
-            'permits' => Eloquent\PermitRecord::class,
-            'attempts' => Eloquent\AttemptRecord::class,
-            'budgets' => Eloquent\BudgetRecord::class,
-            'quota_windows' => Eloquent\QuotaWindowRecord::class,
-            'quota_reservations' => Eloquent\QuotaReservationRecord::class,
-            'reconcile_cursors' => Eloquent\ReconcileCursorRecord::class,
-            'temporary_artifacts' => Eloquent\TemporaryArtifactRecord::class,
-            'reservations' => Eloquent\ReservationRecord::class,
-            'route_health' => Eloquent\RouteHealthRecord::class,
-            'profile_health' => Eloquent\ProfileHealthRecord::class,
-            'route_target_health' => Eloquent\RouteTargetHealthRecord::class,
-            'target_health' => Eloquent\TargetHealthRecord::class,
-            'observations' => Eloquent\ObservationRecord::class,
-            'observation_applications' => Eloquent\ObservationApplicationRecord::class,
-            'imported_health_samples' => Eloquent\ImportedHealthSampleRecord::class,
-            'audit_events' => Eloquent\AuditEventRecord::class,
+            'endpoints' => EndpointRecord::class,
+            'routes' => RouteRecord::class,
+            'route_profiles' => RouteProfileRecord::class,
+            'route_profile_members' => RouteProfileMemberRecord::class,
+            'targets' => TargetRecord::class,
+            'policy_heads' => PolicyHeadRecord::class,
+            'policy_revisions' => PolicyRevisionRecord::class,
+            'bindings' => BindingRecord::class,
+            'binding_revisions' => BindingRevisionRecord::class,
+            'operations' => OperationRecord::class,
+            'demands' => DemandRecord::class,
+            'demand_scopes' => DemandScopeRecord::class,
+            'permits' => PermitRecord::class,
+            'attempts' => AttemptRecord::class,
+            'budgets' => BudgetRecord::class,
+            'quota_windows' => QuotaWindowRecord::class,
+            'quota_reservations' => QuotaReservationRecord::class,
+            'reconcile_cursors' => ReconcileCursorRecord::class,
+            'temporary_artifacts' => TemporaryArtifactRecord::class,
+            'reservations' => ReservationRecord::class,
+            'route_health' => RouteHealthRecord::class,
+            'profile_health' => ProfileHealthRecord::class,
+            'route_target_health' => RouteTargetHealthRecord::class,
+            'target_health' => TargetHealthRecord::class,
+            'observations' => ObservationRecord::class,
+            'observation_applications' => ObservationApplicationRecord::class,
+            'imported_health_samples' => ImportedHealthSampleRecord::class,
+            'audit_events' => AuditEventRecord::class,
             'shared_route_grants' => SharedRouteGrantRecord::class,
             'catalog_command_receipts' => CatalogCommandReceiptRecord::class,
             'probe_claims' => ProbeClaimRecord::class,

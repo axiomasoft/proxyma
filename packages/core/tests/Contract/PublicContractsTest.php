@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__.'/../Support/InMemoryTransactionCoordinator.php';
 
-use Proxyma\Contracts\Admission;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\PhysicalTransport;
-use Proxyma\Contracts\TransactionCoordinator;
+use Proxyma\Contracts\Admission\Admission;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\TransactionCoordinator;
+use Proxyma\Contracts\Execution\PhysicalTransport;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Catalog\CredentialRef;
@@ -88,17 +88,17 @@ it('validates Uuid, ContentHash, Duration, RetryAt, TenantKey, and SubjectChain 
         ->and((string) $id1)->toBe($id1->value);
 
     foreach (['', 'not-a-uuid', '550E8400-E29B-41D4-A716-446655440000', "550e8400-e29b-41d4-a716-446655440000\n"] as $invalidUuid) {
-        expect(static fn () => new Uuid($invalidUuid))->toThrow(InvalidArgumentException::class);
+        expect(static fn (): Uuid => new Uuid($invalidUuid))->toThrow(InvalidArgumentException::class);
     }
 
     $hash = ContentHash::of('payload');
     expect($hash->equals(new ContentHash($hash->hex)))->toBeTrue();
-    expect(static fn () => new ContentHash('ABC'))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): ContentHash => new ContentHash('ABC'))->toThrow(InvalidArgumentException::class);
 
     expect(Duration::seconds(5)->milliseconds)->toBe(5000)
         ->and(Duration::nanoseconds(2_500_000)->milliseconds)->toBe(2)
         ->and(Duration::seconds(1)->plus(Duration::milliseconds(250))->nanos())->toBe(1_250_000_000);
-    expect(static fn () => new Duration(-1))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): Duration => new Duration(-1))->toThrow(InvalidArgumentException::class);
 
     $retryAt = new RetryAt(new DateTimeImmutable('2026-11-09T22:00:00+04:00'));
     expect($retryAt->value->getTimezone()->getName())->toBe('UTC');
@@ -108,7 +108,7 @@ it('validates Uuid, ContentHash, Duration, RetryAt, TenantKey, and SubjectChain 
         ->and($systemTenant->value)->toBe('system');
 
     foreach (['', '*', 'UPPERCASE', 'tenant with space', "tenant\n"] as $badTenant) {
-        expect(static fn () => new TenantKey($badTenant))->toThrow(InvalidArgumentException::class);
+        expect(static fn (): TenantKey => new TenantKey($badTenant))->toThrow(InvalidArgumentException::class);
     }
 
     $tenant = new TenantKey('acme');
@@ -124,11 +124,11 @@ it('validates Uuid, ContentHash, Duration, RetryAt, TenantKey, and SubjectChain 
 
     // 16th ancestor makes total chain depth 17 (> 16 max depth) -> rejected
     $sixteenParents = [...$parents, new SubjectRef($tenant, 'level_16', 'id_16')];
-    expect(static fn () => new SubjectChain(new SubjectRef($tenant, 'leaf', 'leaf_1'), $sixteenParents))
+    expect(static fn (): SubjectChain => new SubjectChain(new SubjectRef($tenant, 'leaf', 'leaf_1'), $sixteenParents))
         ->toThrow(InvalidArgumentException::class, '16');
 
     // Cycle in parent chain -> rejected
-    expect(static fn () => new SubjectRef($tenant, 'crawler', 'c1', [
+    expect(static fn (): SubjectRef => new SubjectRef($tenant, 'crawler', 'c1', [
         new SubjectRef($tenant, 'platform', 'p1'),
         new SubjectRef($tenant, 'crawler', 'c1'),
     ]))->toThrow(InvalidArgumentException::class, 'Cycle');
@@ -140,7 +140,7 @@ it('validates Uuid, ContentHash, Duration, RetryAt, TenantKey, and SubjectChain 
     ]))->parents)->toHaveCount(2);
 
     // Cross-tenant parent -> rejected
-    expect(static fn () => new SubjectRef($tenant, 'crawler', 'c1', [
+    expect(static fn (): SubjectRef => new SubjectRef($tenant, 'crawler', 'c1', [
         new SubjectRef(TenantKey::system(), 'platform', 'p1'),
     ]))->toThrow(InvalidArgumentException::class, 'Cross-tenant');
 });
@@ -151,8 +151,8 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
         ->and(CanonicalOrigin::fromUrl('https://EXAMPLE.test.:443/x?q=1')->hash()->hex)
         ->toBe(CanonicalOrigin::fromUrl('https://example.test')->hash()->hex);
 
-    expect(static fn () => CanonicalOrigin::fromUrl('https://user:pass@example.test'))->toThrow(InvalidArgumentException::class);
-    expect(static fn () => CanonicalOrigin::fromUrl('ftp://example.test'))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): CanonicalOrigin => CanonicalOrigin::fromUrl('https://user:pass@example.test'))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): CanonicalOrigin => CanonicalOrigin::fromUrl('ftp://example.test'))->toThrow(InvalidArgumentException::class);
 
     $tenant = new TenantKey('tenant-a');
     $otherTenant = new TenantKey('tenant-b');
@@ -171,13 +171,13 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
         ->and($endpoint->credentialVersion())->toBe(2);
 
     // EgressIdentity cannot be a random UUID; conservativePool groups deterministically
-    expect(static fn () => new EgressIdentity(Uuid::random()->value))->toThrow(InvalidArgumentException::class, 'UUID');
+    expect(static fn (): EgressIdentity => new EgressIdentity(Uuid::random()->value))->toThrow(InvalidArgumentException::class, 'UUID');
     $poolEgress = EgressIdentity::conservativePool('provider-pool-eu');
     expect($poolEgress->key)->toBe('pool:provider-pool-eu')
         ->and($poolEgress->conservativePoolFallback)->toBeTrue();
 
     // Route XOR: Direct with endpointId is rejected; Proxy without endpointId is rejected
-    expect(static fn () => new Route(
+    expect(static fn (): Route => new Route(
         id: Uuid::random(),
         tenantKey: $tenant,
         routeKey: 'invalid-direct',
@@ -187,7 +187,7 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
         egress: EgressIdentity::explicit('nat:worker-1'),
     ))->toThrow(InvalidArgumentException::class, 'XOR');
 
-    expect(static fn () => new Route(
+    expect(static fn (): Route => new Route(
         id: Uuid::random(),
         tenantKey: $tenant,
         routeKey: 'invalid-proxy',
@@ -198,7 +198,7 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
     ))->toThrow(InvalidArgumentException::class, 'XOR');
 
     // Egress key cannot equal routeKey or independenceGroup
-    expect(static fn () => new Route(
+    expect(static fn (): Route => new Route(
         id: Uuid::random(),
         tenantKey: $tenant,
         routeKey: 'proxy-1',
@@ -284,8 +284,8 @@ it('enforces Catalog identity invariants: CanonicalOrigin, Endpoint, Route XOR, 
     );
     expect($target->isRetired())->toBeFalse();
 
-    expect(static fn () => new CatalogMutationActor('', 'reason'))->toThrow(InvalidArgumentException::class);
-    expect(static fn () => new CatalogMutationActor('operator', ''))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): CatalogMutationActor => new CatalogMutationActor('', 'reason'))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): CatalogMutationActor => new CatalogMutationActor('operator', ''))->toThrow(InvalidArgumentException::class);
 });
 
 it('enforces DemandState, PermitState, legacy released mapping, and LateReceiptTransition invariants', function (): void {
@@ -302,7 +302,7 @@ it('enforces DemandState, PermitState, legacy released mapping, and LateReceiptT
 
     // DemandTicket deadline invariant and fair FIFO tie-break
     $now = new DateTimeImmutable('2026-11-09T18:00:00Z');
-    expect(static fn () => new DemandTicket(
+    expect(static fn (): DemandTicket => new DemandTicket(
         demandId: Uuid::random(),
         operationId: Uuid::random(),
         physicalAttemptId: Uuid::random(),
@@ -360,13 +360,13 @@ it('enforces DemandState, PermitState, legacy released mapping, and LateReceiptT
     // Legacy 'released' mapping: never blindly renamed to 'completed' without send/receipt facts
     expect(PermitState::fromLegacyStatus('released', wasAuthorized: false))->toBe(PermitState::CancelledBeforeSend)
         ->and(PermitState::fromLegacyStatus('released', wasAuthorized: true, hasVerifiedReceipt: false))->toBe(PermitState::UnknownAfterAuthorization)
-        ->and(PermitState::fromLegacyStatus('released', wasAuthorized: true, hasVerifiedReceipt: null))->toBe(PermitState::UnknownAfterAuthorization)
+        ->and(PermitState::fromLegacyStatus('released', wasAuthorized: true))->toBe(PermitState::UnknownAfterAuthorization)
         ->and(PermitState::fromLegacyStatus('released', wasAuthorized: true, hasVerifiedReceipt: true))->toBe(PermitState::Completed)
         ->and(PermitState::fromLegacyStatus('expired', wasAuthorized: false))->toBe(PermitState::ExpiredBeforeSend)
         ->and(PermitState::fromLegacyStatus('expired', wasAuthorized: true, hasVerifiedReceipt: false))->toBe(PermitState::UnknownAfterAuthorization);
 
-    expect(static fn () => PermitState::fromLegacyStatus('reserved', wasAuthorized: true))->toThrow(InvalidArgumentException::class);
-    expect(static fn () => PermitState::fromLegacyStatus('sent', wasAuthorized: false))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): PermitState => PermitState::fromLegacyStatus('reserved', wasAuthorized: true))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): PermitState => PermitState::fromLegacyStatus('sent', wasAuthorized: false))->toThrow(InvalidArgumentException::class);
 
     // Late receipt transition: unknown_after_authorization -> completed
     $opId = Uuid::random();
@@ -437,24 +437,24 @@ it('seals headers and body into WireRequest fingerprint, prevents secret seriali
         ->and($url->reveal())->toContain('signature=secret-token')
         ->and($url->__debugInfo())->not->toHaveKey('value')
         ->and(json_encode($url->__debugInfo()))->not->toContain('secret-token');
-    expect(static fn () => serialize($url))->toThrow(LogicException::class);
+    expect(static fn (): string => serialize($url))->toThrow(LogicException::class);
 
     $resolvedUrl = new ResolvedUrl($url, '192.0.2.10', ['192.0.2.10', '192.0.2.11']);
     expect($resolvedUrl->withAddress('192.0.2.11')->address)->toBe('192.0.2.11');
-    expect(static fn () => $resolvedUrl->withAddress('198.51.100.1'))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): ResolvedUrl => $resolvedUrl->withAddress('198.51.100.1'))->toThrow(InvalidArgumentException::class);
 
     $headersA = new PreparedHeaders(['Authorization' => 'Bearer secret-a', 'User-Agent' => 'Proxyma/0.1']);
     $headersB = new PreparedHeaders(['Authorization' => 'Bearer secret-b', 'User-Agent' => 'Proxyma/0.1']);
     expect($headersA->digest->equals($headersB->digest))->toBeFalse()
         ->and($headersA->acrossOrigin()->names())->toBe(['user-agent'])
         ->and(json_encode($headersA->__debugInfo()))->not->toContain('secret-a');
-    expect(static fn () => serialize($headersA))->toThrow(LogicException::class);
-    expect(static fn () => new PreparedHeaders(['Proxy-Authorization' => 'Basic xyz']))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): string => serialize($headersA))->toThrow(LogicException::class);
+    expect(static fn (): PreparedHeaders => new PreparedHeaders(['Proxy-Authorization' => 'Basic xyz']))->toThrow(InvalidArgumentException::class);
 
     $body = WireBody::fromString('{"query":"value"}');
     expect(WireBody::fromVerified('{"query":"value"}', $body->hash, $body->length)->length)->toBe($body->length);
-    expect(static fn () => WireBody::fromVerified('{"tampered":true}', $body->hash))->toThrow(InvalidArgumentException::class);
-    expect(static fn () => serialize($body))->toThrow(LogicException::class);
+    expect(static fn (): WireBody => WireBody::fromVerified('{"tampered":true}', $body->hash))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): string => serialize($body))->toThrow(LogicException::class);
 
     $timeouts = new RequestTimeoutPolicy(connectTimeoutMs: 1000, readTimeoutMs: 2000, totalTimeoutMs: 5000, maxAttempts: 3, maxDistinctRoutes: 2, maxRedirects: 1);
     $opId = Uuid::random();
@@ -474,7 +474,7 @@ it('seals headers and body into WireRequest fingerprint, prevents secret seriali
         body: $body,
     );
     expect($ambiguousPost->maxAutomaticAttempts())->toBe(1);
-    expect(static fn () => new OutboundRequest($opId, $targetId, 'GET', $url, $timeouts, IdempotencyClass::ReadOnly, $headersA, $body))
+    expect(static fn (): OutboundRequest => new OutboundRequest($opId, $targetId, 'GET', $url, $timeouts, IdempotencyClass::ReadOnly, $headersA, $body))
         ->toThrow(InvalidArgumentException::class);
 
     $wireA = new WireRequest($opId, $attemptId, $targetId, 1, 'POST', $url, $timeouts, $deadline, $headersA, $body, IdempotencyClass::AmbiguousWrite);
@@ -503,7 +503,7 @@ it('seals headers and body into WireRequest fingerprint, prevents secret seriali
         ->and($succeeded->finalAttemptId->equals($attemptId))->toBeTrue();
 
     // ExecutionBlocked rejects secret keys in safeDetails
-    expect(static fn () => new ExecutionBlocked(BlockedReason::CredentialHold, ['proxy_password' => 'leaked']))
+    expect(static fn (): ExecutionBlocked => new ExecutionBlocked(BlockedReason::CredentialHold, ['proxy_password' => 'leaked']))
         ->toThrow(InvalidArgumentException::class, 'secret');
 
     $unknown = new ExecutionUnknownAfterAuthorization($opId, $attemptId, Uuid::random(), $wireA->fingerprint(), TransportFailure::Timeout);
@@ -511,8 +511,8 @@ it('seals headers and body into WireRequest fingerprint, prevents secret seriali
 
     $secret = new ResolvedSecret(new CredentialRef('vault:cred', 1), 'user1', 'top-secret');
     expect(json_encode($secret->__debugInfo()))->not->toContain('top-secret');
-    expect(static fn () => serialize($secret))->toThrow(LogicException::class);
-    expect(static fn () => new TlsTrustConfiguration(verifyPeer: false))->toThrow(InvalidArgumentException::class);
+    expect(static fn (): string => serialize($secret))->toThrow(LogicException::class);
+    expect(static fn (): TlsTrustConfiguration => new TlsTrustConfiguration(verifyPeer: false))->toThrow(InvalidArgumentException::class);
 });
 
 it('enforces bounded extension contracts: RouteSubsetEnforcer, BudgetConstraintSet, and LockedAdmissionGuard', function (): void {
@@ -523,7 +523,7 @@ it('enforces bounded extension contracts: RouteSubsetEnforcer, BudgetConstraintS
     $foreignRoute = new Route(Uuid::random(), $tenant, 'route-foreign', RouteKind::Proxy, Uuid::random(), true, $egress);
 
     expect(RouteSubsetEnforcer::enforceSubset([$r1, $r2], [$r2]))->toBe([$r2]);
-    expect(static fn () => RouteSubsetEnforcer::enforceSubset([$r1, $r2], [$r1, $foreignRoute]))
+    expect(static fn (): array => RouteSubsetEnforcer::enforceSubset([$r1, $r2], [$r1, $foreignRoute]))
         ->toThrow(InvalidArgumentException::class, 'outside the profile');
 
     $mandatoryOrigin = new BudgetConstraint('origin:1', emissionIntervalUs: 500_000, burst: 2, maxInflight: 4, mandatory: true);
@@ -545,7 +545,7 @@ it('enforces bounded extension contracts: RouteSubsetEnforcer, BudgetConstraintS
             return AdmissionLockTier::Budgets;
         }
 
-        public function evaluateLocked(WireRequest $request, LockedOwnerState $owner, LockedTransactionContext $transaction): ?ClaimDenied
+        public function evaluateLocked(WireRequest $request, LockedOwnerState $owner, LockedTransactionContext $transaction): ClaimDenied
         {
             return new ClaimDenied(ClaimDenialReason::GuardDenied, ['tier' => $this->tier()->value]);
         }
@@ -769,7 +769,7 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
             WireRequest $request,
             LockedOwnerState $ownerState,
             LockedTransactionContext $transaction,
-        ): ClaimCandidate|PermitWait|ClaimDenied|ExecutionDeferred|ExecutionBlocked {
+        ): ClaimCandidate|ClaimDenied {
             $transaction->assertConnection($this->coordinator->connectionName());
             $state = ($this->readState)();
             $key = $request->operationId->value.':'.$request->physicalAttemptId->value;
@@ -874,14 +874,14 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
     // Verify standalone probe owner snapshot & lock
     $standaloneSnap = $ownerAuthority->snapshot($standaloneOwner);
     expect($standaloneSnap)->not->toBeNull();
-    $lockedStandalone = $coordinator->run(static fn (LockedTransactionContext $tx) => $ownerAuthority->lockAndValidate($standaloneOwner, $standaloneSnap, $tx));
+    $lockedStandalone = $coordinator->run(static fn (LockedTransactionContext $tx): LockedOwnerState|ExecutionBlocked => $ownerAuthority->lockAndValidate($standaloneOwner, $standaloneSnap, $tx));
     expect($lockedStandalone)->toBeInstanceOf(LockedOwnerState::class)
         ->and($lockedStandalone->purpose)->toBe(DemandPurpose::Probe)
         ->and($lockedStandalone->probeToken?->equals($probeToken))->toBeTrue();
 
     // Verify connection mismatch is rejected immediately
     $wrongConnTx = new LockedTransactionContext('other_connection', 'tok', $currentMonotonicNs);
-    expect(static fn () => $ownerAuthority->lockAndValidate($standaloneOwner, $standaloneSnap, $wrongConnTx))
+    expect(static fn (): LockedOwnerState|ExecutionBlocked => $ownerAuthority->lockAndValidate($standaloneOwner, $standaloneSnap, $wrongConnTx))
         ->toThrow(LogicException::class, 'connection mismatch');
 
     // Prepare process-like joint claim request
@@ -975,7 +975,7 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
     expect($readState()['financial_claims'])->toBe([])
         ->and($readState()['permits'][$opId->value.':'.$attemptId->value]['state'])->toBe(PermitState::Reserved)
         ->and($leakedCandidate)->toBeInstanceOf(ClaimCandidate::class);
-    expect(static fn () => $coordinator->activate($leakedCandidate, $wireRequest, $wireSnapshot))
+    expect(static fn (): AuthorizedWireRequest => $coordinator->activate($leakedCandidate, $wireRequest, $wireSnapshot))
         ->toThrow(LogicException::class);
 
     // Negative test: savepoint release does NOT allow activating candidate while outer transaction is still open
@@ -987,7 +987,7 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
         });
 
         // Savepoint released, but outer transaction is still at level 1 -> activation must fail!
-        expect(static fn () => $coordinator->activate($nestedCandidate, $wireRequest, $wireSnapshot))
+        expect(static fn (): AuthorizedWireRequest => $coordinator->activate($nestedCandidate, $wireRequest, $wireSnapshot))
             ->toThrow(LogicException::class, 'before the outermost SQL transaction has committed');
     });
 
@@ -1023,11 +1023,11 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
         ->and($capability->isConsumed())->toBeFalse();
 
     // Second activation of the same candidate is rejected
-    expect(static fn () => $coordinator->activate($committedCandidate, $wireRequest, $wireSnapshot))
+    expect(static fn (): AuthorizedWireRequest => $coordinator->activate($committedCandidate, $wireRequest, $wireSnapshot))
         ->toThrow(LogicException::class);
 
     // Duplicate claim on already-authorized permit returns AlreadyClaimed and zero send
-    $duplicateClaim = $coordinator->run(function (LockedTransactionContext $tx) use ($ownerAuthority, $processOwner, $processSnap, $admission, $permit, $wireRequest) {
+    $duplicateClaim = $coordinator->run(function (LockedTransactionContext $tx) use ($ownerAuthority, $processOwner, $processSnap, $admission, $permit, $wireRequest): ClaimCandidate|ClaimDenied {
         $ownerState = $ownerAuthority->lockAndValidate($processOwner, $processSnap, $tx);
 
         return $admission->claimSendLocked($permit, $wireRequest, $ownerState, $tx);
@@ -1064,7 +1064,7 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
         ->and($readState()['sent_requests'])->toBe(1);
 
     // Second sendOnce on consumed capability is rejected with zero additional sends
-    expect(static fn () => $transport->sendOnce($capability))->toThrow(LogicException::class, 'already consumed');
+    expect(static fn (): AttemptResult => $transport->sendOnce($capability))->toThrow(LogicException::class, 'already consumed');
     expect($readState()['sent_requests'])->toBe(1);
 
     // Expired monotonic latestStart on activation is rejected
@@ -1094,6 +1094,6 @@ it('proves OwnerAuthority, TransactionCoordinator, CommitLatch, and joint claim 
 
     // Advance monotonic clock past conservative latestStart (60s DB window - 15s total+cleanup = 45s)
     $currentMonotonicNs += 46_000_000_000;
-    expect(static fn () => $coordinator->activate($expiredCandidate, $expiredWire, $expiredSnapshot))
+    expect(static fn (): AuthorizedWireRequest => $coordinator->activate($expiredCandidate, $expiredWire, $expiredSnapshot))
         ->toThrow(LogicException::class, 'expired');
 });

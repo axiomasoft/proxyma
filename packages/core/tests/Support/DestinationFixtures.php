@@ -17,8 +17,8 @@ use ReflectionClass;
 function fixtureDestination(ConnectionScope $scope, WireRequest $request): ResolvedUrl
 {
     $target = new Target($request->targetId, new TenantKey('fixture'), 'fixture', $request->url->origin, 'fixture');
-    $context = (new ReflectionClass(ExecutionContext::class))->newInstanceWithoutConstructor();
-    $policy = new DestinationPolicy(new DnsResolver($scope, static fn () => ['8.8.8.8']));
+    $context = new ReflectionClass(ExecutionContext::class)->newInstanceWithoutConstructor();
+    $policy = new DestinationPolicy(new DnsResolver($scope, static fn (): array => ['8.8.8.8']));
 
     return $policy->resolve($request->url, $context, 100, $target);
 }

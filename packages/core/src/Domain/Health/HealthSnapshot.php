@@ -6,8 +6,10 @@ namespace Proxyma\Domain\Health;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class HealthSnapshot
 {
     public function __construct(

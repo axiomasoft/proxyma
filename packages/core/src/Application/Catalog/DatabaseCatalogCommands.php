@@ -7,10 +7,11 @@ namespace Proxyma\Application\Catalog;
 use Closure;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\CatalogCommands;
-use Proxyma\Contracts\CatalogMutationFence;
-use Proxyma\Contracts\SharedRouteCommands;
+use Proxyma\Contracts\Catalog\CatalogCommands;
+use Proxyma\Contracts\Catalog\CatalogMutationFence;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\RetireCatalogEntityCommand;
@@ -35,7 +36,9 @@ use Proxyma\Infrastructure\Health\CredentialHolds;
 use Proxyma\Infrastructure\Http\TransportDoctor;
 use Proxyma\Infrastructure\Security\SharedRouteStorage;
 use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
+use Proxyma\Internal\Database\RowValues;
 
+#[Api(since: '1.0')]
 final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedRouteCommands
 {
     public function __construct(private Connection $db, private CatalogAccess $access) {}
@@ -68,12 +71,14 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         $row = $this->mutate('catalog.endpoint.upsert', 'endpoints', $command->endpointId, $command->tenantKey, $command->actor, $command,
             function (?object $previous) use ($command): array {
                 $value = new Endpoint($command->endpointId, $command->tenantKey, $command->protocol, $command->host, $command->port, $command->credential);
-                if ($previous !== null && $previous->credential_ref !== null && $value->credential === null) {
+                $previousCredentialRef = $previous === null ? null : RowValues::colNullableStr($previous, 'credential_ref');
+                if ($previousCredentialRef !== null && $value->credential === null) {
                     throw new CatalogInvalidMutation('Removing credentials requires a new endpoint identity.');
                 }
+                $previousVersion = $previous === null ? 1 : (RowValues::colNullableInt($previous, 'credential_version') ?? 1);
                 if ($previous !== null && $value->credential !== null
-                    && ($previous->credential_ref !== $value->credential->reference || (int) $previous->credential_version !== $value->credential->version)
-                    && $value->credential->version <= (int) ($previous->credential_version ?? 1)) {
+                    && ($previousCredentialRef !== $value->credential->reference || $previousVersion !== $value->credential->version)
+                    && $value->credential->version <= $previousVersion) {
                     throw new CatalogInvalidMutation('Credential rotation must advance its version.');
                 }
 
@@ -114,8 +119,9 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
                 if ($previous === null) {
                     throw new CatalogNotFound('Route not found in tenant scope.');
                 }
-                if ($command->enabled && $previous->endpoint_id !== null) {
-                    $this->requireActive('endpoints', $command->tenantKey, new Uuid($previous->endpoint_id));
+                $previousEndpointId = RowValues::colNullableStr($previous, 'endpoint_id');
+                if ($command->enabled && $previousEndpointId !== null) {
+                    $this->requireActive('endpoints', $command->tenantKey, new Uuid($previousEndpointId));
                 }
 
                 return ['enabled' => $command->enabled];
@@ -128,9 +134,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
     {
         $profile = new RouteProfile($command->profileId, $command->tenantKey, $command->profileKey, $command->memberRouteIds, $command->strategyKey);
         $row = $this->mutate('catalog.profile.upsert', 'route_profiles', $command->profileId, $command->tenantKey, $command->actor, $command,
-            function (?object $previous) use ($profile): array {
-                return ['profile_key' => $profile->profileKey, 'strategy_key' => $profile->strategyKey];
-            }, $command->budgets, $profile->memberRouteIds);
+            fn (?object $previous): array => ['profile_key' => $profile->profileKey, 'strategy_key' => $profile->strategyKey], $command->budgets, $profile->memberRouteIds);
 
         return CatalogRowMapper::profile($row);
     }
@@ -178,6 +182,8 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         if ($actor->expectedRevision === null || $actor->idempotencyKey === null) {
             throw new CatalogInvalidMutation('Catalog writes require expectedRevision (0 for create) and idempotencyKey.');
         }
+        $expectedRevision = $actor->expectedRevision;
+        $idempotencyKey = $actor->idempotencyKey;
         $budgets = self::checkedBudgets($budgets);
         $hash = hash('sha256', json_encode([$ability, $command], JSON_THROW_ON_ERROR));
 
@@ -196,30 +202,35 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
 
         // Повторяем только SQL; внешние authorizer/secret/network вызовы остаются вне closure.
         try {
-            return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $hash, $changes, $budgets, $members): object {
+            return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $expectedRevision, $idempotencyKey, $hash, $changes, $budgets, $members): object {
                 (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $actor);
                 $t = PackageSchema::tables();
                 $provisioner = new CatalogProvisioner($this->db);
                 $provisioner->lockCatalog($tenant);
-                $receipt = $this->db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey))->first();
+                $receipt = $this->db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($idempotencyKey))->first();
                 if ($receipt !== null) {
-                    if (! hash_equals($receipt->command_hash, $hash)) {
+                    if (! hash_equals(RowValues::colStr($receipt, 'command_hash'), $hash)) {
                         throw new CatalogConflict('Idempotency key was used for another command.');
                     }
 
-                    return json_decode($receipt->result, false, 512, JSON_THROW_ON_ERROR);
+                    return RowValues::object(json_decode(RowValues::colStr($receipt, 'result'), false, 512, JSON_THROW_ON_ERROR));
                 }
                 $query = $this->db->table($t[$table])->where('tenant_key', $tenant->value)->where('id', $id->value);
                 $previous = (clone $query)->first();
-                if ((int) ($previous->revision ?? 0) !== $actor->expectedRevision) {
+                $previousRevision = $previous === null ? 0 : RowValues::colInt($previous, 'revision');
+                if ($previousRevision !== $expectedRevision) {
                     throw new CatalogConflict('Catalog expected revision does not match.');
                 }
-                if ($previous !== null && $previous->retired_at !== null) {
+                if ($previous !== null && RowValues::colNullableStr($previous, 'retired_at') !== null) {
                     throw new CatalogInvalidMutation('Retired catalog identities cannot be changed or revived.');
                 }
-                $revision = $actor->expectedRevision + 1;
+                $revision = $expectedRevision + 1;
                 $patch = $changes($previous);
-                $fields = array_keys(array_filter($patch, static fn ($value, $field): bool => $previous === null || ($previous->{$field} ?? null) != $value, ARRAY_FILTER_USE_BOTH));
+                $fields = array_keys(array_filter(
+                    $patch,
+                    static fn (mixed $value, string $field): bool => self::fieldChanged($previous, $field, $value),
+                    ARRAY_FILTER_USE_BOTH,
+                ));
                 $values = $patch + ['revision' => $revision, 'updated_at' => $this->db->raw('clock_timestamp()')];
                 if ($previous === null) {
                     $this->db->table($t[$table])->insert(['id' => $id->value, 'tenant_key' => $tenant->value] + $values);
@@ -227,15 +238,19 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
                     $query->update($values);
                 }
                 if ($table === 'endpoints' && $previous !== null) {
-                    (new CredentialHolds($this->db))->rotated($tenant->value, $id->value,
-                        (int) ($previous->credential_version ?? 1), (int) ($values['credential_version'] ?? 1));
+                    new CredentialHolds($this->db)->rotated(
+                        $tenant->value,
+                        $id->value,
+                        RowValues::colNullableInt($previous, 'credential_version') ?? 1,
+                        RowValues::int($values['credential_version'] ?? 1),
+                    );
                 }
                 if ($members !== null) {
                     $pivot = $this->db->table($t['route_profile_members'])->where('tenant_key', $tenant->value)->where('profile_id', $id->value);
                     $pivot->delete();
                     foreach ($members as $position => $routeId) {
                         $owned = $this->db->table($t['routes'])->where('tenant_key', $tenant->value)->where('id', $routeId->value)->whereNull('retired_at')->first();
-                        $grant = $owned === null ? (new SharedRouteStorage($this->db))->forConsumer($tenant, $routeId) : null;
+                        $grant = $owned === null ? new SharedRouteStorage($this->db)->forConsumer($tenant, $routeId) : null;
                         $owner = $owned === null ? $grant?->owner : $tenant;
                         if ($owner === null) {
                             throw new CatalogNotFound('Route not found in tenant scope.');
@@ -247,20 +262,21 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
                     $fields[] = 'member_route_ids';
                 }
                 $provisioner->materialize($tenant, $budgets);
-                $result = (clone $query)->first();
+                $result = (clone $query)->first() ?? throw new CatalogStorageFailure;
                 if ($table === 'route_profiles') {
                     $result->member_route_ids = array_map(static fn (Uuid $routeId): string => $routeId->value, $members ?? []);
                 }
                 if ($table === 'routes') {
-                    $endpoint = $result->endpoint_id === null ? null : $this->db->table($t['endpoints'])
-                        ->where('tenant_key', $tenant->value)->where('id', $result->endpoint_id)->first();
-                    $result->credential_version = $endpoint->credential_version ?? 1;
-                    $result->endpoint_revision = $endpoint === null ? null : (int) $endpoint->revision;
+                    $endpointId = RowValues::colNullableStr($result, 'endpoint_id');
+                    $endpoint = $endpointId === null ? null : $this->db->table($t['endpoints'])
+                        ->where('tenant_key', $tenant->value)->where('id', $endpointId)->first();
+                    $result->credential_version = $endpoint === null ? 1 : (RowValues::colNullableInt($endpoint, 'credential_version') ?? 1);
+                    $result->endpoint_revision = $endpoint === null ? null : RowValues::colInt($endpoint, 'revision');
                 }
                 if ($budgets !== []) {
                     $fields[] = 'budgets';
                 }
-                (new CatalogAudit($this->db))->mutation($table, $tenant, $id, $ability, $actor, $hash, $previous, $result, $fields);
+                new CatalogAudit($this->db)->mutation($table, $tenant, $id, $ability, $actor, $hash, $previous, $result, $fields);
 
                 return CatalogAudit::snapshot($table, $result);
             }, 3);
@@ -275,6 +291,19 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         if (! $this->db->table(PackageSchema::tables()[$table])->where('tenant_key', $tenant->value)->where('id', $id->value)->whereNull('retired_at')->exists()) {
             throw new CatalogNotFound('Catalog reference not found in tenant scope.');
         }
+    }
+
+    private static function fieldChanged(?object $previous, string $field, mixed $value): bool
+    {
+        if ($previous === null) {
+            return true;
+        }
+        $prev = RowValues::col($previous, $field);
+        if (is_bool($value) && (is_int($prev) || $prev === '0' || $prev === '1')) {
+            return ($prev === 1 || $prev === '1') !== $value;
+        }
+
+        return $prev !== $value;
     }
 
     /**

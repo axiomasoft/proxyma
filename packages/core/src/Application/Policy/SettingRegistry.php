@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Policy;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Domain\Policy\PatchOperation;
 use Proxyma\Domain\Policy\PolicyScope;
 use Proxyma\Domain\Policy\SettingDescriptor;
 use Proxyma\Domain\Policy\SettingPatch;
 
+#[Api(since: '1.0')]
 final readonly class SettingRegistry
 {
     /** @var array<string, SettingDescriptor> */
@@ -51,7 +53,12 @@ final readonly class SettingRegistry
                 }
                 $scopes[] = $scope->value;
             }
-            $values = $descriptor->allowedValues;
+            $values = [];
+            foreach ($descriptor->allowedValues as $allowedValue) {
+                if (is_string($allowedValue)) {
+                    $values[] = $allowedValue;
+                }
+            }
             sort($scopes, SORT_STRING);
             sort($values, SORT_STRING);
             $definitions[$descriptor->key] = [

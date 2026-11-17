@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Policy;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Policy\PolicyScope;
 use Proxyma\Domain\Policy\SettingDescriptor;
 use Proxyma\Domain\Policy\SettingMerge;
 use Proxyma\Domain\Policy\SettingType;
 
+#[Api(since: '1.0')]
 final class CoreSettings
 {
-    /** @return list<SettingDescriptor> */
+    /**
+     * @param  list<string>  $strategyKeys
+     * @return list<SettingDescriptor>
+     */
     public static function descriptors(array $strategyKeys = []): array
     {
         $scopes = [PolicyScope::Global, PolicyScope::Tenant, PolicyScope::Panel, PolicyScope::Entity];

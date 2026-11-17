@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace Proxyma\Application\Policy;
 
 use Illuminate\Contracts\Container\Container;
-use Proxyma\Contracts\SettingDefinitionProvider;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Policy\SettingDefinitionProvider;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 
+#[Api(since: '1.0')]
 final readonly class SettingRegistryFactory
 {
     public function __construct(private Container $container) {}
 
-    /** @param array<string, mixed> $configuration */
+    /**
+     * @param  array<string, mixed>  $configuration
+     * @param  list<string>  $strategyKeys
+     */
     public function make(array $configuration, array $strategyKeys = []): SettingRegistry
     {
         self::serializable($configuration);

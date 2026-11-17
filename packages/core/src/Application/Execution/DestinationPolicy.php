@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Proxyma\Application\Execution;
 
 use InvalidArgumentException;
-use Proxyma\Contracts\DestinationResolver;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Execution\DestinationResolver;
 use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Execution\ExecutionContext;
 use Proxyma\Domain\Execution\ResolvedUrl;
@@ -13,6 +14,7 @@ use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Infrastructure\Http\DnsResolver;
 use Symfony\Component\HttpFoundation\IpUtils;
 
+#[Api(since: '1.0')]
 final readonly class DestinationPolicy implements DestinationResolver
 {
     /**
@@ -46,14 +48,13 @@ final readonly class DestinationPolicy implements DestinationResolver
             throw new InvalidArgumentException('Destination target or port denied.');
         }
         $host = $url->origin->host;
-        /** @var list<mixed> $addresses DNS и fixture responses проверяются на runtime boundary. */
         $addresses = $this->dns->resolve($host, $timeoutMs);
         if ($addresses === []) {
             throw new InvalidArgumentException('DNS returned no addresses.');
         }
         $validated = [];
         foreach ($addresses as $address) {
-            if (! is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false) {
+            if (filter_var($address, FILTER_VALIDATE_IP) === false) {
                 throw new InvalidArgumentException('DNS returned an invalid address.');
             }
             $address = (string) inet_ntop((string) inet_pton($address));

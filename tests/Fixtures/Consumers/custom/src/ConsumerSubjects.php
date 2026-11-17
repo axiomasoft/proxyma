@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Consumer;
 
-use Proxyma\Contracts\SubjectResolver;
+use Proxyma\Contracts\Bindings\SubjectResolver;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 

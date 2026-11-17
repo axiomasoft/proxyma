@@ -10,7 +10,7 @@ use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\OperationCommands;
 use Proxyma\Application\Admission\ReservationService;
-use Proxyma\Contracts\OwnerAuthority;
+use Proxyma\Contracts\Admission\OwnerAuthority;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\ResolvedSecret;

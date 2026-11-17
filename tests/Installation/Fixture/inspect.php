@@ -11,6 +11,7 @@ use Proxyma\Application\Diagnostics\Doctor;
 use Proxyma\Filament\ProxymaFilamentServiceProvider;
 use Proxyma\Filament\ProxymaPlugin;
 use Proxyma\Laravel\ProxymaServiceProvider;
+use Tests\TestCase;
 
 $installedLoader = require __DIR__.'/vendor/autoload.php';
 if (($argv[1] ?? '') === 'autoload-negative') {
@@ -77,7 +78,7 @@ foreach (ClassLoader::getRegisteredLoaders() as $vendor => $loader) {
         }
     }
 }
-$filament = class_exists('Filament\\Panel');
+$filament = class_exists(Panel::class);
 $pages = [];
 if ($filament) {
     $panel = Panel::make()->id('install')->plugin(ProxymaPlugin::make());
@@ -88,7 +89,7 @@ $report = [
     'ssl' => curl_version()['ssl_version'], 'extensions' => get_loaded_extensions(),
     'boot_queries' => $bootQueries, 'autoload_isolated' => $autoloadIsolated, 'autoloaded_classes' => $classes,
     'autoload_escapes' => $autoloadEscapes,
-    'root_test_visible' => class_exists('Tests\\TestCase'), 'consumer_app_visible' => class_exists('App\\Models\\User'),
+    'root_test_visible' => class_exists(TestCase::class), 'consumer_app_visible' => class_exists('App\\Models\\User'),
     'core_provider' => $app->getProvider(ProxymaServiceProvider::class) !== null,
     'filament' => $filament, 'pages' => $pages,
     'filament_provider' => $filament && $app->getProvider(ProxymaFilamentServiceProvider::class) !== null,

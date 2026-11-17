@@ -7,7 +7,9 @@ namespace Proxyma\Domain\Budget;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class FixedWindow
 {
     public DateTimeImmutable $startsAt;

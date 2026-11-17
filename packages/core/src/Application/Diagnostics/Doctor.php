@@ -4,46 +4,75 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Diagnostics;
 
-use Illuminate\Contracts\Config\Repository;
-use Proxyma\Contracts\DiagnosticsQueries;
-use Proxyma\Domain\Admission\QueueLimits;
+use Closure;
+use Packman\Attributes\Api;
+use Proxyma\Configuration\ProxymaOptions;
+use Proxyma\Contracts\Health\DiagnosticsQueries;
 use Proxyma\Domain\Catalog\ProxyProtocol;
-use Proxyma\Domain\Health\HealthThresholds;
+use Proxyma\Domain\Execution\SchemaDiagnosticReport;
 use Proxyma\Infrastructure\Http\TransportDoctor;
+use Throwable;
 
+/**
+ * Inspects schema capabilities, compiled configuration invariants, and local cURL transport support.
+ */
+#[Api(since: '1.0')]
 final readonly class Doctor
 {
-    public function __construct(private DiagnosticsQueries $queries, private Repository $config) {}
+    /** @param (Closure(): ProxymaOptions)|null $optionsResolver */
+    public function __construct(
+        private DiagnosticsQueries $queries,
+        private ?ProxymaOptions $options = null,
+        private ?Closure $optionsResolver = null,
+    ) {}
 
+    /**
+     * @return array{
+     *     healthy: bool,
+     *     schema: SchemaDiagnosticReport,
+     *     configuration_valid: bool,
+     *     protocols: array<string, bool>,
+     *     scheduler_enabled: bool,
+     *     network_io: false,
+     *     lease_inflight_is_physical_sockets: false,
+     * }
+     */
     public function inspect(): array
     {
         $schema = $this->queries->verifySchemaCapabilities();
         $configuration = true;
+        $schedulerEnabled = false;
+
         try {
-            new QueueLimits(...$this->config->get('proxyma.queue', []));
-            new HealthThresholds(...$this->config->get('proxyma.health', []));
-            $configuration = strlen((string) $this->config->get('proxyma.wire.digest_key')) >= 32
-                && $this->config->get('proxyma.safety') === ['admission' => 'mandatory', 'budgets' => 'mandatory', 'health' => 'mandatory']
-                && is_bool($this->config->get('proxyma.scheduler.enabled'))
-                && is_int($this->config->get('proxyma.maintenance.batch_size'))
-                && $this->config->get('proxyma.maintenance.batch_size') >= 1 && $this->config->get('proxyma.maintenance.batch_size') <= 64
-                && is_int($this->config->get('proxyma.maintenance.retention_seconds')) && $this->config->get('proxyma.maintenance.retention_seconds') >= 1;
-        } catch (\Throwable) {
+            $options = $this->optionsResolver !== null
+                ? ($this->optionsResolver)()
+                : ($this->options ?? new ProxymaOptions);
+
+            $configuration = strlen($options->wireDigestKey->reveal()) >= 32;
+            $schedulerEnabled = $options->schedulerEnabled;
+        } catch (Throwable) {
             $configuration = false;
         }
+
         $protocols = [];
+
         foreach ([ProxyProtocol::Http, ProxyProtocol::Https, ProxyProtocol::Socks5] as $protocol) {
             try {
                 TransportDoctor::assertProtocol($protocol);
                 $protocols[$protocol->value] = true;
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 $protocols[$protocol->value] = false;
             }
         }
 
-        return ['healthy' => $schema->healthy && $configuration && ! in_array(false, $protocols, true),
-            'schema' => $schema, 'configuration_valid' => $configuration, 'protocols' => $protocols,
-            'scheduler_enabled' => $this->config->get('proxyma.scheduler.enabled') === true,
-            'network_io' => false, 'lease_inflight_is_physical_sockets' => false];
+        return [
+            'healthy' => $schema->healthy && $configuration && ! in_array(false, $protocols, true),
+            'schema' => $schema,
+            'configuration_valid' => $configuration,
+            'protocols' => $protocols,
+            'scheduler_enabled' => $schedulerEnabled,
+            'network_io' => false,
+            'lease_inflight_is_physical_sockets' => false,
+        ];
     }
 }

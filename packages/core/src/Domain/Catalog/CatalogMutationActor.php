@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Catalog;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class CatalogMutationActor
 {
     public string $actorId;

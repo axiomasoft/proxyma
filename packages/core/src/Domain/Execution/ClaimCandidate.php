@@ -7,14 +7,17 @@ namespace Proxyma\Domain\Execution;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use JsonSerializable;
 use LogicException;
-use Proxyma\Contracts\ClaimActivationAuthority;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\ClaimActivationAuthority;
 
 /**
  * Inert, non-serializable claim candidate returned by claimSendLocked inside a transaction.
  * Cannot be passed to PhysicalTransport directly; must be activated after outermost commit.
  */
-final class ClaimCandidate implements \JsonSerializable
+#[Api(since: '1.0')]
+final class ClaimCandidate implements JsonSerializable
 {
     public readonly DateTimeImmutable $authorizedAt;
 
@@ -149,6 +152,7 @@ final class ClaimCandidate implements \JsonSerializable
         throw new LogicException('ClaimCandidate cannot be cloned.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('ClaimCandidate cannot be reconstructed.');

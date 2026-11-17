@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class AttemptResult
 {
     public ?HttpResponseHead $head;
@@ -27,7 +29,7 @@ final readonly class AttemptResult
             throw new InvalidArgumentException('Attempt byte counts must be non-negative.');
         }
 
-        $this->head = $response !== null ? $response->head : $partialHead;
+        $this->head = $response->head ?? $partialHead;
     }
 
     public static function delivered(ResponseDescriptor $response, ?TransportMetrics $metrics = null): self

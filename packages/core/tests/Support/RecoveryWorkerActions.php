@@ -17,7 +17,7 @@ use Proxyma\Infrastructure\Database\ReconcileRepository;
 $pdo->prepare("SELECT set_config('application_name',?,false)")->execute(['proxyma-p42-'.$schema.'-'.$payload['label']]);
 $repository = new ReconcileRepository($scope, $locks, $demands, $budgets, $quotas);
 if ($payload['recovery_action'] === 'reconcile') {
-    $result = (new Reconciler($transactions, $repository, $access))->run($tenant, $payload['limit'] ?? 32);
+    $result = new Reconciler($transactions, $repository, $access)->run($tenant, $payload['limit'] ?? 32);
     echo json_encode(['status' => 'reconciled', 'page' => $result], JSON_THROW_ON_ERROR);
 
     return;
@@ -27,7 +27,7 @@ if ($payload['recovery_action'] === 'complete') {
     $response = new ResponseDescriptor($payload['receipt_status'] ?? 200, ['x-fixture' => ['safe'], 'retry-after' => ['120']], new DecodedTextBody('fixture'), 7, 7);
     $receipt = new LateReceiptClaim(new Uuid($payload['operation']), new Uuid($payload['attempt']), new ContentHash($attempt->wire_fingerprint),
         'fixture-receipt', new ContentHash(hash('sha256', 'fixture')), new HealthEpochMap(json_decode($attempt->snapshot, true)['epochs']), $response);
-    $result = (new CompletionCoordinator($transactions, $repository, $access, $resolver, new CompletionObservationReducer($scope)))->recordLateReceipt($receipt);
+    $result = new CompletionCoordinator($transactions, $repository, $access, $resolver, new CompletionObservationReducer($scope))->recordLateReceipt($receipt);
     echo json_encode(['status' => $result->outcome->value], JSON_THROW_ON_ERROR);
 
     return;

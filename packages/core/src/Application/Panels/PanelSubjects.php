@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Panels;
 
+use Packman\Attributes\Api;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Domain\Panels\SubjectResolutionFailed;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 
+#[Api(since: '1.0')]
 final readonly class PanelSubjects
 {
     public function __construct(private DefinitionRegistry $definitions) {}

@@ -6,11 +6,11 @@ use Proxyma\Application\Execution\DestinationPolicy;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Recovery\RetentionPruner;
-use Proxyma\Contracts\DestinationResolver;
-use Proxyma\Contracts\OutboundClient;
-use Proxyma\Contracts\PhysicalTransport;
-use Proxyma\Contracts\RouteFilter;
-use Proxyma\Contracts\TlsTrustPolicy;
+use Proxyma\Contracts\Execution\DestinationResolver;
+use Proxyma\Contracts\Execution\OutboundClient;
+use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Routing\RouteFilter;
+use Proxyma\Contracts\Security\TlsTrustPolicy;
 use Proxyma\Domain\Catalog\UpsertTargetCommand;
 use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
@@ -51,7 +51,7 @@ foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'Reservation
     require_once dirname(__DIR__, 2).'/packages/core/tests/Support/'.$file.'.php';
 }
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class)->group('pg');
 
 final class AcceptanceRouteFilter implements RouteFilter
 {
@@ -68,7 +68,7 @@ final class AcceptanceRouteFilter implements RouteFilter
 }
 
 beforeEach(function (): void {
-    config(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32)), 'proxyma.policy.project_defaults' => ['route.allow_direct' => true]]);
+    $this->reconfigureProxyma(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32)), 'policy.project_defaults' => ['route.allow_direct' => true]]);
     $this->initializePhysicalFixture();
 });
 
@@ -98,7 +98,7 @@ function acceptancePair(object $test, string $listener = 'tls', IdempotencyClass
         $this->operations->create($operation, $this->catalog['profile'], $targetId, $timeouts);
         $scope = $this->transactions->scope;
         $this->app->instance(DestinationResolver::class, new DestinationPolicy(
-            new DnsResolver($scope, static fn () => ['127.0.0.1']),
+            new DnsResolver($scope, static fn (): array => ['127.0.0.1']),
             [$targetId->value => ['origin.test' => ['127.0.0.1']]],
             [$url->origin->port],
         ));
@@ -119,7 +119,7 @@ it('public send использует safe extension, новый permit, trusted 
     $registry->registerExtension(new ExtensionDefinition('acceptance.filter', ExtensionKind::RouteFilter, $filter));
     $registry->freeze();
     $this->app->instance(DefinitionRegistry::class, $registry);
-    config(['proxyma.extensions.route_filters' => ['acceptance.filter']]);
+    $this->reconfigureProxyma(['extensions.route_filters' => ['acceptance.filter']]);
     $result = $this->app->make(OutboundClient::class)->execute($request, $context);
     expect($filter->calls)->toBeGreaterThan(0);
     if ($deny) {

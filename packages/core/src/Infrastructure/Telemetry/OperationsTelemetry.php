@@ -5,18 +5,21 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Telemetry;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 use Psr\Log\LoggerInterface;
 
 /** Конечные имена/labels; произвольный context никогда не попадает в exporter. */
+#[Api(since: '1.0')]
 final readonly class OperationsTelemetry
 {
-    public const METRICS = ['queue_age_seconds', 'admission_wait_seconds', 'blocked', 'claim', 'completed', 'unknown', 'reconcile_lag_seconds', 'lease_inflight'];
+    public const array METRICS = ['queue_age_seconds', 'admission_wait_seconds', 'blocked', 'claim', 'completed', 'unknown', 'reconcile_lag_seconds', 'lease_inflight'];
 
-    public const REASONS = ['none', 'health', 'quota', 'budget', 'configuration', 'permission', 'other'];
+    public const array REASONS = ['none', 'health', 'quota', 'budget', 'configuration', 'permission', 'other'];
 
     public function __construct(private LoggerInterface $logger) {}
 
+    /** @return array{name: string, value: float, labels: array{reason: string}} */
     public function sample(string $metric, float $value, string $reason = 'none'): array
     {
         if (! in_array($metric, self::METRICS, true) || ! is_finite($value) || $value < 0) {
@@ -26,6 +29,7 @@ final readonly class OperationsTelemetry
         return ['name' => 'proxyma_'.$metric, 'value' => $value, 'labels' => ['reason' => in_array($reason, self::REASONS, true) ? $reason : 'other']];
     }
 
+    /** @param array<string, mixed> $context */
     public function event(string $event, ?Uuid $correlation = null, string $reason = 'none', array $context = []): void
     {
         $this->logger->info('proxyma.operations', [

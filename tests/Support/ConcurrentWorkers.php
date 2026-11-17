@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Proxyma\Tests\Support;
 
+use DateTimeImmutable;
 use Illuminate\Database\Connection;
+use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
+use Packman\Testkit\Support\Database\TestDatabaseGuard;
 use PDO;
 use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 /** Test-only processes and real PG barriers; trace never contains bindings or wire material. */
 final class ConcurrentWorkers
@@ -47,11 +51,20 @@ final class ConcurrentWorkers
 
     private function pdo(): PDO
     {
-        $pdo = new PDO('pgsql:host=db;port=5432;dbname=proxyma_test', 'proxyma_test', 'proxyma-test-only', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        if ($pdo->query('SELECT current_database(),current_user,(SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM)
+        $identity = SuiteDatabaseConnection::pgsqlIdentity();
+        TestDatabaseGuard::assertDestructiveSafe($identity);
+        $pdo = new PDO(
+            SuiteDatabaseConnection::pgsqlDsn($identity),
+            $identity->username,
+            SuiteDatabaseConnection::pgsqlPassword(),
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
+
+        if (getenv('PROXYMA_DOCKER_RIG') === '1' && $pdo->query('SELECT current_database(),current_user,(SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM)
             !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
             throw new RuntimeException('Authority workers require the isolated marked proxyma_test.');
         }
+
         $pdo->exec('SET search_path TO '.$this->schema.',pg_catalog');
         $pdo->exec("SET statement_timeout='10s'");
 
@@ -61,7 +74,7 @@ final class ConcurrentWorkers
     public function worker(array $payload, string $label, string $action): Process
     {
         $payload += ['schema' => $this->schema, 'label' => $label, 'action' => $action];
-        $worker = (new Process(['php', $this->root.'/packages/core/tests/Support/AuthorityWorker.php', json_encode($payload, JSON_THROW_ON_ERROR)]))->setTimeout(20);
+        $worker = new Process([PHP_BINARY, $this->root.'/packages/core/tests/Support/AuthorityWorker.php', json_encode($payload, JSON_THROW_ON_ERROR)])->setTimeout(20);
         $this->workers[$label] = $worker;
 
         return $worker;
@@ -159,7 +172,7 @@ final class ConcurrentWorkers
         foreach ($this->cooldowns as $cooldown) {
             $current = $this->db->table($cooldown['table'])->where('id', $cooldown['id'])->value('open_until');
             \expect($current)->not->toBeNull();
-            \expect(new \DateTimeImmutable($current) >= new \DateTimeImmutable($cooldown['until']))->toBeTrue('cooldown continuity');
+            \expect(new DateTimeImmutable($current) >= new DateTimeImmutable($cooldown['until']))->toBeTrue('cooldown continuity');
         }
         \expect((int) $this->db->table('fixture_finance')->min('reserved'))->toBeGreaterThanOrEqual(0);
         $this->events[] = ['event' => 'aggregate-invariants-pass', 'time_ns' => hrtime(true) - $this->started];
@@ -184,7 +197,7 @@ final class ConcurrentWorkers
             $error = null;
             try {
                 $this->assertInvariants();
-            } catch (\Throwable $failure) {
+            } catch (Throwable $failure) {
                 $error = $failure;
                 $this->events[] = ['event' => 'aggregate-invariants-fail', 'type' => $failure::class];
             }

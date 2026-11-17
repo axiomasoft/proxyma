@@ -6,9 +6,11 @@ namespace Proxyma\Domain\Catalog;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 
+#[Api(since: '1.0')]
 final readonly class Route
 {
     public function __construct(

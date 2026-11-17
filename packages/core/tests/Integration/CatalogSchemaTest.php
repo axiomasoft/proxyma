@@ -15,7 +15,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 it('мигрирует независимый core дважды и откатывает только собственную схему', function (): void {
     $tables = array_map(static fn ($row) => $row->tablename, $this->db->select('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'));
@@ -24,12 +24,12 @@ it('мигрирует независимый core дважды и откаты�
         expect($tables)->toContain($name);
     }
     expect(PackageSchema::tables())->toHaveKey('imported_health_samples');
-    $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+    $this->migrateSchemaSets(['axiomasoft/proxyma:proxyma'], 'pgsql');
     expect($this->db->table('migrations')->count())->toBe(15);
     $migration = require dirname(__DIR__, 2).'/database/migrations/2026_11_09_000001_create_pxm_authority_tables.php';
-    $this->app['config']->set('proxyma.connection', 'configured-authority');
+    $this->reconfigureProxyma(['connection' => 'configured-authority']);
     expect($migration->getConnection())->toBe('configured-authority');
-    $this->app['config']->set('proxyma.connection', 'pgsql');
+    $this->reconfigureProxyma(['connection' => 'pgsql']);
     $parents = $this->db->select("SELECT confrelid::regclass::text AS parent, pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE contype = 'f' AND connamespace = current_schema()::regnamespace");
     foreach ($parents as $parent) {
         expect($parent->parent)->toStartWith('pxm_')->and($parent->definition)->toContain('tenant_key');
@@ -37,10 +37,10 @@ it('мигрирует независимый core дважды и откаты�
     foreach ($this->db->select("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE contype = 'u' AND connamespace = current_schema()::regnamespace") as $unique) {
         expect($unique->definition)->toContain('tenant_key');
     }
-    $this->artisan('migrate:rollback', ['--force' => true])->assertExitCode(0);
+    $this->artisan('migrate:rollback', ['--path' => dirname(__DIR__, 2).'/database/migrations', '--realpath' => true, '--force' => true])->assertExitCode(0);
     expect($this->db->select('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'))->toHaveCount(1);
     expect($this->db->getSchemaBuilder()->hasTable(PackageSchema::tables()['imported_health_samples']))->toBeFalse();
-    $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+    $this->migrateSchemaSets(['axiomasoft/proxyma:proxyma'], 'pgsql');
     expect($this->table('endpoints')->count())->toBe(0)
         ->and($this->table('imported_health_samples')->count())->toBe(0);
 });
@@ -78,7 +78,7 @@ it('фиксирует canonical scope keys с C collation и документи
     $collation = $this->db->selectOne("SELECT c.collname FROM pg_attribute a JOIN pg_collation c ON c.oid = a.attcollation WHERE a.attrelid = 'pxm_budgets'::regclass AND a.attname = 'scope_key'");
     expect($collation->collname)->toBe('C');
     foreach (['', 'Origin:a', 'origin:é', 'origin a', str_repeat('a', 256)] as $bad) {
-        expect(fn () => new BudgetConstraint($bad, 1))->toThrow(InvalidArgumentException::class);
+        expect(fn (): BudgetConstraint => new BudgetConstraint($bad, 1))->toThrow(InvalidArgumentException::class);
         $this->rejectedSql(fn () => $this->table('budgets')->insert(['tenant_key' => 'acme', 'scope_key' => $bad, 'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => 1]));
     }
     $indexes = $this->db->select('SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema()');
@@ -198,7 +198,7 @@ it('operation root требует owning transaction и блокирует не�
     $other->beginTransaction();
     $other->statement("SET LOCAL lock_timeout = '50ms'");
     try {
-        (new OperationMutex($other))->lock($this->tenant, [$operation]);
+        new OperationMutex($other)->lock($this->tenant, [$operation]);
         $this->fail('Concurrent operation root lock must wait.');
     } catch (QueryException $e) {
         expect($e->errorInfo[0])->toBe('55P03');
@@ -206,7 +206,7 @@ it('operation root требует owning transaction и блокирует не�
         $other->rollBack();
         $this->db->rollBack();
     }
-    $other->transaction(fn () => (new OperationMutex($other))->lock($this->tenant, [$operation]));
+    $other->transaction(fn () => new OperationMutex($other)->lock($this->tenant, [$operation]));
     $this->db->transaction(function () use ($mutex, $operation): void {
         expect(fn () => $mutex->lock(new TenantKey('other'), [$operation]))->toThrow(CatalogNotFound::class);
     });

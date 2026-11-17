@@ -6,8 +6,8 @@ use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\SettingRegistryFactory;
-use Proxyma\Contracts\PolicyCommands;
-use Proxyma\Contracts\SettingDefinitionProvider;
+use Proxyma\Contracts\Policy\PolicyCommands;
+use Proxyma\Contracts\Policy\SettingDefinitionProvider;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
@@ -27,7 +27,7 @@ use Symfony\Component\Process\Process;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 final class FixtureSettingsProvider implements SettingDefinitionProvider
 {
@@ -119,18 +119,18 @@ it('descriptor ограничивает scopes permissions типы регист
     $factory = new SettingRegistryFactory($this->app);
     $registry = $factory->make(['approved_providers' => ['fixture' => FixtureSettingsProvider::class], 'providers' => ['fixture']]);
     expect($registry->descriptor('fixture.limit')->permission)->toBe('policy.fixture.edit');
-    expect((new SettingRegistry(array_reverse($registry->all())))->fingerprint())->toBe($registry->fingerprint())
-        ->and((new SettingRegistry(CoreSettings::descriptors()))->fingerprint())->not->toBe($registry->fingerprint());
+    expect(new SettingRegistry(array_reverse($registry->all()))->fingerprint())->toBe($registry->fingerprint())
+        ->and(new SettingRegistry(CoreSettings::descriptors())->fingerprint())->not->toBe($registry->fingerprint());
     $setting = new SettingPatch(1, ['fixture.limit' => SettingChange::set(3)]);
     $registry->validate($setting, PolicyScope::Tenant);
     expect(fn () => $registry->validate($setting, PolicyScope::Panel))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => $factory->make(['approved_providers' => [], 'providers' => [FixtureSettingsProvider::class]]))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => $factory->make(['approved_providers' => ['fixture' => FixtureSettingsProvider::class], 'providers' => ['unknown']]))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => $factory->make(['approved_providers' => ['fixture' => stdClass::class], 'providers' => ['fixture']]))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => $factory->make(['approved_providers' => [], 'providers' => [static fn () => null]]))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => new SettingRegistry([...CoreSettings::descriptors(), ...CoreSettings::descriptors()]))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => new SettingDescriptor('proxy.password', SettingType::Integer, 1, false, [PolicyScope::Tenant], SettingMerge::Minimum, 1, 10, 'policy.edit'))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => new SettingDescriptor('fixture.nobounds', SettingType::Integer, 1, false, [PolicyScope::Tenant], SettingMerge::Minimum, null, null, 'policy.edit'))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingRegistry => $factory->make(['approved_providers' => [], 'providers' => [FixtureSettingsProvider::class]]))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingRegistry => $factory->make(['approved_providers' => ['fixture' => FixtureSettingsProvider::class], 'providers' => ['unknown']]))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingRegistry => $factory->make(['approved_providers' => ['fixture' => stdClass::class], 'providers' => ['fixture']]))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingRegistry => $factory->make(['approved_providers' => [], 'providers' => [static fn (): null => null]]))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingRegistry => new SettingRegistry([...CoreSettings::descriptors(), ...CoreSettings::descriptors()]))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingDescriptor => new SettingDescriptor('proxy.password', SettingType::Integer, 1, false, [PolicyScope::Tenant], SettingMerge::Minimum, 1, 10, 'policy.edit'))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): SettingDescriptor => new SettingDescriptor('fixture.nobounds', SettingType::Integer, 1, false, [PolicyScope::Tenant], SettingMerge::Minimum, null, null, 'policy.edit'))->toThrow(InvalidSettingPatch::class);
     $sensitive = new SettingDescriptor('fixture.private', SettingType::IdentifierList, null, true, [PolicyScope::Tenant], SettingMerge::Replace, null, null, 'policy.edit', sensitive: true);
     $restricted = new SettingRegistry([$sensitive]);
     expect(fn () => $restricted->validate(new SettingPatch(1, ['fixture.private' => SettingChange::set([])]), PolicyScope::Tenant))->toThrow(InvalidSettingPatch::class);
@@ -174,8 +174,8 @@ it('проверяет trusted tenant actor и отдельные permissions п
     $this->permissions(static fn (): bool => false);
     expect(fn () => $service->update($command))->toThrow(AuthorizationDenied::class);
     expect($this->table('policy_revisions')->count())->toBe(1);
-    expect(fn () => new UpdatePolicyCommand($head, $this->tenant, PolicyScope::Global, 'system', $payload, $this->actor()))->toThrow(InvalidSettingPatch::class);
-    expect(fn () => new UpdatePolicyCommand($head, $this->tenant, PolicyScope::Tenant, 'other', $payload, $this->actor()))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): UpdatePolicyCommand => new UpdatePolicyCommand($head, $this->tenant, PolicyScope::Global, 'system', $payload, $this->actor()))->toThrow(InvalidSettingPatch::class);
+    expect(fn (): UpdatePolicyCommand => new UpdatePolicyCommand($head, $this->tenant, PolicyScope::Tenant, 'other', $payload, $this->actor()))->toThrow(InvalidSettingPatch::class);
     expect(fn () => $service->update(new UpdatePolicyCommand($head, $this->tenant, PolicyScope::Tenant, 'acme', $payload, new CatalogMutationActor('fixture-operator', 'reason'))))->toThrow(InvalidSettingPatch::class);
 });
 
@@ -204,7 +204,7 @@ it('ошибки audit и stale revision откатывают head revision и r
     expect((int) $this->table('policy_heads')->value('revision'))->toBe(1)->and($this->table('policy_revisions')->count())->toBe(1)
         ->and($this->table('audit_events')->count())->toBe(1)->and($this->table('catalog_command_receipts')->count())->toBe(1);
     $this->rejectedSql(fn () => $this->table('audit_events')->delete());
-    expect(fn () => $this->artisan('migrate:rollback', ['--step' => 13, '--force' => true]))->toThrow(LogicException::class, 'Policy audit history prevents rollback.');
+    expect(fn () => $this->artisan('migrate:rollback', ['--path' => dirname(__DIR__, 2).'/database/migrations', '--realpath' => true, '--step' => 13, '--force' => true]))->toThrow(LogicException::class, 'Policy audit history prevents rollback.');
     expect($this->table('audit_events')->count())->toBe(1)->and($this->table('policy_revisions')->count())->toBe(1);
 });
 
@@ -216,9 +216,9 @@ it('две независимые транзакции с одной expected re
     $monitor = $this->connectionPdo();
     $this->db->beginTransaction();
     $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy:acme:tenant:acme']);
-    $script = dirname(__DIR__).'/Support/ConcurrentPolicyWorker.php';
-    $one = new Process(['php', $script, $this->fixtureSchema, $head->value, 'one']);
-    $two = new Process(['php', $script, $this->fixtureSchema, $head->value, 'two']);
+    $script = __DIR__.'/../Support/ConcurrentPolicyWorker.php';
+    $one = new Process([PHP_BINARY, $script, $this->fixtureSchema, $head->value, 'one']);
+    $two = new Process([PHP_BINARY, $script, $this->fixtureSchema, $head->value, 'two']);
     $one->setTimeout(15)->start();
     $two->setTimeout(15)->start();
     try {
@@ -266,7 +266,7 @@ it('config cache сериализует реестр без closures и builders
         $cache = require $path;
         $settings = $cache['proxyma']['settings'];
         expect($settings)->toBe(['approved_providers' => ['fixture' => FixtureSettingsProvider::class], 'providers' => ['fixture']]);
-        $registry = (new SettingRegistryFactory($this->app))->make($settings);
+        $registry = new SettingRegistryFactory($this->app)->make($settings);
         expect($registry->descriptor('timeout.connect_ms')->maximum)->toBe(120000)
             ->and($registry->descriptor('fixture.limit')->maximum)->toBe(5);
     } finally {

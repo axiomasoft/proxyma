@@ -2,21 +2,20 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Secrets\SecretSchema;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
     public function up(): void
     {
-        SecretSchema::up(DB::connection(config('proxyma.connection', 'pgsql')));
+        SecretSchema::up($this->db());
     }
 
     public function down(): void
     {
         $table = PackageSchema::tables()['encrypted_secrets'];
-        DB::connection(config('proxyma.connection', 'pgsql'))->statement("DROP TABLE {$table}");
+        $this->db()->statement("DROP TABLE {$table}");
     }
 };

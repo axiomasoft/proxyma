@@ -7,7 +7,7 @@ use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Health\ProbeCoordinator;
 use Proxyma\Application\Recovery\CompletionCoordinator;
-use Proxyma\Contracts\CandidateSnapshots;
+use Proxyma\Contracts\Catalog\CandidateSnapshots;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\NeedsReplan;
@@ -38,7 +38,7 @@ require_once __DIR__.'/../Support/ReservationFixtures.php';
 require_once __DIR__.'/../Support/ClaimFixtures.php';
 require_once __DIR__.'/../Support/QuotaFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->initializeQuotaFixture();
 });
@@ -149,7 +149,7 @@ it('UTC rollover освобождает старый permit и требует н
 it('fixed windows не зависят от timezone/DST, неподдерживаемый вид отвергается', function (): void {
     $day = new FixedWindow('day', new DateTimeImmutable('2026-11-01T01:30:00-04:00'));
     expect($day->startsAt->format('c'))->toBe('2026-11-01T00:00:00+00:00')->and($day->endsAt->getTimestamp() - $day->startsAt->getTimestamp())->toBe(86400);
-    expect(fn () => new FixedWindow('rolling', new DateTimeImmutable))->toThrow(InvalidArgumentException::class);
+    expect(fn (): FixedWindow => new FixedWindow('rolling', new DateTimeImmutable))->toThrow(InvalidArgumentException::class);
 });
 
 it('настраиваемый traffic class сохраняет share 18/hour и считает каждую physical authorization', function (): void {
@@ -256,9 +256,9 @@ it('quota configuration versioned, audited и idempotent; конфликт не 
 it('quota configuration не сбрасывает cooldown или health hold', function (): void {
     $until = DatabaseClock::now($this->db)->modify('+1 hour')->format('Y-m-d H:i:s.uP');
     $this->table('route_health')->update(['state' => 'open', 'open_until' => $until, 'health_epoch' => 2, 'state_version' => 2]);
-    $before = $this->table('route_health')->get()->map(fn ($row) => (array) $row)->all();
+    $before = $this->table('route_health')->get()->map(fn ($row): array => (array) $row)->all();
     $this->quota->configure($this->tenant, $this->originBudget, 5, 7, 1);
-    expect($this->table('route_health')->get()->map(fn ($row) => (array) $row)->all())->toBe($before);
+    expect($this->table('route_health')->get()->map(fn ($row): array => (array) $row)->all())->toBe($before);
     expect(fn () => $this->quotaPrepared())->toThrow(AdmissionRejected::class, 'health_unavailable');
     expect($this->table('quota_reservations')->count())->toBe(0)->and($this->table('attempts')->count())->toBe(0);
 });
@@ -409,9 +409,9 @@ it('включение quota подхватывает pending lease и cancel о
 
 it('traffic share отвергает некорректную конфигурацию до SQL', function (): void {
     foreach ([['bad name' => 20], ['background' => 101], ['background' => -1], ['background' => '30']] as $classes) {
-        expect(fn () => new TrafficSharePolicy($classes))->toThrow(InvalidArgumentException::class);
+        expect(fn (): TrafficSharePolicy => new TrafficSharePolicy($classes))->toThrow(InvalidArgumentException::class);
     }
-    expect(fn () => TrafficSharePolicy::hourlyLimit(0, 30))->toThrow(InvalidArgumentException::class)
-        ->and(fn () => TrafficSharePolicy::scope(CanonicalOrigin::of('https', 'example.test'), 'BAD'))->toThrow(InvalidArgumentException::class)
+    expect(fn (): int => TrafficSharePolicy::hourlyLimit(0, 30))->toThrow(InvalidArgumentException::class)
+        ->and(fn (): string => TrafficSharePolicy::scope(CanonicalOrigin::of('https', 'example.test'), 'BAD'))->toThrow(InvalidArgumentException::class)
         ->and(TrafficSharePolicy::hourlyLimit(1, 100))->toBe(3_600_000_000);
 });

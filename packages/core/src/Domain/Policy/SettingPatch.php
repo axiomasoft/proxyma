@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use JsonException;
+use Packman\Attributes\Api;
 use stdClass;
 
+#[Api(since: '1.0')]
 final readonly class SettingPatch
 {
     /** @var array<string, SettingChange> */
@@ -102,7 +104,7 @@ final readonly class SettingPatch
             } elseif (str_starts_with($token, '"') && ($tokens[$index + 1] ?? null) === ':') {
                 $last = count($stack) - 1;
                 $key = json_decode($token, true, flags: JSON_THROW_ON_ERROR);
-                if ($last < 0 || ! $stack[$last]['object'] || isset($stack[$last]['keys'][$key])) {
+                if (! is_string($key) || $last < 0 || ! $stack[$last]['object'] || isset($stack[$last]['keys'][$key])) {
                     throw new InvalidSettingPatch;
                 }
                 $stack[$last]['keys'][$key] = true;

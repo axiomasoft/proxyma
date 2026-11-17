@@ -7,9 +7,12 @@ namespace Proxyma\Domain\Execution;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use JsonSerializable;
 use LogicException;
+use Packman\Attributes\Api;
 
-final readonly class WireRequest implements \JsonSerializable
+#[Api(since: '1.0')]
+final readonly class WireRequest implements JsonSerializable
 {
     private const array METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -89,11 +92,13 @@ final readonly class WireRequest implements \JsonSerializable
         return $this->wireFingerprint;
     }
 
+    /** @return array<string, mixed> */
     public function jsonSerialize(): array
     {
         return $this->__debugInfo();
     }
 
+    /** @return array<string, string> */
     public function __debugInfo(): array
     {
         return ['operation_id' => $this->operationId->value, 'fingerprint' => $this->wireFingerprint->hex];
@@ -107,6 +112,7 @@ final readonly class WireRequest implements \JsonSerializable
         throw new LogicException('WireRequest cannot be serialized.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('WireRequest cannot be reconstructed.');

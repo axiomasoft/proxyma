@@ -6,7 +6,9 @@ namespace Proxyma\Domain\Budget;
 
 use InvalidArgumentException;
 use OverflowException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class Gcra
 {
     public int $toleranceUs;

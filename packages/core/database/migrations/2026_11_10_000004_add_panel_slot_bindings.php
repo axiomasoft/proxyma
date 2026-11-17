@@ -2,24 +2,18 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Database\PanelBindingSchema;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
-    public function getConnection(): ?string
-    {
-        return config('proxyma.connection', 'pgsql');
-    }
-
     public function up(): void
     {
-        PanelBindingSchema::up(DB::connection($this->getConnection()));
+        PanelBindingSchema::up($this->db());
     }
 
     public function down(): void
     {
-        PanelBindingSchema::down(DB::connection($this->getConnection()));
+        PanelBindingSchema::down($this->db());
     }
 };

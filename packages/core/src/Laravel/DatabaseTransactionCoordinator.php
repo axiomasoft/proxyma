@@ -7,8 +7,9 @@ namespace Proxyma\Laravel;
 use Closure;
 use DateTimeImmutable;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Admission\TransactionCoordinator as SqlCoordinator;
-use Proxyma\Contracts\TransactionCoordinator;
+use Proxyma\Contracts\Admission\TransactionCoordinator;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
 use Proxyma\Domain\Execution\AuthorizedWireSnapshot;
 use Proxyma\Domain\Execution\ClaimCandidate;
@@ -18,6 +19,7 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
 
 /** Compatibility name; production has one SQL coordinator and no synthetic transaction driver. */
+#[Api(since: '1.0')]
 final readonly class DatabaseTransactionCoordinator implements TransactionCoordinator
 {
     private SqlCoordinator $coordinator;

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Stringable;
 
+#[Api(since: '1.0')]
 final readonly class TenantKey implements Stringable
 {
     public const string SYSTEM = 'system';

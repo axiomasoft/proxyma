@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Admission;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\RetryAt;
 
+#[Api(since: '1.0')]
 final readonly class FifoPolicy
 {
     public function __construct(private QueueLimits $limits) {}
@@ -19,7 +21,11 @@ final readonly class FifoPolicy
         if ($ready > $now) {
             return new DemandWait('budget_wait', new RetryAt(min($ready, $expires)));
         }
-        usort($predecessors, static fn ($a, $b): int => ($a['sequence'] <=> $b['sequence']) ?: strcmp($a['id'], $b['id']));
+        usort($predecessors, static function (array $a, array $b): int {
+            $cmp = $a['sequence'] <=> $b['sequence'];
+
+            return $cmp !== 0 ? $cmp : strcmp($a['id'], $b['id']);
+        });
         $skipped = 0;
         foreach ($predecessors as $older) {
             if ($older['expires'] <= $now) {

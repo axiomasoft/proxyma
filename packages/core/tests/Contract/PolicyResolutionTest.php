@@ -5,15 +5,16 @@ declare(strict_types=1);
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\PolicyCommands;
-use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
-use Proxyma\Contracts\SharedRouteCommands;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
+use Proxyma\Contracts\Policy\PolicyCommands;
+use Proxyma\Contracts\Policy\PolicyResolver as PolicyResolverContract;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\RetireCatalogEntityCommand;
+use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Catalog\SetRouteEnabledCommand;
 use Proxyma\Domain\Catalog\ShareRouteCommand;
@@ -26,6 +27,7 @@ use Proxyma\Domain\Execution\ExecutionBlocked;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\BudgetConstraint;
+use Proxyma\Domain\Policy\FieldProvenanceStep;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Domain\Policy\LivePolicyAuthority;
 use Proxyma\Domain\Policy\NeedsReplan;
@@ -48,7 +50,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 /**
  * @param  array<string, SettingChange|mixed>  $entries
@@ -234,7 +236,7 @@ it('вычисляет эффективную политику строго в �
         ]);
 
     $connectProvenanceLayers = array_map(
-        static fn ($step): PolicyLayerKind => $step->layerKind,
+        static fn (FieldProvenanceStep $step): PolicyLayerKind => $step->layerKind,
         $effective->explanation()->field('timeout.connect_ms')->provenance,
     );
 
@@ -318,258 +320,248 @@ it('соблюдает табличную алгебру слияния поле
         }
     }
 })->with([
-    'minimum зажимает попытку нижнего слоя увеличить таймауты, ретраи и редиректы + зажимает connect/read по total_ms' => function (): array {
-        return [
-            'layers' => [
-                new PolicyLayer(
-                    kind: PolicyLayerKind::GlobalDb,
-                    scopeKey: 'global:system',
-                    patch: makePatch([
-                        'timeout.connect_ms' => 3000,
-                        'timeout.read_ms' => 6000,
-                        'timeout.total_ms' => 8000,
-                        'retry.max_attempts' => 4,
-                        'http.max_redirects' => 3,
-                    ]),
-                    revision: 2,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::TenantDb,
-                    scopeKey: 'tenant:acme',
-                    patch: makePatch([
-                        'timeout.connect_ms' => 5000, // попытка увеличить > 3000 -> clamped
-                        'timeout.total_ms' => 2000,   // сужает total_ms до 2000 -> зажимает connect_ms и read_ms до 2000!
-                        'retry.max_attempts' => 2,    // сужает 4 -> 2
-                        'http.max_redirects' => 8,    // попытка увеличить > 3 -> clamped
-                    ]),
-                    revision: 5,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::EntityBinding,
-                    scopeKey: 'entity:crawler:c-1',
-                    patch: makePatch([
-                        'retry.max_attempts' => 7, // попытка увеличить > 2 -> clamped_by_upper_bound (tenant:acme@r5)
-                    ]),
-                    revision: 9,
-                ),
+    'minimum зажимает попытку нижнего слоя увеличить таймауты, ретраи и редиректы + зажимает connect/read по total_ms' => fn (): array => [
+        'layers' => [
+            new PolicyLayer(
+                kind: PolicyLayerKind::GlobalDb,
+                scopeKey: 'global:system',
+                patch: makePatch([
+                    'timeout.connect_ms' => 3000,
+                    'timeout.read_ms' => 6000,
+                    'timeout.total_ms' => 8000,
+                    'retry.max_attempts' => 4,
+                    'http.max_redirects' => 3,
+                ]),
+                revision: 2,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::TenantDb,
+                scopeKey: 'tenant:acme',
+                patch: makePatch([
+                    'timeout.connect_ms' => 5000, // попытка увеличить > 3000 -> clamped
+                    'timeout.total_ms' => 2000,   // сужает total_ms до 2000 -> зажимает connect_ms и read_ms до 2000!
+                    'retry.max_attempts' => 2,    // сужает 4 -> 2
+                    'http.max_redirects' => 8,    // попытка увеличить > 3 -> clamped
+                ]),
+                revision: 5,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::EntityBinding,
+                scopeKey: 'entity:crawler:c-1',
+                patch: makePatch([
+                    'retry.max_attempts' => 7, // попытка увеличить > 2 -> clamped_by_upper_bound (tenant:acme@r5)
+                ]),
+                revision: 9,
+            ),
+        ],
+        'expectedValues' => [
+            'timeout.total_ms' => 2000,
+            'timeout.connect_ms' => 2000,
+            'timeout.read_ms' => 2000,
+            'retry.max_attempts' => 2,
+            'http.max_redirects' => 3,
+        ],
+        'expectedFieldAssertions' => [
+            'timeout.total_ms' => [
+                'sourceScope' => 'tenant:acme',
+                'sourceLayer' => PolicyLayerKind::TenantDb,
+                'sourceRevision' => 5,
+                'clamped' => false,
+                'inherited' => true,
             ],
-            'expectedValues' => [
-                'timeout.total_ms' => 2000,
-                'timeout.connect_ms' => 2000,
-                'timeout.read_ms' => 2000,
-                'retry.max_attempts' => 2,
-                'http.max_redirects' => 3,
+            'timeout.connect_ms' => [
+                'sourceScope' => 'tenant:acme',
+                'sourceRevision' => 5,
+                'clamped' => true,
+                'clampedByScope' => 'tenant:acme',
+                'clampedByRevision' => 5,
+                'reason' => 'clamped_by_total_timeout',
             ],
-            'expectedFieldAssertions' => [
-                'timeout.total_ms' => [
-                    'sourceScope' => 'tenant:acme',
-                    'sourceLayer' => PolicyLayerKind::TenantDb,
-                    'sourceRevision' => 5,
-                    'clamped' => false,
-                    'inherited' => true,
-                ],
-                'timeout.connect_ms' => [
-                    'sourceScope' => 'tenant:acme',
-                    'sourceRevision' => 5,
-                    'clamped' => true,
-                    'clampedByScope' => 'tenant:acme',
-                    'clampedByRevision' => 5,
-                    'reason' => 'clamped_by_total_timeout',
-                ],
-                'retry.max_attempts' => [
-                    'sourceScope' => 'tenant:acme',
-                    'sourceLayer' => PolicyLayerKind::TenantDb,
-                    'sourceRevision' => 5,
-                    'clamped' => true,
-                    'clampedByScope' => 'tenant:acme',
-                    'clampedByRevision' => 5,
-                    'reason' => 'clamped_by_upper_bound',
-                ],
-                'http.max_redirects' => [
-                    'sourceScope' => 'global:system',
-                    'sourceLayer' => PolicyLayerKind::GlobalDb,
-                    'sourceRevision' => 2,
-                    'clamped' => true,
-                    'clampedByScope' => 'global:system',
-                    'clampedByRevision' => 2,
-                ],
+            'retry.max_attempts' => [
+                'sourceScope' => 'tenant:acme',
+                'sourceLayer' => PolicyLayerKind::TenantDb,
+                'sourceRevision' => 5,
+                'clamped' => true,
+                'clampedByScope' => 'tenant:acme',
+                'clampedByRevision' => 5,
+                'reason' => 'clamped_by_upper_bound',
             ],
-        ];
-    },
-    'destinations.allowed различает missing, null и пустой список [] при жёстком пересечении' => function (): array {
-        return [
-            'layers' => [
-                new PolicyLayer(
-                    kind: PolicyLayerKind::GlobalDb,
-                    scopeKey: 'global:system',
-                    patch: makePatch([
-                        'destinations.allowed' => null, // явно без ограничений на уровне global
-                    ]),
-                    revision: 1,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::TenantDb,
-                    scopeKey: 'tenant:acme',
-                    patch: makePatch([
-                        'destinations.allowed' => ['dest-a', 'dest-b', 'dest-c'],
-                    ]),
-                    revision: 3,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::PanelDb,
-                    scopeKey: 'panel:default',
-                    patch: makePatch([
-                        'destinations.allowed' => null, // попытка снять ограничение через null -> clamped!
-                    ]),
-                    revision: 4,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::OrderedEntityAncestry,
-                    scopeKey: 'entity:organization:org-1',
-                    patch: makePatch([
-                        'destinations.allowed' => ['dest-b', 'dest-c', 'dest-unallowed'], // пересечение даёт ['dest-b', 'dest-c'] + clamped
-                    ]),
-                    revision: 6,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::EntityBinding,
-                    scopeKey: 'entity:crawler:c-1',
-                    patch: makePatch([
-                        'destinations.allowed' => [], // пустой список [] -> пустое пересечение (блокирует все назначения)
-                    ]),
-                    revision: 8,
-                ),
+            'http.max_redirects' => [
+                'sourceScope' => 'global:system',
+                'sourceLayer' => PolicyLayerKind::GlobalDb,
+                'sourceRevision' => 2,
+                'clamped' => true,
+                'clampedByScope' => 'global:system',
+                'clampedByRevision' => 2,
             ],
-            'expectedValues' => [
-                'destinations.allowed' => [],
+        ],
+    ],
+    'destinations.allowed различает missing, null и пустой список [] при жёстком пересечении' => fn (): array => [
+        'layers' => [
+            new PolicyLayer(
+                kind: PolicyLayerKind::GlobalDb,
+                scopeKey: 'global:system',
+                patch: makePatch([
+                    'destinations.allowed' => null, // явно без ограничений на уровне global
+                ]),
+                revision: 1,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::TenantDb,
+                scopeKey: 'tenant:acme',
+                patch: makePatch([
+                    'destinations.allowed' => ['dest-a', 'dest-b', 'dest-c'],
+                ]),
+                revision: 3,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::PanelDb,
+                scopeKey: 'panel:default',
+                patch: makePatch([
+                    'destinations.allowed' => null, // попытка снять ограничение через null -> clamped!
+                ]),
+                revision: 4,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::OrderedEntityAncestry,
+                scopeKey: 'entity:organization:org-1',
+                patch: makePatch([
+                    'destinations.allowed' => ['dest-b', 'dest-c', 'dest-unallowed'], // пересечение даёт ['dest-b', 'dest-c'] + clamped
+                ]),
+                revision: 6,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::EntityBinding,
+                scopeKey: 'entity:crawler:c-1',
+                patch: makePatch([
+                    'destinations.allowed' => [], // пустой список [] -> пустое пересечение (блокирует все назначения)
+                ]),
+                revision: 8,
+            ),
+        ],
+        'expectedValues' => [
+            'destinations.allowed' => [],
+        ],
+        'expectedFieldAssertions' => [
+            'destinations.allowed' => [
+                'sourceScope' => 'entity:crawler:c-1',
+                'sourceLayer' => PolicyLayerKind::EntityBinding,
+                'sourceRevision' => 8,
+                'clamped' => true,
+                'clampedByScope' => 'tenant:acme',
+                'clampedByRevision' => 3,
+                'inherited' => false,
             ],
-            'expectedFieldAssertions' => [
-                'destinations.allowed' => [
-                    'sourceScope' => 'entity:crawler:c-1',
-                    'sourceLayer' => PolicyLayerKind::EntityBinding,
-                    'sourceRevision' => 8,
-                    'clamped' => true,
-                    'clampedByScope' => 'tenant:acme',
-                    'clampedByRevision' => 3,
-                    'inherited' => false,
-                ],
+        ],
+    ],
+    'retry.delays_ms поддерживает поэлементный min, disable и блокирует повторное включение на нижнем слое' => fn (): array => [
+        'layers' => [
+            new PolicyLayer(
+                kind: PolicyLayerKind::GlobalDb,
+                scopeKey: 'global:system',
+                patch: makePatch([
+                    'retry.delays_ms' => [500, 1000, 2000],
+                ]),
+                revision: 2,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::TenantDb,
+                scopeKey: 'tenant:acme',
+                patch: makePatch([
+                    'retry.delays_ms' => SettingChange::disable(),
+                ]),
+                revision: 4,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::EntityBinding,
+                scopeKey: 'entity:crawler:c-1',
+                patch: makePatch([
+                    'retry.delays_ms' => [100, 200],
+                ]),
+                revision: 7,
+            ),
+        ],
+        'expectedValues' => [
+            'retry.delays_ms' => [],
+        ],
+        'expectedFieldAssertions' => [
+            'retry.delays_ms' => [
+                'sourceScope' => 'tenant:acme',
+                'sourceLayer' => PolicyLayerKind::TenantDb,
+                'sourceRevision' => 4,
+                'disabled' => true,
+                'clamped' => true,
+                'clampedByScope' => 'tenant:acme',
+                'clampedByRevision' => 4,
+                'reason' => 'clamped_by_disabled_upper_scope',
             ],
-        ];
-    },
-    'retry.delays_ms поддерживает поэлементный min, disable и блокирует повторное включение на нижнем слое' => function (): array {
-        return [
-            'layers' => [
-                new PolicyLayer(
-                    kind: PolicyLayerKind::GlobalDb,
-                    scopeKey: 'global:system',
-                    patch: makePatch([
-                        'retry.delays_ms' => [500, 1000, 2000],
-                    ]),
-                    revision: 2,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::TenantDb,
-                    scopeKey: 'tenant:acme',
-                    patch: makePatch([
-                        'retry.delays_ms' => SettingChange::disable(),
-                    ]),
-                    revision: 4,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::EntityBinding,
-                    scopeKey: 'entity:crawler:c-1',
-                    patch: makePatch([
-                        'retry.delays_ms' => [100, 200],
-                    ]),
-                    revision: 7,
-                ),
+        ],
+    ],
+    'inherit удаляет локальный override на том же уровне и возвращает значение и ревизию верхнего слоя' => fn (): array => [
+        'layers' => [
+            new PolicyLayer(
+                kind: PolicyLayerKind::TenantDb,
+                scopeKey: 'tenant:acme',
+                patch: makePatch([
+                    'timeout.connect_ms' => 2200,
+                ]),
+                revision: 3,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::EntityBinding,
+                scopeKey: 'entity:crawler:c-1',
+                patch: makePatch([
+                    'timeout.connect_ms' => 900,
+                ]),
+                revision: 5,
+            ),
+            new PolicyLayer(
+                kind: PolicyLayerKind::EntityBinding,
+                scopeKey: 'entity:crawler:c-1',
+                patch: makePatch([
+                    'timeout.connect_ms' => SettingChange::inherit(),
+                ]),
+                revision: 6,
+            ),
+        ],
+        'expectedValues' => [
+            'timeout.connect_ms' => 2200,
+        ],
+        'expectedFieldAssertions' => [
+            'timeout.connect_ms' => [
+                'sourceScope' => 'tenant:acme',
+                'sourceLayer' => PolicyLayerKind::TenantDb,
+                'sourceRevision' => 3,
+                'inherited' => true,
+                'reason' => 'inherited',
             ],
-            'expectedValues' => [
-                'retry.delays_ms' => [],
+        ],
+    ],
+    'route.allow_direct требует и разрешения политики, и наличия direct-маршрута в выбранном профиле' => fn (): array => [
+        'layers' => [
+            new PolicyLayer(
+                kind: PolicyLayerKind::TenantDb,
+                scopeKey: 'tenant:acme',
+                patch: makePatch([
+                    'route.allow_direct' => true,
+                ]),
+                revision: 2,
+                profileKey: 'proxy-only-profile',
+            ),
+        ],
+        'expectedValues' => [
+            'route.allow_direct' => false,
+        ],
+        'expectedFieldAssertions' => [
+            'route.allow_direct' => [
+                'clamped' => true,
+                'reason' => 'requires_explicit_direct_profile_member',
             ],
-            'expectedFieldAssertions' => [
-                'retry.delays_ms' => [
-                    'sourceScope' => 'tenant:acme',
-                    'sourceLayer' => PolicyLayerKind::TenantDb,
-                    'sourceRevision' => 4,
-                    'disabled' => true,
-                    'clamped' => true,
-                    'clampedByScope' => 'tenant:acme',
-                    'clampedByRevision' => 4,
-                    'reason' => 'clamped_by_disabled_upper_scope',
-                ],
-            ],
-        ];
-    },
-    'inherit удаляет локальный override на том же уровне и возвращает значение и ревизию верхнего слоя' => function (): array {
-        return [
-            'layers' => [
-                new PolicyLayer(
-                    kind: PolicyLayerKind::TenantDb,
-                    scopeKey: 'tenant:acme',
-                    patch: makePatch([
-                        'timeout.connect_ms' => 2200,
-                    ]),
-                    revision: 3,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::EntityBinding,
-                    scopeKey: 'entity:crawler:c-1',
-                    patch: makePatch([
-                        'timeout.connect_ms' => 900,
-                    ]),
-                    revision: 5,
-                ),
-                new PolicyLayer(
-                    kind: PolicyLayerKind::EntityBinding,
-                    scopeKey: 'entity:crawler:c-1',
-                    patch: makePatch([
-                        'timeout.connect_ms' => SettingChange::inherit(),
-                    ]),
-                    revision: 6,
-                ),
-            ],
-            'expectedValues' => [
-                'timeout.connect_ms' => 2200,
-            ],
-            'expectedFieldAssertions' => [
-                'timeout.connect_ms' => [
-                    'sourceScope' => 'tenant:acme',
-                    'sourceLayer' => PolicyLayerKind::TenantDb,
-                    'sourceRevision' => 3,
-                    'inherited' => true,
-                    'reason' => 'inherited',
-                ],
-            ],
-        ];
-    },
-    'route.allow_direct требует и разрешения политики, и наличия direct-маршрута в выбранном профиле' => function (): array {
-        return [
-            'layers' => [
-                new PolicyLayer(
-                    kind: PolicyLayerKind::TenantDb,
-                    scopeKey: 'tenant:acme',
-                    patch: makePatch([
-                        'route.allow_direct' => true,
-                    ]),
-                    revision: 2,
-                    profileKey: 'proxy-only-profile',
-                ),
-            ],
-            'expectedValues' => [
-                'route.allow_direct' => false,
-            ],
-            'expectedFieldAssertions' => [
-                'route.allow_direct' => [
-                    'clamped' => true,
-                    'reason' => 'requires_explicit_direct_profile_member',
-                ],
-            ],
-            'profileDirectMemberMap' => [
-                'proxy-only-profile' => false,
-            ],
-        ];
-    },
+        ],
+        'profileDirectMemberMap' => [
+            'proxy-only-profile' => false,
+        ],
+    ],
 ]);
 
 it('сохраняет все активные бюджеты разных уровней одновременно и пересекает одноимённые бюджеты без расширения в устаревшем слепке', function (): void {
@@ -965,7 +957,7 @@ it('выполняет авторитетную SQL-проверку revalidateL
     $liveAuth = $resolver->revalidateLive($pinned, $subjects);
     expect($liveAuth)->toBeInstanceOf(LivePolicyAuthority::class);
     /** @var LivePolicyAuthority $liveAuth */
-    expect(array_map(static fn ($r): string => $r->routeKey, $liveAuth->eligibleRoutes))
+    expect(array_map(static fn (Route $r): string => $r->routeKey, $liveAuth->eligibleRoutes))
         ->toBe(['proxy-route-a', 'proxy-route-b']);
 
     $selectedRouteA = $liveAuth->eligibleRoutes[0];

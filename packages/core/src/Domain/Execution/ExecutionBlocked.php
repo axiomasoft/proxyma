@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class ExecutionBlocked implements ExecutionResult
 {
     private const array FORBIDDEN_SECRET_KEYS = [
@@ -23,9 +25,6 @@ final readonly class ExecutionBlocked implements ExecutionResult
     /** @var array<string, int|float|string|bool|null> */
     public array $safeDetails;
 
-    /** @var list<Uuid> */
-    public array $attemptIds;
-
     /**
      * @param  array<string, int|float|string|bool|null>  $safeDetails
      * @param  list<Uuid>  $attemptIds
@@ -33,10 +32,9 @@ final readonly class ExecutionBlocked implements ExecutionResult
     public function __construct(
         public BlockedReason $reason,
         array $safeDetails = [],
-        array $attemptIds = [],
+        public array $attemptIds = [],
     ) {
         $this->safeDetails = self::validateSafeDetails($safeDetails);
-        $this->attemptIds = $attemptIds;
     }
 
     /**

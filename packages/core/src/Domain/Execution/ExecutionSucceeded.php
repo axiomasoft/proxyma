@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class ExecutionSucceeded implements ExecutionResult
 {
     /** @var non-empty-list<Uuid> */

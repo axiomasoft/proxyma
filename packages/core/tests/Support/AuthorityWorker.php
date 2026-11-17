@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Database\PostgresConnection;
+use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
+use Packman\Testkit\Support\Database\TestDatabaseGuard;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\DemandQueue;
@@ -20,8 +22,8 @@ use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\UpdatePolicy;
 use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Application\Recovery\Reconciler;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Admission\DemandWait;
@@ -32,6 +34,7 @@ use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\RetireCatalogEntityCommand;
 use Proxyma\Domain\Catalog\UpsertEndpointCommand;
 use Proxyma\Domain\Catalog\UpsertRouteProfileCommand;
+use Proxyma\Domain\Execution\ClaimCandidate;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\DecodedTextBody;
 use Proxyma\Domain\Execution\DemandPurpose;
@@ -65,6 +68,8 @@ use Proxyma\Tests\Support\FinancialLedger;
 use Proxyma\Tests\Support\FixtureWorkBudget;
 use Proxyma\Tests\Support\ProjectOwnerAuthority;
 
+use function Proxyma\Tests\Support\fixtureDestination;
+
 require dirname(__DIR__, 4).'/vendor/autoload.php';
 require __DIR__.'/DemandFixtures.php';
 require __DIR__.'/SelectionFixtures.php';
@@ -81,14 +86,16 @@ $schema = $payload['schema'];
 if (preg_match('/^pxm_t_[a-f0-9]{16}$/D', $schema) !== 1 || ! in_array($payload['label'], ['one', 'two'], true)) {
     throw new RuntimeException('Invalid authority worker fixture.');
 }
-$pdo = new PDO('pgsql:host=db;port=5432;dbname=proxyma_test', 'proxyma_test', 'proxyma-test-only', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-if ($pdo->query('SELECT current_database(),current_user,(SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM) !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
+$identity = SuiteDatabaseConnection::pgsqlIdentity();
+TestDatabaseGuard::assertDestructiveSafe($identity);
+$pdo = new PDO(SuiteDatabaseConnection::pgsqlDsn($identity), $identity->username, SuiteDatabaseConnection::pgsqlPassword(), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+if (getenv('PROXYMA_DOCKER_RIG') === '1' && $pdo->query('SELECT current_database(),current_user,(SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM) !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
     throw new RuntimeException('Refusing authority fixture outside marked proxyma_test.');
 }
 $pdo->exec('SET search_path TO '.$schema.',pg_catalog');
 $pdo->exec("SET statement_timeout='12s'");
 $pdo->prepare("SELECT set_config('application_name',?,false)")->execute(['proxyma-p43-'.$schema.'-'.$payload['label']]);
-$db = new PostgresConnection($pdo, 'proxyma_test', '', ['driver' => 'pgsql', 'name' => 'worker']);
+$db = new PostgresConnection($pdo, $identity->database, '', ['driver' => 'pgsql', 'name' => 'worker']);
 $db->setTransactionManager($manager = new DatabaseTransactionsManager);
 $scope = new ConnectionScope($db, $manager);
 $transactions = new TransactionCoordinator($scope);
@@ -137,7 +144,7 @@ try {
     switch ($action) {
         case 'profile':
             $ids = $db->table('pxm_route_profile_members')->where('profile_id', $root->profile_id)->where('route_id', '<>', $payload['route'])->orderBy('position')->pluck('route_id')->all();
-            $commands->upsertProfile(new UpsertRouteProfileCommand(new Uuid($root->profile_id), $tenant, 'default', array_map(static fn ($id) => new Uuid($id), $ids), 'uniform_random', $mutation));
+            $commands->upsertProfile(new UpsertRouteProfileCommand(new Uuid($root->profile_id), $tenant, 'default', array_map(static fn ($id): Uuid => new Uuid($id), $ids), 'uniform_random', $mutation));
             $status = 'changed';
             break;
         case 'credential':
@@ -151,7 +158,7 @@ try {
             $status = 'changed';
             break;
         case 'policy':
-            (new UpdatePolicy($db, $access, $settings))->update(new UpdatePolicyCommand(new Uuid($payload['head']), $tenant, PolicyScope::Tenant, 'acme',
+            new UpdatePolicy($db, $access, $settings)->update(new UpdatePolicyCommand(new Uuid($payload['head']), $tenant, PolicyScope::Tenant, 'acme',
                 '{"schema_version":1,"operations":{"retry.max_attempts":{"op":"set","value":2}}}', $mutation));
             $status = 'changed';
             break;
@@ -172,7 +179,7 @@ try {
             $status = 'cancelled';
             break;
         case 'reconcile':
-            (new Reconciler($transactions, $recovery, $access))->run($tenant);
+            new Reconciler($transactions, $recovery, $access)->run($tenant);
             $status = 'reconciled';
             break;
         case 'receipt':
@@ -180,7 +187,7 @@ try {
             $receipt = new LateReceiptClaim(new Uuid($root->id), new Uuid($payload['attempt']), new ContentHash($attempt->wire_fingerprint), 'matrix-receipt',
                 new ContentHash(hash('sha256', 'fixture')), new HealthEpochMap(json_decode($attempt->snapshot, true)['epochs']),
                 new ResponseDescriptor(200, [], new DecodedTextBody('fixture'), 7, 7));
-            $status = (new CompletionCoordinator($transactions, $recovery, $access, $resolver, new CompletionObservationReducer($scope)))->recordLateReceipt($receipt)->outcome->value;
+            $status = new CompletionCoordinator($transactions, $recovery, $access, $resolver, new CompletionObservationReducer($scope))->recordLateReceipt($receipt)->outcome->value;
             break;
         case 'deadlock':
             $transactions->run(function ($tx) use (&$attempts, $db, $payload): void {
@@ -208,7 +215,7 @@ try {
                 new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 8, maxDistinctRoutes: 8), $deadline, purpose: $operation->purpose);
             $route = $catalog->findRoute($tenant, new Uuid($payload['route']));
             $credential = $route->endpointId === null ? null : new ResolvedSecret(new CredentialRef('fixture:proxy', 1), 'fixture', 'fixture-proxy-secret');
-            $wire = $sealer->seal($request, $route, \Proxyma\Tests\Support\fixtureDestination($scope, $request), new TlsTrustConfiguration, $credential);
+            $wire = $sealer->seal($request, $route, fixtureDestination($scope, $request), new TlsTrustConfiguration, $credential);
             $selection = new RouteSelection($route->id, $route->kind, new Uuid($root->profile_id), $route->endpointId, $route->credentialVersion, $route->egress);
             $policy = selectionPolicy($tenant, new Uuid($root->profile_id), new Uuid($root->target_id));
             $input = $service->prepare($wire->request, $operation, $selection, $policy, new FixtureWorkBudget);
@@ -223,7 +230,7 @@ try {
             if ($action === 'joint_claim') {
                 $claims->prepare($permit, $input, $wire);
                 $finance = new FinancialLedger($db, $locks);
-                $candidate = $transactions->run(function ($tx) use (&$attempts, $locks, $owners, $owner, $input, $finance, $claims, $permit, $wire, $payload, $db, $scope) {
+                $candidate = $transactions->run(function ($tx) use (&$attempts, $locks, $owners, $owner, $input, $finance, $claims, $permit, $wire, $payload, $db, $scope): ClaimCandidate {
                     $attempts++;
                     $state = $locks->owner($owners, $owner, $input->ownerSnapshot, $tx);
                     $finance->reserve($tx);

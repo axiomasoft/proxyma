@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Secrets;
 
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
+#[Internal]
 final class SecretSchema
 {
     public static function up(Connection $db): void

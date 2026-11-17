@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Policy;
 
+use Packman\Attributes\Api;
+
+#[Api(since: '1.0')]
 final readonly class SettingDescriptor
 {
     /**
@@ -92,13 +95,8 @@ final readonly class SettingDescriptor
         if (! is_array($value) || ! array_is_list($value) || count($value) > 256) {
             return false;
         }
-        foreach ($value as $item) {
-            if ($integers ? (! is_int($item) || ! $this->withinBounds($item)) : (! is_string($item) || ! self::isIdentifier($item))) {
-                return false;
-            }
-        }
 
-        return true;
+        return array_all($value, fn (mixed $item): bool => $integers ? is_int($item) && $this->withinBounds($item) : is_string($item) && self::isIdentifier($item));
     }
 
     private function withinBounds(int $value): bool

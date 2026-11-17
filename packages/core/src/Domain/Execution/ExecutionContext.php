@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Policy\SubjectChain;
 
+#[Api(since: '1.0')]
 final readonly class ExecutionContext
 {
     public function __construct(

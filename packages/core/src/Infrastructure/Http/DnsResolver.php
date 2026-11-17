@@ -6,12 +6,15 @@ namespace Proxyma\Infrastructure\Http;
 
 use Closure;
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
+#[Api(since: '1.0')]
 final readonly class DnsResolver
 {
+    /** @param (Closure(string, int): list<string>)|null $fixture */
     public function __construct(private ConnectionScope $scope, private ?Closure $fixture = null) {}
 
     /** @return list<string> */
@@ -44,7 +47,14 @@ PHP;
         if (! is_array($result) || ! array_is_list($result)) {
             throw new RuntimeException('Invalid DNS response.');
         }
+        $addresses = [];
+        foreach ($result as $address) {
+            if (! is_string($address)) {
+                throw new RuntimeException('Invalid DNS response.');
+            }
+            $addresses[] = $address;
+        }
 
-        return $result;
+        return $addresses;
     }
 }

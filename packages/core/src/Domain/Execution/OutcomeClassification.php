@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Health\HealthAttribution;
 
 /**
@@ -12,6 +13,7 @@ use Proxyma\Domain\Health\HealthAttribution;
  * An HTTP 404 or 503 response can be physically delivered while OutcomeClassification records
  * its domain meaning without altering the underlying ResponseDescriptor.
  */
+#[Api(since: '1.0')]
 final readonly class OutcomeClassification
 {
     public string $businessMeaning;

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Catalog;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class EgressIdentity
 {
     public string $key;
 
-    public bool $conservativePoolFallback;
-
-    public function __construct(string $key, bool $conservativePoolFallback = false)
+    public function __construct(string $key, public bool $conservativePoolFallback = false)
     {
         if (preg_match('/^[a-z0-9][a-z0-9_.:-]{0,127}$/D', $key) !== 1) {
             throw new InvalidArgumentException('Egress key must be a non-empty canonical identifier.');
@@ -23,7 +23,6 @@ final readonly class EgressIdentity
         }
 
         $this->key = $key;
-        $this->conservativePoolFallback = $conservativePoolFallback;
     }
 
     public static function explicit(string $key): self

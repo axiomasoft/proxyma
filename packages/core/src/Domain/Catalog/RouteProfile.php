@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Catalog;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 
+#[Api(since: '1.0')]
 final readonly class RouteProfile
 {
     /** @var list<Uuid> */
@@ -56,13 +58,7 @@ final readonly class RouteProfile
 
     public function containsRoute(Uuid $routeId): bool
     {
-        foreach ($this->memberRouteIds as $memberId) {
-            if ($memberId->equals($routeId)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($this->memberRouteIds, fn (Uuid $memberId): bool => $memberId->equals($routeId));
     }
 
     public function allowsRoute(Route $route, bool $directAllowedByPolicy = false): bool
@@ -79,10 +75,6 @@ final readonly class RouteProfile
             return false;
         }
 
-        if ($route->kind === RouteKind::Direct && ! $directAllowedByPolicy) {
-            return false;
-        }
-
-        return true;
+        return $route->kind !== RouteKind::Direct || $directAllowedByPolicy;
     }
 }

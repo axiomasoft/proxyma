@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Proxyma\Contracts\OutboundClient;
+use Proxyma\Contracts\Execution\OutboundClient;
 use Proxyma\Domain\Admission\LockPosition;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
 use Proxyma\Domain\Execution\BinaryBodyArtifact;
@@ -75,13 +75,17 @@ it('keeps Domain and Contracts completely free of Illuminate, Eloquent, and Symf
 
 it('enforces public contract and immutable domain boundaries without convenience bloat or forgeable capabilities', function (): void {
     $contractsDir = dirname(__DIR__, 2).'/src/Contracts';
-    $contractFiles = glob($contractsDir.'/*.php') ?: [];
+    $contractFiles = glob($contractsDir.'/*/*.php') ?: [];
     expect($contractFiles)->not->toBeEmpty();
 
     foreach ($contractFiles as $file) {
-        $className = 'Proxyma\\Contracts\\'.basename($file, '.php');
+        $subNamespace = basename(dirname($file));
+        $shortName = basename($file, '.php');
+        $className = 'Proxyma\\Contracts\\'.$subNamespace.'\\'.$shortName;
+        $legacyName = 'Proxyma\\Contracts\\'.$shortName;
         $reflection = new ReflectionClass($className);
-        expect($reflection->isInterface())->toBeTrue();
+        expect($reflection->isInterface())->toBeTrue()
+            ->and(interface_exists($legacyName))->toBeTrue();
     }
 
     $outboundClient = new ReflectionClass(OutboundClient::class);
@@ -115,7 +119,7 @@ it('enforces public contract and immutable domain boundaries without convenience
             && array_all($class->getMethods(), static fn (ReflectionMethod $method): bool => $method->isStatic());
     };
     expect($allowedState(new ReflectionClass(UnexpectedMutableDomainFixture::class)))->toBeFalse();
-    foreach ((new ReflectionClass(ResolvedUrl::class))->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+    foreach (new ReflectionClass(ResolvedUrl::class)->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
         expect($property->isReadOnly())->toBeTrue();
     }
 

@@ -6,12 +6,14 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Policy\TenantKey;
 
 /**
  * External execution owner claim (opaque id, token, generation).
  * Distinct from SubjectRef (entity setting binding is not execution ownership).
  */
+#[Api(since: '1.0')]
 final readonly class OwnerRef
 {
     public string $ownerType;

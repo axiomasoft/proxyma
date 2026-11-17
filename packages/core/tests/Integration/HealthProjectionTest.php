@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\Connection;
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Recovery\CompletionCoordinator;
-use Proxyma\Contracts\LockedCompletionReducer;
+use Proxyma\Contracts\Execution\LockedCompletionReducer;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;
@@ -38,7 +38,7 @@ use Proxyma\Tests\Support\ReservationFixtures;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'RecoveryFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class)->group('pg');
 beforeEach(fn () => $this->initializeRecoveryFixture());
 
 function healthResponse(int $status): AttemptResult
@@ -82,7 +82,7 @@ it('pure reducer применяет thresholds, ratio, corroboration и bounded 
     expect($r->reduce(HealthScope::Target, $row, HealthSignal::Failure, 'timeout', $now, independentGroups: 2)->nextSnapshot->availability)->toBe(TargetAvailability::Unavailable);
     $row = new HealthSnapshot($row->id, CircuitState::Closed, 1, 1, 4, 30);
     expect($r->reduce(HealthScope::Route, $row, HealthSignal::Failure, 'proxy_connect', $now)->nextSnapshot->openUntil)->toEqual($now->modify('+21600 seconds'));
-    expect(fn () => new HealthThresholds(routeTargetFailurePercent: 101))->toThrow(InvalidArgumentException::class);
+    expect(fn (): HealthThresholds => new HealthThresholds(routeTargetFailurePercent: 101))->toThrow(InvalidArgumentException::class);
 });
 
 it('open hold не закрывается success, probe failure reopens, ignored probe освобождается и stable decay работает', function (): void {
@@ -180,7 +180,7 @@ it('projection fault откатывает receipt, cooldown, health и release �
 });
 
 it('SQL projection применяет configured pair threshold и сохраняет новый open от старого success', function (): void {
-    $this->app['config']->set('proxyma.health.routeTargetConsecutive', 1);
+    $this->reconfigureProxyma(['health.routeTargetConsecutive' => 1]);
     $this->completion = $this->app->make(CompletionCoordinator::class);
     $old = $this->authorized();
     [, $input] = $this->authorized();
@@ -195,8 +195,8 @@ it('SQL projection применяет configured pair threshold и сохран�
 });
 
 it('failure fact переживает unknown и late success после reaper без второго charge или release', function (): void {
-    $this->app['config']->set('proxyma.health.routeTargetMinSample', 2);
-    $this->app['config']->set('proxyma.health.routeTargetFailurePercent', 50);
+    $this->reconfigureProxyma(['health.routeTargetMinSample' => 2]);
+    $this->reconfigureProxyma(['health.routeTargetFailurePercent' => 50]);
     $this->completion = $this->app->make(CompletionCoordinator::class);
     $prepared = $this->authorized();
     [, $input] = $prepared;
@@ -241,7 +241,7 @@ it('late receipt без probe purpose не закрывает чужой half-op
 });
 
 it('explicit narrow cooldown остаётся у pinned egress после его изменения', function (): void {
-    $this->app['config']->set('proxyma.health_cooldown_scopes', ['route-origin', 'egress-origin']);
+    $this->reconfigureProxyma(['health_cooldown_scopes' => ['route-origin', 'egress-origin']]);
     $this->app->forgetInstance(ClaimSend::class);
     $this->claims = $this->app->make(ClaimSend::class);
     [, $input] = $this->authorized();
@@ -253,7 +253,7 @@ it('explicit narrow cooldown остаётся у pinned egress после его
 });
 
 it('SQL ratio использует physical observations текущего epoch и открывает pair на десятом sample', function (): void {
-    $this->app['config']->set('proxyma.health.routeTargetConsecutive', 100);
+    $this->reconfigureProxyma(['health.routeTargetConsecutive' => 100]);
     $this->completion = $this->app->make(CompletionCoordinator::class);
     $prepared = [];
     for ($i = 0; $i < 10; $i++) {
@@ -268,8 +268,8 @@ it('SQL ratio использует physical observations текущего epoch 
 });
 
 it('expired reducer window не учитывает старый failure, сохраняя сам факт', function (): void {
-    $this->app['config']->set('proxyma.health.routeTargetConsecutive', 100);
-    $this->app['config']->set('proxyma.health.routeTargetMinSample', 2);
+    $this->reconfigureProxyma(['health.routeTargetConsecutive' => 100]);
+    $this->reconfigureProxyma(['health.routeTargetMinSample' => 2]);
     $this->completion = $this->app->make(CompletionCoordinator::class);
     [, $first] = $this->authorized();
     $this->completion->record($first->operation->operationId, $first->request->physicalAttemptId, AttemptResult::failed(TransportFailure::Timeout));

@@ -5,30 +5,36 @@ declare(strict_types=1);
 namespace Proxyma\Filament;
 
 use Illuminate\Support\ServiceProvider;
-use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\TenantContextResolver;
-use Proxyma\Filament\Queries\OperationsQuery;
-use Proxyma\Infrastructure\Database\ConnectionScope;
-use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
+use Override;
+use Packman\Attributes\Api;
+use Packman\Foundation\Concerns\RegistersPackageRegistrars;
+use Packman\Foundation\Contracts\PackageRegistrar;
+use Proxyma\Filament\Registrars\ProxymaFilamentRegistrar;
 
-class ProxymaFilamentServiceProvider extends ServiceProvider
+/**
+ * Registers Proxyma Filament integration services and Blade view namespace.
+ */
+#[Api(since: '1.0')]
+final class ProxymaFilamentServiceProvider extends ServiceProvider
 {
+    use RegistersPackageRegistrars {
+        register as protected registerRegistrars;
+        boot as protected bootRegistrars;
+    }
+
+    /** @var list<class-string<PackageRegistrar>> */
+    protected const array REGISTRARS = [
+        ProxymaFilamentRegistrar::class,
+    ];
+
+    #[Override]
     public function register(): void
     {
-        $this->app->bind(OperationsQuery::class, fn ($app): OperationsQuery => new OperationsQuery(
-            $app->make(ConnectionScope::class), $app->make(CatalogAccess::class), new ContainerTenantContextResolver($app),
-        ));
-        $this->app->bind(CatalogBrowser::class, fn ($app): CatalogBrowser => new CatalogBrowser(
-            $app['db']->connection($app['config']->get('proxyma.connection', 'pgsql')),
-            $app->make(CatalogAccess::class),
-            $app->make(CatalogQueries::class),
-            $app->make(TenantContextResolver::class),
-        ));
+        $this->registerRegistrars();
     }
 
     public function boot(): void
     {
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'proxyma-filament');
+        $this->bootRegistrars();
     }
 }

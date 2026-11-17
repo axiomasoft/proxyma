@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Audit;
 
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantContext;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 
 /** @internal Журнал не содержит свободный текст, значения patch или snapshot модели. */
+#[Internal]
 final readonly class CatalogAudit
 {
     private const array Fields = [
@@ -48,7 +51,7 @@ final readonly class CatalogAudit
         $this->db->table($t['audit_events'])->insert(['id' => $auditId, 'tenant_key' => $tenant->value,
             'actor_type' => $actor->actor->type, 'actor_id' => hash('sha256', $actor->actor->id),
             'reason' => hash('sha256', $actor->reason), 'ability' => $ability, 'entity_type' => $table, 'entity_id' => $id->value,
-            'previous_revision' => $actor->expectedRevision, 'revision' => $result->revision,
+            'previous_revision' => $actor->expectedRevision, 'revision' => RowValues::colInt($result, 'revision'),
             'idempotency_key' => self::key((string) $actor->idempotencyKey), 'command_hash' => $hash,
             'result' => json_encode(['before_fields' => $previous === null ? [] : $fields, 'after_fields' => $fields], JSON_THROW_ON_ERROR)]);
         $this->db->table($t['catalog_command_receipts'])->insert(['tenant_key' => $tenant->value, 'audit_event_id' => $auditId,

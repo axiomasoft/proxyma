@@ -7,9 +7,9 @@ use Filament\Panel;
 use Livewire\Livewire;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\RotateCredentials;
-use Proxyma\Contracts\CatalogCommands;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\SecretResolver;
+use Proxyma\Contracts\Catalog\CatalogCommands;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Security\SecretResolver;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\UpsertEndpointCommand;
 use Proxyma\Domain\Execution\Uuid;
@@ -25,7 +25,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 require_once __DIR__.'/../../core/tests/Support/CatalogTestCase.php';
 require_once __DIR__.'/Support/WithFilament.php';
 
-uses(CatalogTestCase::class, WithFilament::class);
+uses(CatalogTestCase::class, WithFilament::class)->group('pg');
 
 beforeEach(function (): void {
     $this->prepareFilament();
@@ -43,7 +43,7 @@ it('регистрирует настоящий Filament 5 plugin без SQL и 
         ->and($panel->getPages())->toContain(Endpoints::class, Routes::class, RouteProfiles::class)
         ->and($sql)->toBe([]);
     $core = json_decode(file_get_contents(__DIR__.'/../../core/composer.json'), true, flags: JSON_THROW_ON_ERROR);
-    expect(array_filter(array_keys($core['require']), fn ($name): bool => str_starts_with($name, 'filament/')))->toBe([]);
+    expect(array_filter(array_keys($core['require']), fn (int|string $name): bool => str_starts_with($name, 'filament/')))->toBe([]);
 });
 
 it('создаёт endpoint через command с trusted ActorRef, причиной, revision и audit', function (): void {

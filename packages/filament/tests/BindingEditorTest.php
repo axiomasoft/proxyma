@@ -6,8 +6,8 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Panels\PanelFormProjection;
-use Proxyma\Contracts\BindingCommands;
-use Proxyma\Contracts\BindingQueries;
+use Proxyma\Contracts\Bindings\BindingCommands;
+use Proxyma\Contracts\Bindings\BindingQueries;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\BindSubjectPolicyCommand;
 use Proxyma\Domain\Policy\PolicyConflict;
@@ -28,14 +28,14 @@ require_once __DIR__.'/../../core/tests/Support/CatalogTestCase.php';
 require_once __DIR__.'/Support/WithFilament.php';
 require_once __DIR__.'/Support/WithBindingEditor.php';
 
-uses(CatalogTestCase::class, WithFilament::class, WithBindingEditor::class);
+uses(CatalogTestCase::class, WithFilament::class, WithBindingEditor::class)->group('pg');
 
 beforeEach(function (): void {
     $this->prepareBindings();
 });
 
 it('восстанавливает binding audit после health migration без ослабления allowlist', function (): void {
-    $migration = require __DIR__.'/../../core/src/Laravel/Migrations/2026_11_10_000014_restore_binding_audit_type.php';
+    $migration = require __DIR__.'/../../core/database/migrations/2026_11_10_000014_restore_binding_audit_type.php';
     $migration->down();
     $command = new BindSubjectPolicyCommand($this->document, null, 'default', $this->actor(), 'files', 'read');
     $before = $this->table('audit_events')->count();
@@ -76,7 +76,7 @@ it('сохраняет integer, boolean, identifier и typed lists без JSON �
     foreach (['timeout.connect_ms' => 400, 'route.allow_direct' => true, 'route.strategy' => 'least_recent_authorized',
         'routes.denied' => ['route.one'], 'retry.delays_ms' => [10, 30]] as $key => $value) {
         $id = BindingEditor::fieldId($key);
-        $page->set("data.fields.{$id}.mode", 'set')->set("data.fields.{$id}.value", is_array($value) ? array_map(static fn ($item): array => ['item' => $item], $value) : $value);
+        $page->set("data.fields.{$id}.mode", 'set')->set("data.fields.{$id}.value", is_array($value) ? array_map(static fn (string|int $item): array => ['item' => $item], $value) : $value);
     }
     $page->set('data.reason', 'Типизированные overrides')->call('save')->assertHasNoErrors();
     $changes = app(BindingQueries::class)->findBinding($this->document, 'files', 'read')->patch->changes;
@@ -105,8 +105,10 @@ it('отклоняет недопустимые операции, поля и т
 ]);
 
 it('показывает clamp и hard-bound lock, исключая недоступные scopes', function (): void {
-    $this->app['config']->set('proxyma.policy.hard_bounds', ['route.allow_direct' => false, 'timeout.connect_ms' => ['max' => 500]]);
-    $this->app['config']->set('proxyma.policy.project_defaults', ['timeout.connect_ms' => 800]);
+    $this->reconfigureProxyma([
+        'policy.hard_bounds' => ['route.allow_direct' => false, 'timeout.connect_ms' => ['max' => 500]],
+        'policy.project_defaults' => ['timeout.connect_ms' => 800],
+    ]);
     $projection = app(PanelFormProjection::class)->project($this->document, $this->catalog['target'], 'files', 'read');
     expect($projection->fields['timeout.connect_ms']['value'])->toBe(500)
         ->and($projection->fields['timeout.connect_ms']['clamped'])->toBeTrue()

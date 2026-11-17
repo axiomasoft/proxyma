@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Health;
 
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Maintenance\BoundedProbe;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\PolicyResolver;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Policy\PolicyResolver;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthScope;
@@ -17,13 +18,16 @@ use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 use Throwable;
 
+#[Api(since: '1.0')]
 final readonly class ReviewedProbe
 {
     public function __construct(private ConnectionScope $scope, private CatalogAccess $access, private CatalogQueries $catalog,
         private PolicyResolver $policies, private BoundedProbe $probe) {}
 
+    /** @return array{versions: array<string, int|string>, epochs: array<string, int>} */
     public function review(SubjectChain $subjects, Uuid $profileId, Uuid $routeId, Uuid $targetId): array
     {
         $this->scope->assertOutsideTransaction();
@@ -38,6 +42,9 @@ final readonly class ReviewedProbe
         $versions = ['policy' => $policy->effectiveRevision, 'policy_hash' => $policy->policyHash->hex, 'profile:'.$profileId->value => $profile->revision,
             'route:'.$routeId->value => $route->revision, 'target:'.$targetId->value => $target->revision];
         if ($route->endpointId !== null) {
+            if ($route->endpointRevision === null) {
+                throw new CatalogConflict('Endpoint revision is missing.');
+            }
             $versions['endpoint:'.$route->endpointId->value] = $route->endpointRevision;
         }
         $epochs = [];
@@ -50,10 +57,11 @@ final readonly class ReviewedProbe
                 $query->where('target_id', $targetId->value);
             }
             $row = $query->first(['id', 'health_epoch', 'state_version']) ?? throw new CatalogConflict('Health is not materialized.');
-            $this->access->authorize($tenant, 'operations.health.read', new Uuid($row->id));
-            $key = $scope->value.':'.$row->id;
-            $epochs[$key] = (int) $row->health_epoch;
-            $versions[$key] = (int) $row->state_version;
+            $rowId = RowValues::colStr($row, 'id');
+            $this->access->authorize($tenant, 'operations.health.read', new Uuid($rowId));
+            $key = $scope->value.':'.$rowId;
+            $epochs[$key] = RowValues::colInt($row, 'health_epoch');
+            $versions[$key] = RowValues::colInt($row, 'state_version');
         }
         ksort($versions, SORT_STRING);
         ksort($epochs, SORT_STRING);
@@ -61,6 +69,11 @@ final readonly class ReviewedProbe
         return ['versions' => $versions, 'epochs' => $epochs];
     }
 
+    /**
+     * @param  array<string, int|string>  $versions
+     * @param  array<string, int>  $epochs
+     * @return array<string, mixed>
+     */
     public function execute(SubjectChain $subjects, Uuid $profile, Uuid $route, Uuid $target, array $versions, array $epochs, CatalogMutationActor $actor): array
     {
         $this->scope->assertOutsideTransaction();
@@ -88,18 +101,22 @@ final readonly class ReviewedProbe
         return $this->receipt($tenant, $actor, $hash) ?? throw new CatalogConflict('Probe receipt missing.');
     }
 
-    /** @phpstan-impure */
+    /**
+     * @phpstan-impure
+     *
+     * @return array<string, mixed>|null
+     */
     private function receipt(TenantKey $tenant, CatalogMutationActor $actor, string $hash): ?array
     {
         $row = $this->scope->connection->table(PackageSchema::tables()['catalog_command_receipts'])
-            ->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey))->first(['command_hash', 'result']);
+            ->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey ?? ''))->first(['command_hash', 'result']);
         if ($row === null) {
             return null;
         }
-        if (! hash_equals($row->command_hash, $hash)) {
+        if (! hash_equals(RowValues::colStr($row, 'command_hash'), $hash)) {
             throw new CatalogConflict('Idempotency key was used for another command.');
         }
 
-        return json_decode($row->result, true, flags: JSON_THROW_ON_ERROR);
+        return RowValues::jsonAssoc(RowValues::colStr($row, 'result'));
     }
 }

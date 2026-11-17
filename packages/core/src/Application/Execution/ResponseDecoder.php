@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Proxyma\Application\Execution;
 
 use DOMDocument;
+use LengthException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\DecodedTextBody;
 use Proxyma\Domain\Execution\ResponseProfile;
 
+#[Api(since: '1.0')]
 final class ResponseDecoder
 {
     public function decode(string $bytes, ?string $contentType, ResponseProfile $profile): DecodedTextBody
     {
         if (strlen($bytes) > $profile->maxEntityBytes) {
-            throw new \LengthException('Entity byte limit exceeded.');
+            throw new LengthException('Entity byte limit exceeded.');
         }
         $encoding = null;
         foreach (["\x00\x00\xFE\xFF" => 'UTF-32BE', "\xFF\xFE\x00\x00" => 'UTF-32LE', "\xEF\xBB\xBF" => 'UTF-8', "\xFE\xFF" => 'UTF-16BE', "\xFF\xFE" => 'UTF-16LE'] as $bom => $name) {
@@ -62,11 +65,11 @@ final class ResponseDecoder
         $text = '';
         foreach (mb_str_split($bytes, 16384, $canonical) as $chunk) {
             $utf8 = mb_convert_encoding($chunk, 'UTF-8', $canonical);
-            if (mb_convert_encoding($utf8, $canonical, 'UTF-8') !== $chunk) {
+            if (! is_string($utf8) || mb_convert_encoding($utf8, $canonical, 'UTF-8') !== $chunk) {
                 throw new LogicException('Text conversion failed.');
             }
             if (strlen($text) + strlen($utf8) > $profile->maxTextBytes) {
-                throw new \LengthException('Text byte limit exceeded.');
+                throw new LengthException('Text byte limit exceeded.');
             }
             $text .= $utf8;
         }

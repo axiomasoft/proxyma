@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\Route;
 
 /** Prepared outside SQL; this immutable intent grants no authority to send. */
+#[Api(since: '1.0')]
 final readonly class SealedWire
 {
     public function __construct(public WireRequest $request, public Route $route, public ResolvedUrl $destination,
@@ -27,6 +29,7 @@ final readonly class SealedWire
         throw new LogicException('SealedWire cannot be serialized.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('SealedWire cannot be reconstructed.');

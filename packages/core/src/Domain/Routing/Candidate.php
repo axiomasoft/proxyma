@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Routing;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class Candidate
 {
     /**

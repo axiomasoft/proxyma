@@ -1,0 +1,315 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "axiomasoft/proxyma configuration",
+    "type": "object",
+    "properties": {
+        "proxyma": {
+            "type": "object",
+            "properties": {
+                "connection": {
+                    "type": "string",
+                    "default": "pgsql"
+                },
+                "default_tenant": {
+                    "type": [
+                        "string",
+                        "integer",
+                        "number",
+                        "boolean",
+                        "array",
+                        "object",
+                        "null"
+                    ]
+                },
+                "extensions": {
+                    "type": "object",
+                    "properties": {
+                        "approved_providers": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "budget_contributors": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "locked_admission_guards": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "observers": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "outcome_policies": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "policy_definitions": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "providers": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "route_filters": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "route_strategies": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "health": {
+                    "type": "object",
+                    "properties": {
+                        "corroborationWindowSeconds": {
+                            "type": "integer",
+                            "default": 300
+                        },
+                        "globalBaseSeconds": {
+                            "type": "integer",
+                            "default": 1800
+                        },
+                        "globalCapSeconds": {
+                            "type": "integer",
+                            "default": 21600
+                        },
+                        "globalConsecutive": {
+                            "type": "integer",
+                            "default": 5
+                        },
+                        "originCooldownSeconds": {
+                            "type": "integer",
+                            "default": 900
+                        },
+                        "routeTargetBaseSeconds": {
+                            "type": "integer",
+                            "default": 300
+                        },
+                        "routeTargetCapSeconds": {
+                            "type": "integer",
+                            "default": 3600
+                        },
+                        "routeTargetConsecutive": {
+                            "type": "integer",
+                            "default": 5
+                        },
+                        "routeTargetFailurePercent": {
+                            "type": "integer",
+                            "default": 60
+                        },
+                        "routeTargetMinSample": {
+                            "type": "integer",
+                            "default": 10
+                        },
+                        "routeTargetWindowSeconds": {
+                            "type": "integer",
+                            "default": 600
+                        },
+                        "stableDecaySeconds": {
+                            "type": "integer",
+                            "default": 600
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "health_cooldown_scopes": {
+                    "type": [
+                        "array",
+                        "object"
+                    ]
+                },
+                "maintenance": {
+                    "type": "object",
+                    "properties": {
+                        "batch_size": {
+                            "type": "integer",
+                            "default": 32
+                        },
+                        "retention_seconds": {
+                            "type": "integer",
+                            "default": 2592000
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "policy": {
+                    "type": "object",
+                    "properties": {
+                        "hard_bounds": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "panel_defaults": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "project_defaults": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "queue": {
+                    "type": "object",
+                    "properties": {
+                        "maxEligibleSkip": {
+                            "type": "integer",
+                            "default": 8
+                        },
+                        "maxOperationMs": {
+                            "type": "integer",
+                            "default": 3600000
+                        },
+                        "maxPendingPerScope": {
+                            "type": "integer",
+                            "default": 64
+                        },
+                        "retryMs": {
+                            "type": "integer",
+                            "default": 100
+                        },
+                        "ticketTtlMs": {
+                            "type": "integer",
+                            "default": 30000
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "safety": {
+                    "type": "object",
+                    "properties": {
+                        "admission": {
+                            "type": "string",
+                            "default": "mandatory"
+                        },
+                        "budgets": {
+                            "type": "string",
+                            "default": "mandatory"
+                        },
+                        "health": {
+                            "type": "string",
+                            "default": "mandatory"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "scheduler": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "settings": {
+                    "type": "object",
+                    "properties": {
+                        "approved_providers": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "providers": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "table_prefix": {
+                    "type": "string",
+                    "default": "pxm_"
+                },
+                "tls": {
+                    "type": "object",
+                    "properties": {
+                        "origin_bundles": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        },
+                        "proxy_bundles": {
+                            "type": [
+                                "array",
+                                "object"
+                            ]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "traffic_shares": {
+                    "type": [
+                        "array",
+                        "object"
+                    ]
+                },
+                "transactions": {
+                    "type": "object",
+                    "properties": {
+                        "lock_timeout": {
+                            "type": "string",
+                            "default": "2s"
+                        },
+                        "max_attempts": {
+                            "type": "integer",
+                            "default": 3
+                        },
+                        "statement_timeout": {
+                            "type": "string",
+                            "default": "5s"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "wire": {
+                    "type": "object",
+                    "properties": {
+                        "digest_key": {
+                            "type": "string",
+                            "default": ""
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

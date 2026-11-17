@@ -9,13 +9,13 @@ use Proxyma\Application\Panels\PanelFormProjection;
 use Proxyma\Application\Panels\PanelSubjects;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\BindingCommands;
-use Proxyma\Contracts\BindingQueries;
-use Proxyma\Contracts\BudgetScopeContributor;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\RouteFilter;
-use Proxyma\Contracts\SqlConnectionParticipant;
-use Proxyma\Contracts\SubjectResolver;
+use Proxyma\Contracts\Admission\BudgetScopeContributor;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
+use Proxyma\Contracts\Bindings\BindingCommands;
+use Proxyma\Contracts\Bindings\BindingQueries;
+use Proxyma\Contracts\Bindings\SubjectResolver;
+use Proxyma\Contracts\Routing\RouteFilter;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\AdmissionLockTier;
@@ -48,7 +48,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 // Два consumer-типа существуют только в fixture; Domain ничего о них не знает.
 final class PanelFixtureSubjects implements SubjectResolver
@@ -164,13 +164,13 @@ it('замораживает PHP definitions без SQL и независимо 
         ->and($this->db->getQueryLog())->toBe([]);
     expect(fn () => $a->registerCapability('late'))->toThrow(DefinitionError::class);
     foreach (['App\\Injected', 'missing'] as $id) {
-        expect(fn () => $a->selectExtensions(ExtensionKind::RouteFilter, [$id]))->toThrow(DefinitionError::class);
+        expect(fn (): array => $a->selectExtensions(ExtensionKind::RouteFilter, [$id]))->toThrow(DefinitionError::class);
     }
-    expect(fn () => $a->selectExtensions(ExtensionKind::RouteFilter, ['budget']))->toThrow(DefinitionError::class);
+    expect(fn (): array => $a->selectExtensions(ExtensionKind::RouteFilter, ['budget']))->toThrow(DefinitionError::class);
 });
 
 it('отклоняет дубликаты и отсутствующие ссылки definitions', function (): void {
-    $make = fn () => new DefinitionRegistry($this->app->make(SettingRegistry::class));
+    $make = fn (): DefinitionRegistry => new DefinitionRegistry($this->app->make(SettingRegistry::class));
     $r = $make();
     $r->registerCapability('network');
     expect(fn () => $r->registerCapability('network'))->toThrow(DefinitionError::class);
@@ -189,15 +189,15 @@ it('отклоняет дубликаты и отсутствующие ссыл
         $r = $make();
         $r->registerSubjectResolver($resolver);
         $r->registerPanel($bad);
-        expect(fn () => $r->freeze())->toThrow(InvalidArgumentException::class);
-        expect(fn () => $r->fingerprint())->toThrow(DefinitionError::class);
+        expect(fn (): string => $r->freeze())->toThrow(InvalidArgumentException::class);
+        expect(fn (): string => $r->fingerprint())->toThrow(DefinitionError::class);
     }
-    expect(fn () => new PanelDefinition('bad', 'files', [new PanelSlot('read', []), new PanelSlot('read', [])]))->toThrow(DefinitionError::class);
+    expect(fn (): PanelDefinition => new PanelDefinition('bad', 'files', [new PanelSlot('read', []), new PanelSlot('read', [])]))->toThrow(DefinitionError::class);
 });
 
 it('отклоняет missing dependency, cycle, priority и lock-tier conflicts при freeze', function (): void {
-    $filter = fn (string $id, array $deps = [], int $priority = 0) => new ExtensionDefinition($id, ExtensionKind::RouteFilter, new PanelFixtureFilter, dependencies: $deps, priority: $priority);
-    $guard = fn (string $id, AdmissionLockTier $tier, array $deps = []) => new ExtensionDefinition($id, ExtensionKind::LockedAdmissionGuard, new PanelFixtureGuard, dependencies: $deps, tier: $tier);
+    $filter = fn (string $id, array $deps = [], int $priority = 0): ExtensionDefinition => new ExtensionDefinition($id, ExtensionKind::RouteFilter, new PanelFixtureFilter, dependencies: $deps, priority: $priority);
+    $guard = fn (string $id, AdmissionLockTier $tier, array $deps = []): ExtensionDefinition => new ExtensionDefinition($id, ExtensionKind::LockedAdmissionGuard, new PanelFixtureGuard, dependencies: $deps, tier: $tier);
     foreach ([
         [$filter('a', ['missing'])],
         [$filter('a', ['b']), $filter('b', ['a'], 1)],
@@ -210,41 +210,41 @@ it('отклоняет missing dependency, cycle, priority и lock-tier conflict
         foreach ($definitions as $definition) {
             $r->registerExtension($definition);
         }
-        expect(fn () => $r->freeze())->toThrow(DefinitionError::class);
+        expect(fn (): string => $r->freeze())->toThrow(DefinitionError::class);
     }
     $r = new DefinitionRegistry($this->app->make(SettingRegistry::class));
     $r->registerExtension($filter('a'));
     expect(fn () => $r->registerExtension($filter('a')))->toThrow(DefinitionError::class);
     $r->registerExtension($filter('b', ['a'], 1));
     $r->freeze();
-    expect(fn () => $r->selectExtensions(ExtensionKind::RouteFilter, ['b']))->toThrow(DefinitionError::class);
+    expect(fn (): array => $r->selectExtensions(ExtensionKind::RouteFilter, ['b']))->toThrow(DefinitionError::class);
     expect(array_column($r->selectExtensions(ExtensionKind::RouteFilter, ['b', 'a']), 'id'))->toBe(['a', 'b']);
-    expect(fn () => new ExtensionDefinition('bad', ExtensionKind::RouteFilter, new PanelFixtureBudgets))->toThrow(DefinitionError::class);
+    expect(fn (): ExtensionDefinition => new ExtensionDefinition('bad', ExtensionKind::RouteFilter, new PanelFixtureBudgets))->toThrow(DefinitionError::class);
 });
 
 it('разрешает два consumer-типа и повтор типа с другим ID в root-to-leaf порядке', function (): void {
     $child = new SubjectRef($this->tenant, 'folder', 'child');
     $this->subjects->put($child, [$this->folder]);
     $this->subjects->put($this->document, [$this->folder, $child]);
-    $chain = (new PanelSubjects($this->definitions))->resolve('files', $this->document);
+    $chain = new PanelSubjects($this->definitions)->resolve('files', $this->document);
     expect(array_column($chain->ancestors(), 'id'))->toBe(['root', 'child'])
         ->and($chain->leaf->type)->toBe('document');
-    expect((new SubjectRef($this->tenant, 'folder:a', 'b'))->key())
-        ->not->toBe((new SubjectRef($this->tenant, 'folder', 'a:b'))->key());
+    expect(new SubjectRef($this->tenant, 'folder:a', 'b')->key())
+        ->not->toBe(new SubjectRef($this->tenant, 'folder', 'a:b')->key());
 });
 
 it('отклоняет missing subject, orphan, conflicting parent и поддельную ancestry', function (): void {
     $resolver = new PanelSubjects($this->definitions);
-    expect(fn () => $resolver->resolve('files', new SubjectRef($this->tenant, 'document', 'missing')))->toThrow(SubjectResolutionFailed::class);
+    expect(fn (): SubjectChain => $resolver->resolve('files', new SubjectRef($this->tenant, 'document', 'missing')))->toThrow(SubjectResolutionFailed::class);
     unset($this->subjects->chains[$this->folder->key()]);
-    expect(fn () => $resolver->resolve('files', $this->document))->toThrow(SubjectResolutionFailed::class, 'Orphan');
+    expect(fn (): SubjectChain => $resolver->resolve('files', $this->document))->toThrow(SubjectResolutionFailed::class, 'Orphan');
     $this->subjects->put($this->folder, [new SubjectRef($this->tenant, 'folder', 'other')]);
-    expect(fn () => $resolver->resolve('files', $this->document))->toThrow(SubjectResolutionFailed::class, 'conflicting');
+    expect(fn (): SubjectChain => $resolver->resolve('files', $this->document))->toThrow(SubjectResolutionFailed::class, 'conflicting');
     $this->subjects->put($this->folder);
     expect(fn () => $resolver->verify('files', new SubjectChain($this->document)))->toThrow(SubjectResolutionFailed::class);
-    expect(fn () => $resolver->resolve('files', new SubjectRef($this->tenant, 'foreign', '1')))->toThrow(SubjectResolutionFailed::class);
+    expect(fn (): SubjectChain => $resolver->resolve('files', new SubjectRef($this->tenant, 'foreign', '1')))->toThrow(SubjectResolutionFailed::class);
     $this->subjects->chains[$this->document->key()] = new SubjectChain(new SubjectRef(new TenantKey('other'), 'document', '42'));
-    expect(fn () => $resolver->resolve('files', $this->document))->toThrow(SubjectResolutionFailed::class);
+    expect(fn (): SubjectChain => $resolver->resolve('files', $this->document))->toThrow(SubjectResolutionFailed::class);
 });
 
 it('ограничивает chain шестнадцатью узлами и отклоняет repeated typed ID, nested и cross-tenant', function (): void {
@@ -255,15 +255,15 @@ it('ограничивает chain шестнадцатью узлами и от
         $parents[] = $parent;
     }
     $this->subjects->put($this->document, $parents);
-    expect((new PanelSubjects($this->definitions))->resolve('files', $this->document)->ordered)->toHaveCount(16);
-    expect(fn () => new SubjectChain($this->document, [...$parents, $this->folder]))->toThrow(InvalidArgumentException::class, '16');
-    expect(fn () => new SubjectRef($this->tenant, 'document', '42', [...$parents, $this->folder]))->toThrow(InvalidArgumentException::class, '16');
+    expect(new PanelSubjects($this->definitions)->resolve('files', $this->document)->ordered)->toHaveCount(16);
+    expect(fn (): SubjectChain => new SubjectChain($this->document, [...$parents, $this->folder]))->toThrow(InvalidArgumentException::class, '16');
+    expect(fn (): SubjectRef => new SubjectRef($this->tenant, 'document', '42', [...$parents, $this->folder]))->toThrow(InvalidArgumentException::class, '16');
     foreach ([[$this->document], [$this->folder, $this->folder]] as $cycle) {
-        expect(fn () => new SubjectChain($this->document, $cycle))->toThrow(InvalidArgumentException::class, 'Cycle');
-        expect(fn () => new SubjectRef($this->tenant, 'document', '42', $cycle))->toThrow(InvalidArgumentException::class, 'Cycle');
+        expect(fn (): SubjectChain => new SubjectChain($this->document, $cycle))->toThrow(InvalidArgumentException::class, 'Cycle');
+        expect(fn (): SubjectRef => new SubjectRef($this->tenant, 'document', '42', $cycle))->toThrow(InvalidArgumentException::class, 'Cycle');
     }
-    expect(fn () => new SubjectChain($this->document, [new SubjectRef(new TenantKey('other'), 'folder', 'root')]))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new SubjectChain($this->document, [new SubjectRef($this->tenant, 'folder', 'child', [$this->folder])]))->toThrow(InvalidArgumentException::class);
+    expect(fn (): SubjectChain => new SubjectChain($this->document, [new SubjectRef(new TenantKey('other'), 'folder', 'root')]))->toThrow(InvalidArgumentException::class);
+    expect(fn (): SubjectChain => new SubjectChain($this->document, [new SubjectRef($this->tenant, 'folder', 'child', [$this->folder])]))->toThrow(InvalidArgumentException::class);
 });
 
 it('изолирует bindings по tenant, panel, typed subject и slot на query и resolution', function (): void {
@@ -272,7 +272,7 @@ it('изолирует bindings по tenant, panel, typed subject и slot на q
         $binding = $this->bindings->bindPolicy(new BindSubjectPolicyCommand($subject, $this->catalog['profile'], 'default', $this->actor(), $panel, $slot, panelPatch($timeout)));
         expect($binding->panelKey)->toBe($panel)->and($binding->slotKey)->toBe($slot)->and($binding->revision)->toBe(1);
     }
-    $chain = (new PanelSubjects($this->definitions))->resolve('files', $this->document);
+    $chain = new PanelSubjects($this->definitions)->resolve('files', $this->document);
     foreach ([['files', 'read', 900], ['files', 'write', 800], ['archive', 'read', 700]] as [$panel, $slot, $timeout]) {
         expect($this->policies->resolveEffective($chain, $this->catalog['target'], trafficKey: $slot, panelKey: $panel)->timeouts->connectTimeoutMs)->toBe($timeout);
         expect($this->queries->findBinding($this->document, $panel, $slot)->patch->changes['timeout.connect_ms']->value)->toBe($timeout);
@@ -324,7 +324,7 @@ it('не делает частичных записей при wrong field, type
 });
 
 it('не вызывает consumer resolver внутри transaction и проверяет field permissions при unbind', function (): void {
-    $chain = (new PanelSubjects($this->definitions))->resolve('files', $this->document);
+    $chain = new PanelSubjects($this->definitions)->resolve('files', $this->document);
     expect(fn () => $this->db->transaction(fn () => $this->policies->resolveEffective($chain, $this->catalog['target'], trafficKey: 'read', panelKey: 'files')))
         ->toThrow(SubjectResolutionFailed::class, 'before opening');
     $this->bindings->bindPolicy(new BindSubjectPolicyCommand($this->document, null, 'default', $this->actor(), 'files', 'read', panelPatch(800)));
@@ -346,7 +346,7 @@ it('отказывает UI, API и CLI по owner permission и required capabi
 });
 
 it('наследует разрешённые defaults, требует explicit binding и не выполняет missing subject из cache', function (): void {
-    $chain = (new PanelSubjects($this->definitions))->resolve('files', $this->document);
+    $chain = new PanelSubjects($this->definitions)->resolve('files', $this->document);
     $policy = $this->policies->resolveEffective($chain, $this->catalog['target'], trafficKey: 'read', panelKey: 'files');
     expect($policy->timeouts->connectTimeoutMs)->toBe(1500);
     expect(fn () => $this->policies->resolveEffective($chain, $this->catalog['target'], trafficKey: 'explicit', panelKey: 'files'))->toThrow(SubjectResolutionFailed::class, 'Explicit');

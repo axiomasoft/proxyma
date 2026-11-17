@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Panels\PanelSlot;
 
+#[Api(since: '1.0')]
 final readonly class SubjectPolicyBinding
 {
     public function __construct(

@@ -5,15 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class PolicyLayer
 {
     /** @var ?list<string> */
     public ?array $allowedProfileKeys;
-
-    /** @var list<BudgetConstraint> */
-    public array $budgets;
 
     /**
      * @param  ?list<string>  $allowedProfileKeys
@@ -29,7 +28,7 @@ final readonly class PolicyLayer
         public ?int $profileRevision = null,
         ?array $allowedProfileKeys = null,
         public ?string $outcomePolicyKey = null,
-        array $budgets = [],
+        public array $budgets = [],
         public ?SubjectRef $subject = null,
     ) {
         if ($scopeKey === '' || preg_match('/[\x00-\x20\x7f]/', $scopeKey) === 1) {
@@ -66,7 +65,5 @@ final readonly class PolicyLayer
         } else {
             $this->allowedProfileKeys = null;
         }
-
-        $this->budgets = $budgets;
     }
 }

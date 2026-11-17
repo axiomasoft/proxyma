@@ -7,12 +7,13 @@ namespace Proxyma\Infrastructure\Database;
 use Closure;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
 use Proxyma\Application\Catalog\CatalogStorageFailure;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\RouteAccessChecks;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Catalog\RouteAccessChecks;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteProfile;
@@ -21,8 +22,10 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Security\SharedRouteStorage;
+use Proxyma\Internal\Database\RowValues;
 
 /** @internal */
+#[Api(since: '1.0')]
 final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAccessChecks
 {
     public function __construct(private Connection $db, private CatalogAccess $access) {}
@@ -48,9 +51,8 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
             if ($row === null) {
                 return null;
             }
-            $row->member_route_ids = $this->members($tenant, $profileId);
 
-            return CatalogRowMapper::profile($row);
+            return CatalogRowMapper::profile($row, $this->members($tenant, $profileId));
         });
     }
 
@@ -69,21 +71,21 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
         try {
             $profile = $this->row('route_profiles', $tenant, $profileId);
             $routes = [];
-            if ($profile !== null && $profile->retired_at === null) {
+            if ($profile !== null && RowValues::col($profile, 'retired_at') === null) {
                 $members = $this->db->table(PackageSchema::tables()['route_profile_members'])
                     ->where('tenant_key', $tenant->value)->where('profile_id', $profileId->value)->orderBy('position')->get();
                 foreach ($members as $member) {
-                    $id = new Uuid($member->route_id);
+                    $id = new Uuid(RowValues::colStr($member, 'route_id'));
                     $this->access->authorize($tenant, 'catalog.route.select', $id);
                     $route = $this->accessibleRoute($tenant, $id);
-                    if ($route === null || $route->tenantKey->value !== $member->route_owner_tenant_key
-                        || $route->accessGrant?->id->value !== $member->shared_grant_id) {
+                    if ($route === null || $route->tenantKey->value !== RowValues::colStr($member, 'route_owner_tenant_key')
+                        || $route->accessGrant?->id->value !== RowValues::colNullableStr($member, 'shared_grant_id')) {
                         throw new AuthorizationDenied;
                     }
                     $routes[] = $route;
                 }
             }
-            (new CatalogAudit($this->db))->read('route_profiles', $profileId, 'catalog.profile.select', $context, (int) ($profile->revision ?? 0));
+            new CatalogAudit($this->db)->read('route_profiles', $profileId, 'catalog.profile.select', $context, $profile === null ? 0 : RowValues::colInt($profile, 'revision'));
 
             return $routes;
         } catch (QueryException) {
@@ -105,13 +107,13 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
         if ($this->db->transactionLevel() === 0) {
             throw new CatalogInvalidMutation('Prepared route validation requires the owning transaction.');
         }
-        $consumer = $prepared->accessGrant === null ? $prepared->tenantKey : $prepared->accessGrant->consumer;
+        $consumer = $prepared->accessGrant->consumer ?? $prepared->tenantKey;
         $this->access->authorize($consumer, 'catalog.route.select', $prepared->id);
         $t = PackageSchema::tables();
         if ($prepared->endpointId !== null) {
             $endpoint = $this->db->table($t['endpoints'])->where('tenant_key', $prepared->tenantKey->value)
                 ->where('id', $prepared->endpointId->value)->sharedLock()->first();
-            if ($endpoint === null || $endpoint->retired_at !== null || (int) $endpoint->revision !== $prepared->endpointRevision) {
+            if ($endpoint === null || RowValues::col($endpoint, 'retired_at') !== null || RowValues::colInt($endpoint, 'revision') !== $prepared->endpointRevision) {
                 throw new AuthorizationDenied;
             }
         }
@@ -134,27 +136,31 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
         $grant = null;
         $row = $this->row('routes', $tenant, $id);
         if ($row === null) {
-            $grant = (new SharedRouteStorage($this->db))->forConsumer($tenant, $id);
+            $grant = new SharedRouteStorage($this->db)->forConsumer($tenant, $id);
             $row = $grant === null ? null : $this->row('routes', $grant->owner, $id);
         }
-        if ($row === null || ($grant !== null && $row->retired_at !== null)) {
+        if ($row === null || ($grant !== null && RowValues::col($row, 'retired_at') !== null)) {
             return null;
         }
-        $endpoint = $row->endpoint_id === null ? null : $this->row('endpoints', new TenantKey($row->tenant_key), new Uuid($row->endpoint_id));
-        if ($endpoint !== null && $endpoint->retired_at !== null && $grant !== null) {
+        $endpointId = RowValues::colNullableStr($row, 'endpoint_id');
+        $endpoint = $endpointId === null ? null : $this->row('endpoints', new TenantKey(RowValues::colStr($row, 'tenant_key')), new Uuid($endpointId));
+        if ($endpoint !== null && RowValues::col($endpoint, 'retired_at') !== null && $grant !== null) {
             return null;
         }
-        $row->credential_version = $endpoint->credential_version ?? 1;
-        $row->endpoint_revision = $endpoint === null ? null : (int) $endpoint->revision;
 
-        return CatalogRowMapper::route($row, $grant);
+        return CatalogRowMapper::route(
+            $row,
+            $grant,
+            $endpoint === null ? 1 : (RowValues::colNullableInt($endpoint, 'credential_version') ?? 1),
+            $endpoint === null ? null : RowValues::colInt($endpoint, 'revision'),
+        );
     }
 
     /** @return list<string> */
     private function members(TenantKey $tenant, Uuid $profileId): array
     {
-        return $this->db->table(PackageSchema::tables()['route_profile_members'])
-            ->where('tenant_key', $tenant->value)->where('profile_id', $profileId->value)->orderBy('position')->pluck('route_id')->all();
+        return RowValues::strList($this->db->table(PackageSchema::tables()['route_profile_members'])
+            ->where('tenant_key', $tenant->value)->where('profile_id', $profileId->value)->orderBy('position')->pluck('route_id')->all());
     }
 
     /**
@@ -168,7 +174,7 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
         $context = $this->access->authorize($tenant, $ability, $id);
         try {
             $result = $load();
-            (new CatalogAudit($this->db))->read($table, $id, $ability, $context, $result->revision ?? 0);
+            new CatalogAudit($this->db)->read($table, $id, $ability, $context, $result->revision ?? 0);
 
             return $result;
         } catch (QueryException) {

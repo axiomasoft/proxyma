@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class SubjectRef
 {
     public const int MAX_PARENTS = 15;
@@ -77,12 +79,6 @@ final readonly class SubjectRef
             return false;
         }
 
-        foreach ($this->parents as $index => $parent) {
-            if (! $parent->equals($other->parents[$index])) {
-                return false;
-            }
-        }
-
-        return true;
+        return array_all($this->parents, fn (SubjectRef $parent, $index): bool => $parent->equals($other->parents[$index]));
     }
 }

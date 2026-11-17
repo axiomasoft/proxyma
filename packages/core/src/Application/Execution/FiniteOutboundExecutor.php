@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Application\Execution;
 
 use Closure;
-use Proxyma\Contracts\FiniteExecutionPort;
+use InvalidArgumentException;
+use LogicException;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Execution\FiniteExecutionPort;
 use Proxyma\Domain\Execution as X;
 
 /** Finite chain of immutable physical operations, including an explicit mapped target per hop. */
+#[Api(since: '1.0')]
 final readonly class FiniteOutboundExecutor
 {
     /** @param (Closure(int): void)|null $sleepUs */
@@ -60,7 +64,7 @@ final readonly class FiniteOutboundExecutor
                     };
                 }
                 if (! $physical->physicalAttemptId->equals($id)) {
-                    throw new \LogicException('Physical operation correlation mismatch.');
+                    throw new LogicException('Physical operation correlation mismatch.');
                 }
                 $sends++;
                 $ids[] = $id;
@@ -70,7 +74,7 @@ final readonly class FiniteOutboundExecutor
                 $previous = $physical->routeId;
                 $limits = $this->intersect($limits, $physical->timeouts);
                 if ($attempt > $limits->maxAttempts || $hops > $limits->maxRedirects || count($tried) > $limits->maxDistinctRoutes) {
-                    throw new \LogicException('Physical port exceeded the prepared finite bounds.');
+                    throw new LogicException('Physical port exceeded the prepared finite bounds.');
                 }
                 $this->close($last);
                 $last = $physical->result->response;
@@ -86,7 +90,7 @@ final readonly class FiniteOutboundExecutor
                     }
                     try {
                         $next = (new RedirectUrlResolver)->resolve($url, $location);
-                    } catch (\InvalidArgumentException) {
+                    } catch (InvalidArgumentException) {
                         return new X\ExecutionBlocked(X\BlockedReason::UrlPolicyDenied, attemptIds: $ids);
                     }
                     if (($url->origin->scheme === 'https' && $next->origin->scheme !== 'https') || isset($visited[$next->reveal()])) {

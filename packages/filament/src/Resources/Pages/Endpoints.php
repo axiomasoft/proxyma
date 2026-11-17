@@ -9,13 +9,17 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 use Illuminate\Validation\ValidationException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogNotFound;
+use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Filament\Actions\SaveCatalog;
+use Proxyma\Filament\Internal\FilamentValue;
 
 /** @property-read Schema $credentials */
+#[Api(since: '1.0')]
 class Endpoints extends CatalogPage
 {
     protected static string $kind = 'endpoint';
@@ -24,8 +28,10 @@ class Endpoints extends CatalogPage
 
     protected static ?string $slug = 'proxyma-endpoints';
 
+    /** @var array<string, mixed> */
     public array $credentialData = [];
 
+    /** @return array<string, mixed> */
     protected function defaults(): array
     {
         $this->credentialData = [];
@@ -58,6 +64,9 @@ class Endpoints extends CatalogPage
     {
         $this->credentialData = [];
         $value = $this->load($id);
+        if (! $value instanceof Endpoint) {
+            abort(404);
+        }
         $this->form->fill(['protocol' => $value->protocol->value, 'host' => $value->host, 'port' => $value->port,
             'credential_status' => $value->credential === null ? 'Не заданы' : '•••••••• · v'.$value->credential->version, 'reason' => '']);
     }
@@ -68,9 +77,9 @@ class Endpoints extends CatalogPage
             $this->guardWrite('rotate-credentials');
             abort_if($this->revision === 0, 404);
             $state = $this->credentials->getState();
-            $value = app(SaveCatalog::class)->rotate($this->recordId, $this->revision, $state['reason'], $state, $this->authorityVersion);
+            $value = app(SaveCatalog::class)->rotate($this->recordId, $this->revision, FilamentValue::str($state['reason'] ?? null), $state, $this->authorityVersion);
             $this->revision = $value->revision;
-            $this->data['credential_status'] = '•••••••• · v'.$value->credential->version;
+            $this->data['credential_status'] = $value->credential === null ? 'Не заданы' : '•••••••• · v'.$value->credential->version;
         } catch (CatalogConflict) {
             throw ValidationException::withMessages(['credentialData' => 'Данные изменены другим оператором. Перезагрузите запись.']);
         } catch (CatalogNotFound) {

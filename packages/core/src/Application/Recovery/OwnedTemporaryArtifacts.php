@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Recovery;
 
+use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Domain\Admission\AdmissionRejected;
@@ -13,7 +15,11 @@ use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
 use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
+use Proxyma\Internal\Database\RowValues;
+use stdClass;
+use Throwable;
 
+#[Api(since: '1.0')]
 final readonly class OwnedTemporaryArtifacts
 {
     public function __construct(private TransactionCoordinator $transactions, private ReconcileRepository $repository,
@@ -36,7 +42,7 @@ final readonly class OwnedTemporaryArtifacts
             if (fwrite($handle, $data) !== strlen($data)) {
                 throw new LogicException('Incomplete temporary artifact.');
             }
-        } catch (\Throwable $error) {
+        } catch (Throwable $error) {
             unlink($path);
             throw $error;
         } finally {
@@ -46,13 +52,13 @@ final readonly class OwnedTemporaryArtifacts
             $this->transactions->run(function ($tx) use ($id, $tenant, $operation, $permit, $token): void {
                 $root = $this->repository->root($tenant, $operation->value, $tx) ?? throw new AdmissionRejected('operation_missing');
                 $state = $this->repository->lockSubset($root, $tx);
-                if (! in_array($permit->value, array_column($state['permits'], 'id'), true)) {
+                if (! in_array($permit->value, array_map(static fn (stdClass $p): string => RowValues::colStr($p, 'id'), $state['permits']), true)) {
                     throw new AdmissionRejected('artifact_permit_missing');
                 }
                 $this->transactions->scope->connection->table((new TemporaryArtifactRecord)->getTable())->insert(['id' => $id->value,
                     'tenant_key' => $tenant->value, 'operation_id' => $operation->value, 'permit_id' => $permit->value, 'ownership_token' => $token]);
             });
-        } catch (\Throwable $error) {
+        } catch (Throwable $error) {
             unlink($path);
             throw $error;
         }
@@ -65,7 +71,7 @@ final readonly class OwnedTemporaryArtifacts
         $scope = $this->transactions->scope;
         $scope->assertOutsideTransaction();
         if ($retentionSeconds < 1 || $limit < 1 || $limit > 64) {
-            throw new \InvalidArgumentException('Positive retention and page 1..64 are required.');
+            throw new InvalidArgumentException('Positive retention and page 1..64 are required.');
         }
         $this->access->authorize($tenant, 'execution.artifact.prune', new Uuid('00000000-0000-0000-0000-000000000001'));
         $table = (new TemporaryArtifactRecord)->getTable();
@@ -76,24 +82,33 @@ final readonly class OwnedTemporaryArtifacts
             ->select('a.*')->orderBy('a.id')->limit($limit)->get();
         $count = 0;
         foreach ($rows as $row) {
-            $pending = $this->transactions->run(function ($tx) use ($row, $tenant, $db, $table): bool {
-                $root = $this->repository->root($tenant, $row->operation_id, $tx, true);
+            $rowId = RowValues::colStr($row, 'id');
+            $operationId = RowValues::colStr($row, 'operation_id');
+            $permitId = RowValues::colStr($row, 'permit_id');
+            $ownershipToken = RowValues::colStr($row, 'ownership_token');
+            $pending = $this->transactions->run(function ($tx) use ($rowId, $operationId, $permitId, $tenant, $db, $table): bool {
+                $root = $this->repository->root($tenant, $operationId, $tx, true);
                 if ($root === null) {
                     return false;
                 }
                 $state = $this->repository->lockSubset($root, $tx);
-                $permit = array_column($state['permits'], null, 'id')[$row->permit_id];
-                if (! in_array($permit->state, ['completed', 'cancelled_before_send', 'expired_before_send'], true) || $permit->lease_released_at === null) {
+                $permitsById = [];
+                foreach ($state['permits'] as $p) {
+                    $permitsById[RowValues::colStr($p, 'id')] = $p;
+                }
+                $permit = $permitsById[$permitId];
+                if (! in_array(RowValues::colStr($permit, 'state'), ['completed', 'cancelled_before_send', 'expired_before_send'], true)
+                    || RowValues::colNullableStr($permit, 'lease_released_at') === null) {
                     return false;
                 }
-                $db->table($table)->where('id', $row->id)->update(['delete_pending' => true]);
+                $db->table($table)->where('id', $rowId)->update(['delete_pending' => true]);
 
                 return true;
             });
             if (! $pending) {
                 continue;
             }
-            $path = $this->path(new Uuid($row->id));
+            $path = $this->path(new Uuid($rowId));
             if (is_link($path)) {
                 continue;
             }
@@ -104,17 +119,17 @@ final readonly class OwnedTemporaryArtifacts
                 }
                 $header = fgets($handle, 66);
                 fclose($handle);
-                if ($header !== $row->ownership_token."\n" || ! unlink($path)) {
+                if ($header !== $ownershipToken."\n" || ! unlink($path)) {
                     continue;
                 }
             }
-            $count += $this->transactions->run(function ($tx) use ($row, $tenant, $db, $table): int {
-                $root = $this->repository->root($tenant, $row->operation_id, $tx, true);
+            $count += $this->transactions->run(function ($tx) use ($rowId, $operationId, $tenant, $db, $table): int {
+                $root = $this->repository->root($tenant, $operationId, $tx, true);
                 if ($root === null) {
                     return 0;
                 }
 
-                return $db->table($table)->where('id', $row->id)->where('delete_pending', true)->delete();
+                return $db->table($table)->where('id', $rowId)->where('delete_pending', true)->delete();
             });
         }
 
@@ -127,7 +142,7 @@ final readonly class OwnedTemporaryArtifacts
             throw new LogicException('Artifact root must be an absolute local path without traversal.');
         }
         $part = '';
-        foreach (array_filter(explode('/', $this->root)) as $segment) {
+        foreach (array_filter(explode('/', $this->root), static fn (string $segment): bool => $segment !== '') as $segment) {
             $part .= '/'.$segment;
             if (is_link($part)) {
                 throw new LogicException('Artifact root must not contain symlinks.');

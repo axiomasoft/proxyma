@@ -6,6 +6,7 @@ use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Recovery\Reconciler;
 use Proxyma\Domain\Admission\AdmissionRejected;
+use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\ProxyDestination;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\SealedWire;
@@ -24,7 +25,7 @@ use Symfony\Component\Process\Process;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'PhysicalFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->initializePhysicalFixture();
 });
@@ -100,30 +101,30 @@ it('подменённый proxy endpoint при том же revision не по�
     expect($this->table('attempts')->count())->toBe(0);
     $this->socket->assertNoConnections();
     $proxy = $prepared[2]->proxy;
-    expect(fn () => new ProxyDestination($proxy->endpoint, '127.0.0.2'))->toThrow(Error::class)
-        ->and(fn () => serialize($proxy))->toThrow(LogicException::class);
+    expect(fn (): ProxyDestination => new ProxyDestination($proxy->endpoint, '127.0.0.2'))->toThrow(Error::class)
+        ->and(fn (): string => serialize($proxy))->toThrow(LogicException::class);
     $class = ProxyDestination::class;
-    expect(fn () => unserialize('O:'.strlen($class).':"'.$class.'":0:{}'))->toThrow(LogicException::class);
+    expect(fn (): mixed => unserialize('O:'.strlen($class).':"'.$class.'":0:{}'))->toThrow(LogicException::class);
 });
 
 it('cancellation запрещает первый send и останавливает actual stalled socket без retry', function (bool $during): void {
     $prepared = $this->physicalPrepared($during ? '/stall' : '/ok', timeouts: new RequestTimeoutPolicy(500, 1000, 1500, 0));
     $cap = $this->physicalCapability($prepared);
     $start = hrtime(true);
-    $transport = new PhysicalHttpTransport($this->transactions->scope, $this->sealer, cancelled: static fn () => ! $during || hrtime(true) - $start > 100_000_000);
+    $transport = new PhysicalHttpTransport($this->transactions->scope, $this->sealer, cancelled: static fn (): bool => ! $during || hrtime(true) - $start > 100_000_000);
     expect($transport->sendOnce($cap)->failure)->toBe(TransportFailure::Cancelled)->and($cap->isConsumed())->toBeTrue();
     if ($during) {
         expect($this->socket->events('origin'))->toHaveCount(1);
     } else {
         $this->socket->assertNoConnections();
     }
-    expect(fn () => $transport->sendOnce($cap))->toThrow(LogicException::class, 'already consumed');
+    expect(fn (): AttemptResult => $transport->sendOnce($cap))->toThrow(LogicException::class, 'already consumed');
 })->with([true, false]);
 
 function physicalWorker($test, array $prepared, string $checkpoint): Process
 {
     [$permit, $input, $wire] = $prepared;
-    $worker = new Process([PHP_BINARY, dirname(__DIR__).'/Support/QuotaWorker.php', json_encode([
+    $worker = new Process([PHP_BINARY, __DIR__.'/../Support/QuotaWorker.php', json_encode([
         'schema' => $test->wireSchema, 'label' => 'one', 'operation' => $input->operation->operationId->value,
         'attempt' => $input->request->physicalAttemptId->value, 'route' => $input->selection->routeId->value,
         'permit' => $permit->permitId->value, 'classes' => [], 'physical_checkpoint' => $checkpoint,
@@ -132,7 +133,7 @@ function physicalWorker($test, array $prepared, string $checkpoint): Process
     $worker->setTimeout(10);
     $test->socketWorkers[] = $worker;
     $worker->start();
-    if (! $worker->waitUntil(static fn ($type, $output) => str_contains($output, 'authorized'))) {
+    if (! $worker->waitUntil(static fn ($type, $output): bool => str_contains($output, 'authorized'))) {
         throw new RuntimeException('Socket worker failed: '.$worker->getErrorOutput().$worker->getOutput());
     }
 
@@ -159,7 +160,7 @@ it('SIGKILL после authorization и после actual origin bytes оста�
             expect($signal->getSignal())->toBe(9);
         }
         expect($worker->getTermSignal())->toBe(9)->and($this->table('attempts')->value('receipt_digest'))->toBeNull();
-        $this->sqlClock((new DateTimeImmutable('+1 hour'))->format(DATE_ATOM));
+        $this->sqlClock(new DateTimeImmutable('+1 hour')->format(DATE_ATOM));
         $reconciler = $this->app->make(Reconciler::class);
         $reconciler->run($this->tenant);
         expect($this->table('permits')->value('state'))->toBe('unknown_after_authorization')
@@ -178,7 +179,7 @@ it('поздний actual socket result после inflight expiry сохран�
     $worker = physicalWorker($this, $prepared, 'late_result');
     $this->socket->await('origin');
     expect($this->table('attempts')->value('receipt_digest'))->toBeNull();
-    $this->sqlClock((new DateTimeImmutable('+1 hour'))->format(DATE_ATOM));
+    $this->sqlClock(new DateTimeImmutable('+1 hour')->format(DATE_ATOM));
     $reconciler = $this->app->make(Reconciler::class);
     $reconciler->run($this->tenant);
     expect($this->table('permits')->value('state'))->toBe('unknown_after_authorization')

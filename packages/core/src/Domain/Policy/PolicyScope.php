@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Policy;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 enum PolicyScope: string
 {
     case Global = 'global';

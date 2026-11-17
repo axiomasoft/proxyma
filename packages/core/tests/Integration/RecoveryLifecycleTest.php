@@ -7,8 +7,8 @@ use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Application\Recovery\Reconciler;
-use Proxyma\Contracts\LockedCompletionReducer;
-use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\Execution\LockedCompletionReducer;
+use Proxyma\Contracts\Policy\PolicyCommands;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\CompletionFact;
@@ -32,7 +32,7 @@ use Proxyma\Tests\Support\ReservationFixtures;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'RecoveryFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class)->group('pg');
 beforeEach(fn () => $this->initializeRecoveryFixture());
 afterEach(function (): void {
     if (is_dir($this->tempRoot)) {

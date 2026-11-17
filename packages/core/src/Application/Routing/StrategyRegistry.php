@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Application\Routing;
 
 use InvalidArgumentException;
-use Proxyma\Contracts\RandomIndex;
-use Proxyma\Contracts\RouteSelectionStrategy;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Routing\RandomIndex;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 
+#[Api(since: '1.0')]
 final readonly class StrategyRegistry
 {
     /** @var array<string, RouteSelectionStrategy> */

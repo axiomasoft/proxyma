@@ -6,8 +6,10 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 
+#[Api(since: '1.0')]
 final readonly class SafeUrl
 {
     public CanonicalOrigin $origin;
@@ -33,7 +35,7 @@ final readonly class SafeUrl
         if ($path === '') {
             $path = '/';
         }
-        if (str_contains($path, '\\') || preg_match('/%(?![0-9a-fA-F]{2})/', $value)) {
+        if (str_contains($path, '\\') || preg_match('/%(?![0-9a-fA-F]{2})/', $value) === 1) {
             throw new InvalidArgumentException('URL contains an ambiguous path or escape.');
         }
         $this->value = $this->origin->scheme.'://'.$host.$port.$path.(isset($parts['query']) ? '?'.$parts['query'] : '');

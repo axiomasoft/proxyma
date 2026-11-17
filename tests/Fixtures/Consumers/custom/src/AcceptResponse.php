@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Consumer;
 
-use Proxyma\Contracts\OutcomePolicy;
+use Proxyma\Contracts\Execution\OutcomePolicy;
 use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\OutcomeClassification;
 use Proxyma\Domain\Execution\OutcomeDecision;

@@ -10,7 +10,7 @@ use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
 use Proxyma\Application\Catalog\CatalogStorageFailure;
 use Proxyma\Application\Catalog\RotateCredentials;
-use Proxyma\Contracts\SecretResolver;
+use Proxyma\Contracts\Security\SecretResolver;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Catalog\EgressIdentity;
@@ -28,13 +28,15 @@ use Proxyma\Tests\Support\ClaimFixtures;
 use Proxyma\Tests\Support\DemandFixtures;
 use Proxyma\Tests\Support\ReservationFixtures;
 
+use function Proxyma\Tests\Support\fixtureDestination;
+
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/SelectionFixtures.php';
 require_once __DIR__.'/../Support/DemandFixtures.php';
 require_once __DIR__.'/../Support/ReservationFixtures.php';
 require_once __DIR__.'/../Support/ClaimFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeClaimFixture();
@@ -45,9 +47,10 @@ beforeEach(function (): void {
 });
 
 it('encrypted store migration изолирована и обратима вместе с package schema', function (): void {
-    $this->artisan('migrate:rollback', ['--force' => true])->assertExitCode(0);
+    $migrationPath = dirname(__DIR__, 2).'/database/migrations';
+    $this->artisan('migrate:rollback', ['--path' => $migrationPath, '--realpath' => true, '--force' => true])->assertExitCode(0);
     expect($this->db->select('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'))->toHaveCount(1);
-    $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+    $this->artisan('migrate', ['--path' => $migrationPath, '--realpath' => true, '--force' => true])->assertExitCode(0);
     expect($this->table('encrypted_secrets')->count())->toBe(0)->and($this->db->table('migrations')->count())->toBe(15);
 });
 
@@ -100,7 +103,7 @@ it('trusted tenant и permission проверяются при каждом reso
     expect(fn () => $this->rotation->handle($this->proxyEndpoint, $this->tenant, 'user', 'password', $actor))
         ->toThrow(AuthorizationDenied::class);
     $this->useTenant($this->tenant);
-    $this->permissions(static fn () => false);
+    $this->permissions(static fn (): false => false);
     expect(fn () => $this->secrets->resolve($endpoint->credential, $this->tenant))->toThrow(AuthorizationDenied::class);
     expect(fn () => $this->rotation->handle($this->proxyEndpoint, $this->tenant, 'user', 'password', $actor))
         ->toThrow(AuthorizationDenied::class);
@@ -142,7 +145,7 @@ it('missing prepared secret отклоняется final CAS, корректны
     $intent['route'] = new RouteSelection($this->catalog['route'], RouteKind::Proxy,
         $this->catalog['profile'], $this->proxyEndpoint, $endpoint->credentialVersion(), EgressIdentity::explicit('nat:fixture'));
     $input = $this->reservationInput($intent);
-    $destination = \Proxyma\Tests\Support\fixtureDestination($this->transactions->scope, $intent['request']);
+    $destination = fixtureDestination($this->transactions->scope, $intent['request']);
     $missing = $this->sealer->seal($intent['request'], $input->route, $destination, new TlsTrustConfiguration);
     $intent['request'] = $missing->request;
     $missingInput = $this->reservationInput($intent);
@@ -243,8 +246,8 @@ it('secret scanning исключений, log context, diagnostics и serialized
     foreach ([$safe, $logged, json_encode($request), json_encode($secret), print_r($request, true), print_r($secret, true), print_r($redactor, true)] as $output) {
         expect($output)->not->toContain('canary-user', 'canary-password', $basic, 'other-canary', rawurlencode($secret->revealSecret()));
     }
-    expect(fn () => serialize($request))->toThrow(LogicException::class);
-    expect(fn () => serialize($secret))->toThrow(LogicException::class);
+    expect(fn (): string => serialize($request))->toThrow(LogicException::class);
+    expect(fn (): string => serialize($secret))->toThrow(LogicException::class);
     try {
         new PreparedHeaders(['canary-password:/%' => 'value']);
         $this->fail('Expected malformed header denial.');

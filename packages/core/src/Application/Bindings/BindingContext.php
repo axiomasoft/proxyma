@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Bindings;
 
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Panels\PanelSubjects;
@@ -12,6 +13,7 @@ use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 
+#[Api(since: '1.0')]
 final readonly class BindingContext
 {
     public function __construct(private CatalogAccess $access, private DefinitionRegistry $definitions) {}
@@ -26,6 +28,6 @@ final readonly class BindingContext
             $this->access->authorize($subject->tenant, 'capability.'.$capability, $id, $actor);
         }
 
-        return (new PanelSubjects($this->definitions))->resolve($panelKey, $subject);
+        return new PanelSubjects($this->definitions)->resolve($panelKey, $subject);
     }
 }

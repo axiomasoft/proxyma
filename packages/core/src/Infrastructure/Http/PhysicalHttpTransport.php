@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Http;
 
 use Closure;
+use LengthException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Execution\ResponseDecoder;
 use Proxyma\Application\Execution\WireSealer;
-use Proxyma\Contracts\PhysicalTransport;
+use Proxyma\Contracts\Execution\PhysicalTransport;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Execution\AttemptResult;
@@ -21,12 +23,15 @@ use Proxyma\Domain\Execution\TlsTrustConfiguration;
 use Proxyma\Domain\Execution\TransportFailure;
 use Proxyma\Domain\Execution\TransportMetrics;
 use Proxyma\Infrastructure\Database\ConnectionScope;
+use Throwable;
 
+#[Api(since: '1.0')]
 final readonly class PhysicalHttpTransport implements PhysicalTransport
 {
     // ext-curl не экспортирует CURLE_LOGIN_DENIED во всех поддержанных сборках; ABI код стабилен.
     private const int CurlLoginDenied = 67;
 
+    /** @param (Closure(): bool)|null $cancelled */
     public function __construct(private ConnectionScope $scope, private WireSealer $sealer,
         private int $maxResponseBytes = 67_108_864, private ?Closure $cancelled = null)
     {
@@ -66,10 +71,10 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 $reader ??= new ResponseReader($wire->request->responseProfile, $this->scope, $headers['content-encoding'][0] ?? '');
                 $reader->write($chunk);
                 if ($reader->wireBytes() > $this->maxResponseBytes) {
-                    throw new \LengthException('Physical response byte limit exceeded.');
+                    throw new LengthException('Physical response byte limit exceeded.');
                 }
-            } catch (\Throwable $error) {
-                $limit = $error instanceof \LengthException;
+            } catch (Throwable $error) {
+                $limit = $error instanceof LengthException;
                 $readerError = $error;
 
                 return 0;
@@ -85,7 +90,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
 
                 return 0;
             }
-            if (preg_match('~^HTTP/\S+ ([0-9]{3})~', $line, $match)) {
+            if (preg_match('~^HTTP/\S+ ([0-9]{3})~', $line, $match) === 1) {
                 $status = (int) $match[1];
                 $headers = [];
             } elseif (str_contains($line, ':')) {
@@ -125,10 +130,10 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                     $failure = TransportFailure::Protocol;
                     break;
                 }
-                if (! $running) {
+                if ($running === 0) {
                     break;
                 }
-                if (($this->cancelled) !== null && ($this->cancelled)()) {
+                if ($this->cancelled !== null && ($this->cancelled)()) {
                     $failure = TransportFailure::Cancelled;
                     break;
                 }
@@ -140,14 +145,15 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 if (curl_multi_select($multi, 0.01) === -1) {
                     usleep(1000);
                 }
-            } while ($running);
+            } while ($running > 0);
             $info = curl_multi_info_read($multi);
-            $error = $info === false ? curl_errno($curl) : $info['result'];
+            $error = is_array($info) && is_int($info['result'] ?? null) ? $info['result'] : curl_errno($curl);
             $stats = curl_getinfo($curl);
-            $metrics = new TransportMetrics(...array_map(static fn (string $key): int => max(0, (int) round(($stats[$key] ?? 0) * 1000)),
-                ['namelookup_time', 'connect_time', 'appconnect_time', 'starttransfer_time', 'total_time']));
+            $metricValues = array_map(static fn (string $key): int => max(0, (int) round(($stats[$key] ?? 0) * 1000)),
+                ['namelookup_time', 'connect_time', 'appconnect_time', 'starttransfer_time', 'total_time']);
+            $metrics = new TransportMetrics(...$metricValues);
             $head = $status >= 100 && $status <= 599 ? new HttpResponseHead($status, $headers) : null;
-            $proxyStatus = (int) curl_getinfo($curl, CURLINFO_HTTP_CONNECTCODE);
+            $proxyStatus = curl_getinfo($curl, CURLINFO_HTTP_CONNECTCODE);
             $failure ??= match (true) {
                 $limit => TransportFailure::ByteLimit,
                 $readerError !== null => TransportFailure::Protocol,
@@ -160,7 +166,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 $head === null => TransportFailure::Protocol,
                 default => null,
             };
-            $bytes = max($reader?->wireBytes() ?? 0, $stats === false ? 0 : (int) $stats['size_download']);
+            $bytes = max($reader?->wireBytes() ?? 0, (int) $stats['size_download']);
             if ($failure !== null) {
                 return AttemptResult::failed($failure, $bytes, 0, $error, $head, $metrics);
             }
@@ -173,9 +179,9 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
                 }
 
                 return AttemptResult::delivered(new ResponseDescriptor($status, $headers, $body, $bytes, $reader->decodedBytes()), $metrics);
-            } catch (\LengthException) {
+            } catch (LengthException) {
                 return AttemptResult::failed(TransportFailure::ByteLimit, $bytes, 0, $error, $head, $metrics);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 return AttemptResult::failed(TransportFailure::Protocol, $bytes, 0, $error, $head, $metrics);
             }
         } finally {
@@ -204,6 +210,7 @@ final readonly class PhysicalHttpTransport implements PhysicalTransport
         return str_contains($host, ':') ? '['.$host.']' : $host;
     }
 
+    /** @return array<int, mixed> */
     private function options(SealedWire $wire): array
     {
         $origin = $wire->destination;

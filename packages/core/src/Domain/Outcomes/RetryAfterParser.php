@@ -7,12 +7,14 @@ namespace Proxyma\Domain\Outcomes;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\RetryAt;
 
 /**
  * Безопасный парсер заголовка Retry-After (delta-seconds или HTTP-date) с верхним потолком.
  * Исключает целочисленное переполнение; чрезмерные или битые значения помечаются явно.
  */
+#[Api(since: '1.0')]
 final readonly class RetryAfterParser
 {
     private const array HTTP_DATE_FORMATS = [

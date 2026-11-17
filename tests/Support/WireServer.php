@@ -23,11 +23,12 @@ final class WireServer
         if (! mkdir($this->root, 0700)) {
             throw new RuntimeException('Unable to create owned fixture directory.');
         }
-        $this->certificates = dirname(__DIR__).'/Fixtures/Http/certificates';
-        $this->process = new Process(['python3', dirname(__DIR__).'/Fixtures/Http/wire.py', $this->root, $this->certificates]);
+        $certificates = realpath(__DIR__.'/../Fixtures/Http/certificates');
+        $this->certificates = $certificates !== false ? $certificates : __DIR__.'/../Fixtures/Http/certificates';
+        $this->process = new Process(['python3', __DIR__.'/../Fixtures/Http/wire.py', $this->root, $this->certificates]);
         $this->process->setTimeout(null);
         $this->process->start();
-        if (! $this->process->waitUntil(fn ($type, $output) => str_contains($output, 'ready'))) {
+        if (! $this->process->waitUntil(fn ($type, $output): bool => str_contains($output, 'ready'))) {
             throw new RuntimeException('Wire fixture did not start: '.$this->process->getErrorOutput());
         }
         $this->ports = json_decode(file_get_contents($this->root.'/ports.json'), true, flags: JSON_THROW_ON_ERROR);
@@ -41,9 +42,9 @@ final class WireServer
     public function events(?string $kind = null): array
     {
         $lines = is_file($this->root.'/events.jsonl') ? file($this->root.'/events.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
-        $events = array_map(static fn ($line) => json_decode($line, true, flags: JSON_THROW_ON_ERROR), $lines);
+        $events = array_map(static fn ($line): mixed => json_decode($line, true, flags: JSON_THROW_ON_ERROR), $lines);
 
-        return array_values(array_filter($events, static fn ($event) => $kind === null || $event['kind'] === $kind));
+        return array_values(array_filter($events, static fn (array $event): bool => $kind === null || $event['kind'] === $kind));
     }
 
     public function await(string $kind, int $count = 1): array

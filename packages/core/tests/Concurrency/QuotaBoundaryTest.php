@@ -18,7 +18,7 @@ require_once __DIR__.'/../Support/ReservationFixtures.php';
 require_once __DIR__.'/../Support/ClaimFixtures.php';
 require_once __DIR__.'/../Support/QuotaFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->initializeQuotaFixture();
     $this->barrier = $this->connectionPdo();
@@ -40,13 +40,13 @@ afterEach(function (): void {
 function quotaWorker($test, array $prepared, string $label, string $mode = 'reserve', bool $gate = false): Process
 {
     [$ticketOrPermit,$input] = $prepared;
-    $worker = (new Process(['php', dirname(__DIR__).'/Support/QuotaWorker.php', json_encode([
+    $worker = new Process([PHP_BINARY, __DIR__.'/../Support/QuotaWorker.php', json_encode([
         'schema' => $test->workerSchema, 'label' => $label, 'mode' => $mode, 'cas_gate' => $gate,
         'operation' => $input->operation->operationId->value, 'attempt' => $input->request->physicalAttemptId->value,
         'deadline' => $input->request->deadlineAt->format('U.u'), 'route' => $input->selection->routeId->value,
         'permit' => $mode === 'reserve' ? null : $ticketOrPermit->permitId->value, 'class' => $input->request->trafficClass,
         'classes' => $test->workerClasses, 'budget' => $test->originBudget->value, 'hour' => 0, 'day' => 0, 'revision' => 2,
-    ], JSON_THROW_ON_ERROR)]))->setTimeout(15);
+    ], JSON_THROW_ON_ERROR)])->setTimeout(15);
     $test->quotaWorkers[] = $worker;
 
     return $worker;
@@ -63,7 +63,7 @@ function quotaAwait($test, int $count): void
             break;
         }usleep(10000);
     } while (hrtime(true) < $until);
-    expect($found)->toBe($count, implode("\n", array_map(fn ($w) => $w->isStarted() ? $w->getErrorOutput().$w->getOutput() : '', $test->quotaWorkers)));
+    expect($found)->toBe($count, implode("\n", array_map(fn ($w): string => $w->isStarted() ? $w->getErrorOutput().$w->getOutput() : '', $test->quotaWorkers)));
 }
 
 function quotaResult(Process $worker): array

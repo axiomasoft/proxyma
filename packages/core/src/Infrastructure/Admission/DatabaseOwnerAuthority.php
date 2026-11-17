@@ -7,8 +7,9 @@ namespace Proxyma\Infrastructure\Admission;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\SqlConnectionParticipant;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\LockedOwnerState;
@@ -17,9 +18,12 @@ use Proxyma\Domain\Execution\OwnerRef;
 use Proxyma\Domain\Execution\OwnerSnapshot;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Infrastructure\Database\ConnectionScope;
+use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 
 /** Standalone authority: the operation row is also its owner prefix/root mutex. */
+#[Api(since: '1.0')]
 final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnectionParticipant
 {
     public function __construct(private ConnectionScope $scope) {}
@@ -31,7 +35,7 @@ final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnec
 
     public function connectionName(): string
     {
-        return $this->connection()->getName();
+        return $this->connection()->getName() ?? '';
     }
 
     public function snapshot(OwnerRef $owner): ?OwnerSnapshot
@@ -41,9 +45,15 @@ final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnec
         if ($row === null) {
             return null;
         }
+        $probeToken = RowValues::colNullableStr($row, 'probe_token');
 
-        return new OwnerSnapshot($owner, new DateTimeImmutable($row->deadline), controlVersions: ['operation' => (int) $row->revision],
-            purpose: DemandPurpose::from($row->purpose), probeToken: $row->probe_token === null ? null : new Uuid($row->probe_token));
+        return new OwnerSnapshot(
+            $owner,
+            new DateTimeImmutable(RowValues::colStr($row, 'deadline')),
+            controlVersions: ['operation' => RowValues::colInt($row, 'revision')],
+            purpose: DemandPurpose::from(RowValues::colStr($row, 'purpose')),
+            probeToken: $probeToken === null ? null : new Uuid($probeToken),
+        );
     }
 
     public function validateSnapshot(OwnerRef $owner, OwnerSnapshot $snapshot): bool
@@ -56,9 +66,10 @@ final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnec
         $this->scope->assertActive($transaction);
         $row = $this->query($owner)->lockForUpdate()->first();
         if ($row === null || ! $this->validateSnapshot($owner, $snapshot)
-            || (int) $row->revision !== $snapshot->controlVersions['operation']
-            || $row->purpose !== $snapshot->purpose->value || $row->probe_token !== $snapshot->probeToken?->value
-            || new DateTimeImmutable($row->deadline) != $snapshot->deadlineAt) {
+            || RowValues::colInt($row, 'revision') !== $snapshot->controlVersions['operation']
+            || RowValues::colStr($row, 'purpose') !== $snapshot->purpose->value
+            || RowValues::colNullableStr($row, 'probe_token') !== $snapshot->probeToken?->value
+            || DatabaseClock::micros(new DateTimeImmutable(RowValues::colStr($row, 'deadline'))) !== DatabaseClock::micros($snapshot->deadlineAt)) {
             throw new AdmissionRejected('owner_lost');
         }
 

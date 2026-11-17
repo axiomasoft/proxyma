@@ -9,8 +9,8 @@ use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Diagnostics\AdmissionDiagnosis;
 use Proxyma\Application\Maintenance\MaintenanceSchedule;
 use Proxyma\Application\Recovery\Reconciler;
-use Proxyma\Contracts\DiagnosticsQueries;
-use Proxyma\Contracts\PhysicalTransport;
+use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Health\DiagnosticsQueries;
 use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
 use Proxyma\Domain\Execution\DecodedTextBody;
@@ -34,11 +34,11 @@ use Symfony\Component\Process\Process;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'RecoveryFixtures', 'HealthFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, HealthFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, HealthFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
     $this->initializeHealthFixture();
-    $this->app['config']->set('proxyma.policy.project_defaults', ['route.allow_direct' => true]);
+    $this->reconfigureProxyma(['policy.project_defaults' => ['route.allow_direct' => true]]);
 });
 
 function operationsCall(object $test, string $command, array $arguments = []): array
@@ -52,7 +52,7 @@ function operationsCall(object $test, string $command, array $arguments = []): a
 
 function operationsArguments(object $test): array
 {
-    return (fn () => ['profile' => $this->catalog['profile']->value, 'target' => $this->catalog['target']->value])->call($test);
+    return (fn (): array => ['profile' => $this->catalog['profile']->value, 'target' => $this->catalog['target']->value])->call($test);
 }
 
 function operationsDatabase(object $test): array
@@ -73,7 +73,7 @@ function operationsTransport(object $test, bool $fail = false): object
     $app = (fn () => $this->app)->call($test);
     $db = (fn () => $this->db)->call($test);
     $scope = (fn () => $this->transactions->scope)->call($test);
-    $app->instance(DnsResolver::class, new DnsResolver($scope, static fn () => ['93.184.216.34']));
+    $app->instance(DnsResolver::class, new DnsResolver($scope, static fn (): array => ['93.184.216.34']));
     $transport = new class($db, $fail) implements PhysicalTransport
     {
         public int $sends = 0;
@@ -126,7 +126,7 @@ it('advisory показывает budget deadline и изменяется пос
 });
 
 it('diagnose сохраняет tenant и route permissions без audit side effects', function (): void {
-    $this->permissions(fn ($actor, $tenant, $ability) => $ability !== 'catalog.profile.select');
+    $this->permissions(fn ($actor, $tenant, $ability): bool => $ability !== 'catalog.profile.select');
     $before = operationsDatabase($this);
     expect(operationsCall($this, 'proxyma:diagnose', operationsArguments($this)))->toBe([1, ['error' => 'permission_denied']]);
     expect(fn () => $this->app->make(AdmissionDiagnosis::class)->explain(new SubjectChain(new SubjectRef(new TenantKey('other'), 'document', 'x')),
@@ -143,7 +143,7 @@ it('doctor проверяет schema constraints/config/capabilities и не д�
     $this->db->statement('ALTER TABLE '.PackageSchema::tables()['budgets'].' DROP CONSTRAINT pxm_cooldown_finite');
     [$exit, $report] = operationsCall($this, 'proxyma:doctor');
     expect($exit)->toBe(1)->and($report['schema']['missingConstraints'])->toContain('pxm_cooldown_finite');
-    $this->app['config']->set('proxyma.wire.digest_key', 'secret-too-short');
+    $this->reconfigureProxyma(['wire.digest_key' => 'secret-too-short']);
     [, $report] = operationsCall($this, 'proxyma:doctor');
     expect($report['configuration_valid'])->toBeFalse()->and(json_encode($report))->not->toContain('secret-too-short');
     $this->db->statement('ALTER TABLE '.PackageSchema::tables()['audit_events'].' DISABLE TRIGGER pxm_audit_events_immutable');
@@ -166,7 +166,7 @@ it('health reset требует reason/revision/key и permission, replay не �
         unset($invalid[$required]);
         expect(operationsCall($this, 'proxyma:health-reset', $invalid)[0])->toBe(2);
     }
-    $this->permissions(fn ($actor, $tenant, $ability) => $ability !== 'health.reset');
+    $this->permissions(fn ($actor, $tenant, $ability): bool => $ability !== 'health.reset');
     expect(operationsCall($this, 'proxyma:health-reset', $args)[0])->toBe(1)->and(operationsDatabase($this))->toBe($before);
     $this->commands();
     [$exit, $result] = operationsCall($this, 'proxyma:health-reset', $args);
@@ -183,14 +183,14 @@ it('health reset требует reason/revision/key и permission, replay не �
 it('scheduler по умолчанию пуст и opt-in регистрирует только bounded maintenance', function (): void {
     $schedule = $this->app->make(Schedule::class);
     expect($schedule->events())->toBeEmpty()->and($this->table('attempts')->count())->toBe(0);
-    $this->app['config']->set('proxyma.scheduler.enabled', true);
-    $this->app['config']->set('proxyma.maintenance.batch_size', 7);
-    $this->app['config']->set('proxyma.maintenance.retention_seconds', 86400);
+    $this->reconfigureProxyma(['scheduler.enabled' => true]);
+    $this->reconfigureProxyma(['maintenance.batch_size' => 7]);
+    $this->reconfigureProxyma(['maintenance.retention_seconds' => 86400]);
     $this->app->make(MaintenanceSchedule::class)->register($schedule);
     expect($schedule->events())->toHaveCount(2);
     $commands = implode('\n', array_map(fn ($event) => $event->command, $schedule->events()));
     expect($commands)->toContain('proxyma:reconcile', 'proxyma:prune', '7', '86400')->not->toContain('proxyma:probe');
-    $this->app['config']->set('proxyma.maintenance.batch_size', 65);
+    $this->reconfigureProxyma(['maintenance.batch_size' => 65]);
     expect(fn () => $this->app->make(MaintenanceSchedule::class)->register(new Schedule))->toThrow(InvalidArgumentException::class);
     expect($this->table('operations')->count())->toBe(0);
 });
@@ -309,7 +309,7 @@ it('probe permission, held scope, quota и bounds запрещают bytes и pa
     $this->healthUnknown();
     $transport = operationsTransport($this);
     $args = operationsArguments($this) + ['route' => $this->catalog['route']->value];
-    $this->permissions(fn ($actor, $tenant, $ability) => $ability !== 'health.probe.execute');
+    $this->permissions(fn ($actor, $tenant, $ability): bool => $ability !== 'health.probe.execute');
     expect(operationsCall($this, 'proxyma:probe', $args)[0])->toBe(1)->and($this->table('operations')->count())->toBe(0);
     $this->commands();
     expect(operationsCall($this, 'proxyma:probe', $args + ['--seconds' => 61])[0])->toBe(2);
@@ -344,7 +344,7 @@ it('expired probe сначала возвращает bounded backoff без в�
     foreach (['route_health', 'route_target_health', 'target_health'] as $scope) {
         $row = $this->table($scope)->first();
         expect($row->state)->toBe('open')->and($row->reason_code)->toBe('probe_expired')->and($row->probe_token)->toBeNull()
-            ->and((new DateTimeImmutable($row->open_until))->getTimestamp() - DatabaseClock::now($this->db)->getTimestamp())->toBeGreaterThan(0)->toBeLessThanOrEqual(300);
+            ->and(new DateTimeImmutable($row->open_until)->getTimestamp() - DatabaseClock::now($this->db)->getTimestamp())->toBeGreaterThan(0)->toBeLessThanOrEqual(300);
     }
     expect(operationsCall($this, 'proxyma:probe', $args)[0])->toBe(1)->and($transport->sends)->toBe(0);
 });
@@ -362,7 +362,7 @@ it('два PostgreSQL reaper процесса освобождают lease ро�
     $workers = [];
     try {
         foreach (['one', 'two'] as $label) {
-            $worker = new Process(['php', dirname(__DIR__).'/Support/QuotaWorker.php', json_encode([
+            $worker = new Process([PHP_BINARY, __DIR__.'/../Support/QuotaWorker.php', json_encode([
                 'schema' => $this->fixtureSchema, 'label' => $label, 'operation' => $prepared[1]->operation->operationId->value,
                 'classes' => [], 'recovery_action' => 'reconcile', 'limit' => 1,
             ], JSON_THROW_ON_ERROR)]);

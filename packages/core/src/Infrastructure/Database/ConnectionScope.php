@@ -8,10 +8,12 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseTransactionRecord;
 use Illuminate\Database\DatabaseTransactionsManager;
 use LogicException;
+use Packman\Attributes\Api;
 use PDO;
 use Proxyma\Domain\Execution\LockedTransactionContext;
 use WeakMap;
 
+#[Api(since: '1.0')]
 final class ConnectionScope
 {
     /** @var WeakMap<LockedTransactionContext, array{PDO, DatabaseTransactionRecord}> */
@@ -65,7 +67,7 @@ final class ConnectionScope
 
     public function assertActive(LockedTransactionContext $context): void
     {
-        $context->assertConnection($this->connection->getName());
+        $context->assertConnection($this->connection->getName() ?? '');
         $registered = $this->contexts[$context] ?? null;
         if ($registered === null || $registered[0] !== $this->connection->getPdo() || $registered[1] !== $this->current()) {
             throw new LogicException('Foreign, forged or stale locked transaction context.');

@@ -5,16 +5,24 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use Closure;
+use JsonSerializable;
 use LogicException;
+use Packman\Attributes\Api;
 
 /**
  * Single-use, non-serializable send capability accepted by PhysicalTransport::sendOnce.
  * Minted exclusively after the outermost SQL transaction commits via CommitLatch + ClaimCandidate.
  */
-final class AuthorizedWireRequest implements \JsonSerializable
+#[Api(since: '1.0')]
+final class AuthorizedWireRequest implements JsonSerializable
 {
     private bool $consumed = false;
 
+    /**
+     * @param  Closure(): void  $assertOutsideTransaction
+     * @param  Closure(): int  $clock
+     * @param  Closure(): void  $onLate
+     */
     private function __construct(
         public readonly WireRequest $wire,
         public readonly AuthorizedWireSnapshot $snapshot,
@@ -106,6 +114,7 @@ final class AuthorizedWireRequest implements \JsonSerializable
         throw new LogicException('AuthorizedWireRequest cannot be cloned.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('AuthorizedWireRequest cannot be reconstructed.');

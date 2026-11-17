@@ -6,11 +6,13 @@ namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
 use JsonException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\Uuid;
 use stdClass;
 
+#[Api(since: '1.0')]
 final readonly class PinnedPolicySnapshot
 {
     /** @var array<string, int> */
@@ -293,7 +295,7 @@ final readonly class PinnedPolicySnapshot
                 if (! is_int($v)) {
                     throw new InvalidSettingPatch;
                 }
-                $layerRevisions[$k] = $v;
+                $layerRevisions[(string) $k] = $v;
             }
 
             $deniedRoutes = [];

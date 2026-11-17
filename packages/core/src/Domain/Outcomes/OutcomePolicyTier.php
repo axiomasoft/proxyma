@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Outcomes;
 
+use Packman\Attributes\Api;
+
 /**
  * Иерархия приоритетов политик исхода: security+ownership -> project -> panel -> default.
  */
+#[Api(since: '1.0')]
 enum OutcomePolicyTier: string
 {
     case Default = 'default';

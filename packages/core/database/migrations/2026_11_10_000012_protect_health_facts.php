@@ -2,16 +2,15 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Eloquent\ObservationApplicationRecord;
 use Proxyma\Infrastructure\Eloquent\ObservationRecord;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
     public function up(): void
     {
-        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $db = $this->db();
         $observations = (new ObservationRecord)->getTable();
         $applications = (new ObservationApplicationRecord)->getTable();
         $db->statement("ALTER TABLE {$applications} ADD COLUMN reducer_allowed boolean NOT NULL DEFAULT true");
@@ -22,7 +21,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $db = $this->db();
         $observations = (new ObservationRecord)->getTable();
         $applications = (new ObservationApplicationRecord)->getTable();
         $db->statement("DROP TRIGGER pxm_application_immutable ON {$applications}");

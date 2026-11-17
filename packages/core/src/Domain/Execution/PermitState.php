@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 enum PermitState: string
 {
     case Reserved = 'reserved';

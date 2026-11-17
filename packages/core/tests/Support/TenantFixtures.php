@@ -6,8 +6,8 @@ namespace Proxyma\Tests\Support;
 
 use Closure;
 use Proxyma\Application\Authorization\AuthorizationDenied;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantContext;

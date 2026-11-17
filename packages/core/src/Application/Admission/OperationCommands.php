@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Admission;
 
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
@@ -14,7 +15,9 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 
+#[Api(since: '1.0')]
 final readonly class OperationCommands
 {
     public function __construct(private TransactionCoordinator $transactions, private AuthorityLocker $locks,
@@ -68,10 +71,10 @@ final readonly class OperationCommands
         $this->access->authorize($tenant, 'execution.operation.cancel', $id);
         $this->transactions->run(function ($tx) use ($tenant, $id, $expectedRevision): void {
             $row = $this->locks->rows(AuthorityLockTier::Operation, $tenant, [$id->value], $tx)[0];
-            if ((int) $row->revision !== $expectedRevision) {
+            if (RowValues::colInt($row, 'revision') !== $expectedRevision) {
                 throw new AdmissionRejected('operation_revision_conflict');
             }
-            if ($row->status !== 'active') {
+            if (RowValues::colStr($row, 'status') !== 'active') {
                 return;
             }
             $db = $this->transactions->scope->connection;

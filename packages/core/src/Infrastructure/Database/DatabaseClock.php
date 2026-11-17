@@ -8,12 +8,17 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\Connection;
 use LogicException;
+use Packman\Attributes\Internal;
+use Proxyma\Internal\Database\RowValues;
 
+#[Internal]
 final class DatabaseClock
 {
     public static function now(Connection $db): DateTimeImmutable
     {
-        return new DateTimeImmutable($db->selectOne('SELECT clock_timestamp() AS now')->now);
+        $row = RowValues::object($db->selectOne('SELECT clock_timestamp() AS now'));
+
+        return new DateTimeImmutable(RowValues::colStr($row, 'now'));
     }
 
     public static function micros(DateTimeImmutable $instant): int

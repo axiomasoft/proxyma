@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Extensions;
 
+use Packman\Attributes\Api;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OutcomePolicy;
-use Proxyma\Contracts\RouteSelectionStrategy;
-use Proxyma\Contracts\SqlConnectionParticipant;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
+use Proxyma\Contracts\Execution\OutcomePolicy;
+use Proxyma\Contracts\Policy\PolicyDefinitionProvider;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Execution\AdmissionLockTier;
 use Proxyma\Domain\Panels\DefinitionError;
 use Proxyma\Domain\Panels\ExtensionDefinition;
@@ -19,6 +21,7 @@ use Proxyma\Domain\Policy\PanelDefinition;
 use Proxyma\Domain\Policy\PolicyDefinition;
 use Proxyma\Domain\Policy\PolicyScope;
 
+#[Api(since: '1.0')]
 final class DefinitionRegistry
 {
     /** @var array<string, PanelDefinition> */
@@ -124,10 +127,9 @@ final class DefinitionRegistry
                 }
             }
             $implementation = $extension->implementation;
-            if ($extension->kind === ExtensionKind::PolicyDefinitions) {
+            if ($extension->kind === ExtensionKind::PolicyDefinitions && $implementation instanceof PolicyDefinitionProvider) {
                 foreach ($implementation->definitions() as $policy) {
-                    /** @var mixed $policy PHPDoc стороннего provider не является runtime validation. */
-                    if (! $policy instanceof PolicyDefinition || isset($policies[$policy->policyKey])) {
+                    if (isset($policies[$policy->policyKey])) {
                         throw new DefinitionError('Invalid or duplicate policy definition.');
                     }
                     $policies[$policy->policyKey] = $policy;
@@ -144,7 +146,7 @@ final class DefinitionRegistry
             if (($implementation instanceof RouteSelectionStrategy || $implementation instanceof OutcomePolicy) && $implementation->key() !== $id) {
                 throw new DefinitionError('Implementation key must match its registered ID.');
             }
-            $position = $extension->kind->value.':'.($extension->tier === null ? '' : $extension->tier->value).':'.$extension->priority;
+            $position = $extension->kind->value.':'.($extension->tier->value ?? '').':'.$extension->priority;
             if (isset($positions[$position])) {
                 throw new DefinitionError('Extension priority conflict at the declared tier.');
             }

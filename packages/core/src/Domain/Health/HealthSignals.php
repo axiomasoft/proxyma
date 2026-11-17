@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Health;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\TransportFailure;
 
+#[Api(since: '1.0')]
 final readonly class HealthSignals
 {
     public function __construct(public HealthSignal $route, public HealthSignal $pair, public HealthSignal $target, public string $reason) {}
@@ -19,19 +21,26 @@ final readonly class HealthSignals
         };
     }
 
+    /** @param array<string, mixed> $summary */
     public static function fromSummary(array $summary): self
     {
         $ignored = HealthSignal::Ignored;
-        $failure = TransportFailure::tryFrom($summary['failure'] ?? '');
-        $status = $summary['status'] ?? null;
-        $reason = $failure->value ?? 'http_'.($status ?? 'unknown');
-        if (isset($summary['endpoint_id']) && (($summary['holds_proxy_credential'] ?? false) || $status === 407 || $failure === TransportFailure::ProxyAuth)) {
+        $rawFailure = $summary['failure'] ?? '';
+        $failure = (is_string($rawFailure) || is_int($rawFailure)) ? TransportFailure::tryFrom($rawFailure) : null;
+        $rawStatus = $summary['status'] ?? null;
+        $status = is_int($rawStatus) ? $rawStatus : null;
+        $reason = $failure->value ?? 'http_'.($status !== null ? (string) $status : 'unknown');
+        $holdsProxyCredential = (bool) ($summary['holds_proxy_credential'] ?? false);
+        $extendsCooldown = (bool) ($summary['extends_origin_cooldown'] ?? false);
+        $appliesWafHold = (bool) ($summary['applies_waf_hold'] ?? false);
+        $delivered = (bool) ($summary['delivered'] ?? false);
+        if (isset($summary['endpoint_id']) && ($holdsProxyCredential || $status === 407 || $failure === TransportFailure::ProxyAuth)) {
             return new self(HealthSignal::CredentialHold, $ignored, $ignored, 'credential_hold');
         }
-        if ($status === 429 || ($summary['extends_origin_cooldown'] ?? false)) {
+        if ($status === 429 || $extendsCooldown) {
             return new self($ignored, $ignored, $ignored, $reason);
         }
-        if (($summary['applies_waf_hold'] ?? false) && isset($summary['cooldown_until'])) {
+        if ($appliesWafHold && isset($summary['cooldown_until'])) {
             return new self($ignored, HealthSignal::Maintenance, $ignored, 'waf_rate_signal');
         }
         if ($failure === TransportFailure::ProxyConnect && isset($summary['endpoint_id'])) {
@@ -40,7 +49,7 @@ final readonly class HealthSignals
         if (in_array($failure, [TransportFailure::Connect, TransportFailure::Timeout, TransportFailure::Truncated], true)) {
             return new self($ignored, HealthSignal::Failure, HealthSignal::Failure, $reason);
         }
-        if ($failure !== null || ! ($summary['delivered'] ?? false) || $status === null || $status === 407) {
+        if ($failure !== null || ! $delivered || $status === null || $status === 407) {
             return new self($ignored, $ignored, $ignored, $reason);
         }
 

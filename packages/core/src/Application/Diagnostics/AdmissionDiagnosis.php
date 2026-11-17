@@ -4,55 +4,64 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Diagnostics;
 
-use Proxyma\Contracts\PolicyResolver;
+use DateTimeImmutable;
+use LogicException;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Policy\PolicyResolver;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Domain\Routing\Candidate;
 use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 
+#[Api(since: '1.0')]
 final readonly class AdmissionDiagnosis
 {
     public function __construct(private ConnectionScope $scope, private PolicyResolver $policies, private CandidateSnapshotQuery $candidates) {}
 
+    /** @return array<string, mixed> */
     public function explain(SubjectChain $subjects, Uuid $profile, Uuid $target, string $traffic = 'default'): array
     {
         $this->scope->assertOutsideTransaction();
         $explanation = $this->policies->explain($subjects, $target, $traffic);
-        $policy = $explanation->effectivePolicy ?? throw new \LogicException('Effective policy explanation required.');
+        $policy = $explanation->effectivePolicy ?? throw new LogicException('Effective policy explanation required.');
         $snapshot = $this->candidates->readOnly($subjects->tenant, $profile, $target, $policy);
-        $keys = array_values(array_unique(array_merge([], ...array_map(static fn ($c) => $c->budgetScopes, $snapshot->candidates))));
+        $keys = array_values(array_unique(array_merge([], ...array_map(static fn (Candidate $c): array => $c->budgetScopes, $snapshot->candidates))));
         $t = PackageSchema::tables();
         $budgets = $this->scope->connection->table($t['budgets'])
             ->whereIn('tenant_key', array_unique([$subjects->tenant->value, TenantKey::SYSTEM]))->whereIn('scope_key', $keys)->get();
         $windows = $this->scope->connection->table($t['quota_windows'])->whereIn('budget_id', $budgets->pluck('id')->all())
             ->whereRaw('starts_at<=clock_timestamp() AND ends_at>clock_timestamp() AND reserved+spent>=quota_limit')->get();
-        $timing = function ($candidate) use ($budgets, $windows, $snapshot, $policy): ?string {
+        $timing = function (Candidate $candidate) use ($budgets, $windows, $snapshot, $policy): ?string {
             if ($candidate->exclusions !== []) {
                 return null;
             }
             $next = DatabaseClock::micros($snapshot->observedAt);
             foreach ($budgets->whereIn('scope_key', $candidate->budgetScopes) as $budget) {
-                $constraint = $policy->budgets[$budget->scope_key] ?? null;
-                if ((int) $budget->inflight >= min((int) $budget->max_inflight, $constraint->maxInflight ?? PHP_INT_MAX)) {
+                $scopeKey = RowValues::colStr($budget, 'scope_key');
+                $constraint = $policy->budgets[$scopeKey] ?? null;
+                if (RowValues::colInt($budget, 'inflight') >= min(RowValues::colInt($budget, 'max_inflight'), $constraint->maxInflight ?? PHP_INT_MAX)) {
                     return null;
                 }
-                $interval = max((int) $budget->emission_interval_us, $constraint->emissionIntervalUs ?? 0);
-                $burst = min((int) $budget->burst, $constraint->burst ?? PHP_INT_MAX);
+                $interval = max(RowValues::colInt($budget, 'emission_interval_us'), $constraint->emissionIntervalUs ?? 0);
+                $burst = min(RowValues::colInt($budget, 'burst'), $constraint->burst ?? PHP_INT_MAX);
                 $allowance = $interval > intdiv(PHP_INT_MAX, max(1, $burst - 1)) ? PHP_INT_MAX : $interval * ($burst - 1);
                 foreach (['cooldown_until', 'tat', 'send_tat'] as $column) {
-                    if (in_array($budget->$column, ['-infinity', 'infinity', null], true)) {
+                    $ts = RowValues::colNullableStr($budget, $column);
+                    if (in_array($ts, ['-infinity', 'infinity', null], true)) {
                         continue;
                     }
-                    $bound = DatabaseClock::micros(new \DateTimeImmutable($budget->$column));
+                    $bound = DatabaseClock::micros(new DateTimeImmutable(RowValues::str($ts)));
                     if ($bound > $next) {
                         $next = max($next, $column === 'cooldown_until' ? $bound : $bound - $allowance);
                     }
                 }
-                foreach ($windows->where('budget_id', $budget->id) as $window) {
-                    $next = max($next, DatabaseClock::micros(new \DateTimeImmutable($window->ends_at)));
+                foreach ($windows->where('budget_id', RowValues::colStr($budget, 'id')) as $window) {
+                    $next = max($next, DatabaseClock::micros(new DateTimeImmutable(RowValues::colStr($window, 'ends_at'))));
                 }
             }
 
@@ -73,7 +82,7 @@ final readonly class AdmissionDiagnosis
             'policy_revision' => $snapshot->policyRevision, 'policy_hash' => $policy->policyHash->hex,
             'profile_revision' => $snapshot->profile?->revision, 'target_revision' => $snapshot->target?->revision,
             'holds' => $snapshot->holds, 'fields' => $fields,
-            'candidates' => array_map(static fn ($candidate) => [
+            'candidates' => array_map(static fn (Candidate $candidate): array => [
                 'route_id' => $candidate->routeId->value, 'eligible' => $candidate->eligible(), 'budget_ready' => $candidate->budgetReady,
                 'next_eligible_at' => $timing($candidate), 'next_eligible_is_advisory' => true,
                 'exclusions' => $candidate->exclusions, 'health_epochs' => $candidate->healthEpochs,

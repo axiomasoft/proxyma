@@ -9,7 +9,7 @@ require_once __DIR__.'/DestinationFixtures.php';
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Execution\WireSealer;
-use Proxyma\Contracts\PhysicalTransport;
+use Proxyma\Contracts\Execution\PhysicalTransport;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
@@ -42,7 +42,7 @@ trait ClaimFixtures
     protected function initializeClaimFixture(): void
     {
         $this->initializeReservationFixture();
-        $this->app['config']->set('proxyma.wire.digest_key', 'fixture-only-32-byte-hmac-key-value');
+        $this->reconfigureProxyma(['wire.digest_key' => 'fixture-only-32-byte-hmac-key-value']);
         $this->sealer = $this->app->make(WireSealer::class);
         $this->claims = $this->app->make(ClaimSend::class);
         $this->transactions = $this->app->make(TransactionCoordinator::class);

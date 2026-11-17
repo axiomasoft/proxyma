@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Consumer;
 
 use Proxyma\Application\Extensions\DefinitionRegistry;
-use Proxyma\Contracts\ExtensionProvider;
+use Proxyma\Contracts\Extensions\ExtensionProvider;
 use Proxyma\Domain\Panels\ExtensionDefinition;
 use Proxyma\Domain\Panels\ExtensionKind;
 use Proxyma\Domain\Panels\PanelSlot;

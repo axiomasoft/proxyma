@@ -17,7 +17,7 @@ use Proxyma\Tests\Support\ReservationFixtures;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'PhysicalFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->initializePhysicalFixture();
 });

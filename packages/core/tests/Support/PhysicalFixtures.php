@@ -7,7 +7,7 @@ namespace Proxyma\Tests\Support;
 use DateTimeImmutable;
 use Proxyma\Application\Execution\DestinationPolicy;
 use Proxyma\Application\Execution\ProxyResolver;
-use Proxyma\Contracts\CatalogQueries;
+use Proxyma\Contracts\Catalog\CatalogQueries;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\ProxyProtocol;
@@ -51,7 +51,7 @@ trait PhysicalFixtures
         $this->catalog['target'] = $targetId;
         $proxy = null;
         $credential = null;
-        $dns = new DnsResolver($scope, static fn () => ['127.0.0.1']);
+        $dns = new DnsResolver($scope, static fn (): array => ['127.0.0.1']);
         if ($proxyListener !== null) {
             $protocol = match ($proxyListener) {
                 'socks' => ProxyProtocol::Socks5,
@@ -69,7 +69,7 @@ trait PhysicalFixtures
             if ($proxyPortOffset !== 0) {
                 $endpoint = new Endpoint($endpointId, $this->tenant, $protocol, $endpoint->host, $endpoint->port + $proxyPortOffset, $ref);
             }
-            $proxy = (new ProxyResolver($dns))->resolve($endpoint, 500);
+            $proxy = new ProxyResolver($dns)->resolve($endpoint, 500);
             $credential = $ref === null ? null : new ResolvedSecret($ref, 'user@/%', $password ?? 'p:a@ss/%?');
         }
         \selectionHealth($this->db, $this->tenant);
@@ -89,7 +89,7 @@ trait PhysicalFixtures
         $request = new WireRequest($id, Uuid::random(), $targetId, 1, 'POST', $url, $timeouts, $operation->deadlineAt,
             new PreparedHeaders(['Authorization' => 'Bearer fixture-provider-secret', 'X-Fixture' => 'sealed']), WireBody::fromString('sealed-body'));
         $policy = new DestinationPolicy($dns, [$targetId->value => ['origin.test' => ['127.0.0.1']]], [$url->origin->port]);
-        $context = (new ReflectionClass(ExecutionContext::class))->newInstanceWithoutConstructor();
+        $context = new ReflectionClass(ExecutionContext::class)->newInstanceWithoutConstructor();
         $destination = $policy->resolve($url, $context, 500, $target);
         $trust = new TlsTrust($scope, $trustOrigin ? ['origin.test' => $originBundle ?? $this->socket->certificates.'/ca.pem'] : [],
             $trustProxy ? ['proxy.test' => $this->socket->certificates.'/ca.pem', 'origin.test' => $this->socket->certificates.'/ca.pem'] : []);

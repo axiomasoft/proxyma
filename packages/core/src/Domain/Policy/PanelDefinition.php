@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Policy;
 
+use Packman\Attributes\Api;
+use Packman\Panels\Data\Panel\PanelDescriptor;
 use Proxyma\Domain\Panels\DefinitionError;
 use Proxyma\Domain\Panels\PanelSlot;
 
+/**
+ * Immutable Proxyma policy panel definition mapping slots, resolver, and required permissions.
+ */
+#[Api(since: '1.0')]
 final readonly class PanelDefinition
 {
     /** @var array<string, PanelSlot> */
@@ -48,5 +54,17 @@ final readonly class PanelDefinition
     public function slot(string $id): PanelSlot
     {
         return $this->slots[$id] ?? throw new DefinitionError('Unknown panel slot.');
+    }
+
+    public function toPackmanDescriptor(string $owningModule = 'axiomasoft/proxyma', ?string $label = null): PanelDescriptor
+    {
+        return new PanelDescriptor(
+            version: 'panel/1',
+            key: $this->id,
+            owningModule: $owningModule,
+            requiredCapability: $this->requiredCapabilities[0] ?? null,
+            supportedActions: array_keys($this->permissions),
+            label: $label ?? $this->id,
+        );
     }
 }

@@ -6,11 +6,13 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Health\HealthEpochMap;
 
+#[Api(since: '1.0')]
 final readonly class AuthorizedWireSnapshot
 {
     public function __construct(

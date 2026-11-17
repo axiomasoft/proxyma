@@ -7,7 +7,7 @@ namespace Proxyma\Tests\Support;
 use DateTimeImmutable;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\OperationCommands;
-use Proxyma\Contracts\WorkBudget;
+use Proxyma\Contracts\Admission\WorkBudget;
 use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;

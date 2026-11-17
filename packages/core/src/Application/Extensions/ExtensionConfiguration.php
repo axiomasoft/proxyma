@@ -5,19 +5,22 @@ declare(strict_types=1);
 namespace Proxyma\Application\Extensions;
 
 use Illuminate\Contracts\Container\Container;
-use Proxyma\Contracts\ExtensionProvider;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Extensions\ExtensionProvider;
 use Proxyma\Domain\Panels\DefinitionError;
 use Proxyma\Domain\Panels\ExtensionKind;
 
+#[Api(since: '1.0')]
 final readonly class ExtensionConfiguration
 {
-    public const SELECTIONS = ['route_strategies' => ExtensionKind::Strategy, 'outcome_policies' => ExtensionKind::OutcomePolicy,
+    public const array SELECTIONS = ['route_strategies' => ExtensionKind::Strategy, 'outcome_policies' => ExtensionKind::OutcomePolicy,
         'route_filters' => ExtensionKind::RouteFilter, 'budget_contributors' => ExtensionKind::BudgetScopeContributor,
         'locked_admission_guards' => ExtensionKind::LockedAdmissionGuard, 'observers' => ExtensionKind::Observer,
         'policy_definitions' => ExtensionKind::PolicyDefinitions];
 
     public function __construct(private Container $container) {}
 
+    /** @param array<string, mixed> $config */
     public function register(DefinitionRegistry $registry, array $config): void
     {
         $this->serializable($config);
@@ -38,18 +41,31 @@ final readonly class ExtensionConfiguration
             if (! is_string($id) || ! isset($approved[$id])) {
                 throw new DefinitionError('Missing approved extension provider.');
             }
-            $this->container->make($approved[$id])->register($registry);
+            /** @var mixed $provider */
+            $provider = $this->container->make($approved[$id]);
+            if (! $provider instanceof ExtensionProvider) {
+                throw new DefinitionError('Only approved typed extension providers are allowed.');
+            }
+            $provider->register($registry);
         }
     }
 
+    /** @param array<string, mixed> $config */
     public function validate(DefinitionRegistry $registry, array $config): void
     {
         foreach (self::SELECTIONS as $key => $kind) {
             $ids = $config[$key] ?? [];
-            if (! is_array($ids)) {
+            if (! is_array($ids) || ! array_is_list($ids)) {
                 throw new DefinitionError('Extension selections must be lists of registered IDs.');
             }
-            $registry->selectExtensions($kind, $ids);
+            $stringIds = [];
+            foreach ($ids as $id) {
+                if (! is_string($id)) {
+                    throw new DefinitionError('Extension selections must be lists of registered IDs.');
+                }
+                $stringIds[] = $id;
+            }
+            $registry->selectExtensions($kind, $stringIds);
         }
     }
 

@@ -5,8 +5,8 @@ declare(strict_types=1);
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\PolicyCommands;
-use Proxyma\Contracts\PolicyResolver as PolicyResolverContract;
+use Proxyma\Contracts\Policy\PolicyCommands;
+use Proxyma\Contracts\Policy\PolicyResolver as PolicyResolverContract;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;
@@ -31,7 +31,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 /**
  * @param  array<string, array<string, mixed>>  $operations
@@ -323,10 +323,12 @@ it('изолирует ключи кэша по SettingRegistry fingerprint, п�
         actor: $this->actor(0, 'dim-target'),
     ));
 
-    $this->app['config']->set('proxyma.policy', [
-        'panel_defaults' => [
-            'admin' => ['timeout.connect_ms' => 1500],
-            'partner' => ['timeout.connect_ms' => 3200],
+    $this->reconfigureProxyma([
+        'policy' => [
+            'panel_defaults' => [
+                'admin' => ['timeout.connect_ms' => 1500],
+                'partner' => ['timeout.connect_ms' => 3200],
+            ],
         ],
     ]);
 

@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
 /**
  * Transport-level HTTP response descriptor.
  * Represents the physical fact that an HTTP response was received (including 4xx/5xx);
  * business meaning and retry/health classification belong to OutcomePolicy.
  */
+#[Api(since: '1.0')]
 final readonly class ResponseDescriptor
 {
     public HttpResponseHead $head;

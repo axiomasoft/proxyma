@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class EffectivePolicySnapshot
 {
     /** @var array<string, int> */

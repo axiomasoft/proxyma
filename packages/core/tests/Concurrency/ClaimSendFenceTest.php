@@ -17,7 +17,7 @@ require_once __DIR__.'/../Support/DemandFixtures.php';
 require_once __DIR__.'/../Support/ReservationFixtures.php';
 require_once __DIR__.'/../Support/ClaimFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeClaimFixture();
@@ -37,12 +37,12 @@ function claimWorker($test, array $prepared, string $label, bool $casGate = fals
 {
     [$permit, $input] = $prepared;
 
-    $worker = (new Process(['php', dirname(__DIR__).'/Support/ClaimWorker.php', json_encode([
+    $worker = new Process([PHP_BINARY, __DIR__.'/../Support/ClaimWorker.php', json_encode([
         'schema' => $test->workerSchema, 'label' => $label, 'cas_gate' => $casGate, 'commit_gate' => $commitGate,
         'operation' => $input->operation->operationId->value, 'attempt' => $input->request->physicalAttemptId->value,
         'permit' => $permit->permitId->value, 'deadline' => $input->request->deadlineAt->format('U.u'),
         'route' => $input->route->id->value,
-    ], JSON_THROW_ON_ERROR)]))->setTimeout(15);
+    ], JSON_THROW_ON_ERROR)])->setTimeout(15);
     $test->claimWorkers[] = $worker;
 
     return $worker;
@@ -60,7 +60,7 @@ function awaitClaimBlock($test, int $count): void
         }
         usleep(10000);
     } while (hrtime(true) < $until);
-    expect($found)->toBe($count, implode("\n", array_map(fn ($worker) => $worker->isStarted() ? $worker->getErrorOutput().$worker->getOutput() : '', $test->claimWorkers)));
+    expect($found)->toBe($count, implode("\n", array_map(fn ($worker): string => $worker->isStarted() ? $worker->getErrorOutput().$worker->getOutput() : '', $test->claimWorkers)));
 }
 
 function claimResult(Process $worker): array

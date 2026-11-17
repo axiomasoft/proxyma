@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Proxyma\Application\Execution\DestinationPolicy;
 use Proxyma\Application\Execution\OutboundExecutor;
-use Proxyma\Contracts\DestinationResolver;
-use Proxyma\Contracts\PhysicalTransport;
+use Proxyma\Contracts\Execution\DestinationResolver;
+use Proxyma\Contracts\Execution\PhysicalTransport;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
@@ -33,7 +33,7 @@ use Symfony\Component\Process\Process;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'RecoveryFixtures', 'HealthFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, HealthFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class, HealthFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->initializeHealthFixture();
     $this->probeWorkers = [];
@@ -55,7 +55,7 @@ afterEach(function (): void {
 
 function probeContender($test, array $intent, string $label): Process
 {
-    $worker = new Process(['php', dirname(__DIR__).'/Support/QuotaWorker.php', json_encode([
+    $worker = new Process([PHP_BINARY, __DIR__.'/../Support/QuotaWorker.php', json_encode([
         'schema' => $test->probeSchema, 'label' => $label, 'mode' => 'probe_claim', 'classes' => [], 'cas_gate' => false,
         'operation' => $intent['operation']->operationId->value, 'attempt' => $intent['request']->physicalAttemptId->value,
         'route' => $intent['route']->routeId->value, 'deadline' => $intent['operation']->deadlineAt->format('U.u'), 'class' => 'default',
@@ -125,9 +125,9 @@ it('два независимых PostgreSQL процесса получают �
 });
 
 it('claim требует непустые typed epochs, конечный lease и purpose, отказ второго scope атомарен', function (): void {
-    expect(fn () => new ProbeClaim(Uuid::random(), [], new DateTimeImmutable('+1 minute')))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new ProbeClaim(Uuid::random(), ['foreign:'.Uuid::random()->value => 1], new DateTimeImmutable('+1 minute')))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new ProbeClaim(Uuid::random(), ['route_health:'.Uuid::random()->value => 0], new DateTimeImmutable('+1 minute')))->toThrow(InvalidArgumentException::class);
+    expect(fn (): ProbeClaim => new ProbeClaim(Uuid::random(), [], new DateTimeImmutable('+1 minute')))->toThrow(InvalidArgumentException::class);
+    expect(fn (): ProbeClaim => new ProbeClaim(Uuid::random(), ['foreign:'.Uuid::random()->value => 1], new DateTimeImmutable('+1 minute')))->toThrow(InvalidArgumentException::class);
+    expect(fn (): ProbeClaim => new ProbeClaim(Uuid::random(), ['route_health:'.Uuid::random()->value => 0], new DateTimeImmutable('+1 minute')))->toThrow(InvalidArgumentException::class);
     $intent = $this->quotaIntent(purpose: DemandPurpose::Probe);
     $input = $this->reservationInput($intent);
     expect(fn () => $this->probes->claim($input))->toThrow(AdmissionRejected::class, 'probe_scope_empty');
@@ -242,11 +242,11 @@ it('completion не восстанавливает даже первый scope �
 
 it('probe проходит общий OutboundExecutor без обычного healthy selector и без повторного transport bypass', function (int $status): void {
     $this->app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
-    $this->app['config']->set('proxyma.policy.project_defaults', ['route.allow_direct' => true]);
+    $this->reconfigureProxyma(['policy.project_defaults' => ['route.allow_direct' => true]]);
     $this->healthUnknown();
     [$intent] = $this->healthProbe();
     $scope = $this->transactions->scope;
-    $dns = new DnsResolver($scope, static fn () => ['93.184.216.34']);
+    $dns = new DnsResolver($scope, static fn (): array => ['93.184.216.34']);
     $this->app->instance(DestinationResolver::class, new DestinationPolicy($dns));
     $transport = new class($this->healthResponse($status)) implements PhysicalTransport
     {

@@ -15,17 +15,17 @@ use Proxyma\Application\Extensions\ExtensionRuntime;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Routing\RouteSelector;
 use Proxyma\Application\Routing\StrategyRegistry;
-use Proxyma\Contracts\CandidateSnapshots;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OutboundObserver;
-use Proxyma\Contracts\PhysicalTransport;
-use Proxyma\Contracts\PolicyDefinitionProvider;
-use Proxyma\Contracts\RandomIndex;
-use Proxyma\Contracts\RouteFilter;
-use Proxyma\Contracts\RouteSelectionStrategy;
-use Proxyma\Contracts\SqlConnectionParticipant;
-use Proxyma\Contracts\SubjectResolver;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
+use Proxyma\Contracts\Bindings\SubjectResolver;
+use Proxyma\Contracts\Catalog\CandidateSnapshots;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Execution\OutboundObserver;
+use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Policy\PolicyDefinitionProvider;
+use Proxyma\Contracts\Routing\RandomIndex;
+use Proxyma\Contracts\Routing\RouteFilter;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Catalog\Route;
@@ -60,6 +60,7 @@ use Proxyma\Domain\Policy\PolicyDefinition;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Domain\Routing\SelectionResult;
 use Proxyma\Infrastructure\Http\DnsResolver;
 use Proxyma\Tests\Support\CatalogTestCase;
 use Proxyma\Tests\Support\ClaimFixtures;
@@ -73,7 +74,7 @@ foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'Reservation
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class)->group('pg');
 
 final class ConformanceFilter implements RouteFilter
 {
@@ -142,14 +143,14 @@ it('замораживает реестр детерминированно бе�
         ->and($this->db->getQueryLog())->toBe([]);
     expect(fn () => $first->registerCapability('late'))->toThrow(DefinitionError::class);
     expect(fn () => $first->registerExtension($a))->toThrow(DefinitionError::class);
-    expect(fn () => $first->selectExtensions(ExtensionKind::RouteFilter, ['b']))->toThrow(DefinitionError::class);
+    expect(fn (): array => $first->selectExtensions(ExtensionKind::RouteFilter, ['b']))->toThrow(DefinitionError::class);
     $changed = conformanceRegistry($this, [new ExtensionDefinition('a', ExtensionKind::RouteFilter, new ConformanceFilter, version: 2), $b]);
     expect($changed->fingerprint())->not->toBe($first->fingerprint());
 });
 
 it('отклоняет duplicate, missing, cycle, capability и priority conflicts', function (string $failure): void {
     $registry = new DefinitionRegistry($this->app->make(SettingRegistry::class));
-    $filter = fn ($id, $deps = [], $priority = 0, $caps = []) => new ExtensionDefinition($id, ExtensionKind::RouteFilter,
+    $filter = fn ($id, $deps = [], $priority = 0, $caps = []): ExtensionDefinition => new ExtensionDefinition($id, ExtensionKind::RouteFilter,
         new ConformanceFilter, dependencies: $deps, priority: $priority, requiredCapabilities: $caps);
     $definitions = match ($failure) {
         'duplicate' => [$filter('a'), $filter('a')],
@@ -165,7 +166,7 @@ it('отклоняет duplicate, missing, cycle, capability и priority conflic
         }
         $registry->freeze();
     })->toThrow(DefinitionError::class);
-    expect(fn () => $registry->fingerprint())->toThrow(DefinitionError::class);
+    expect(fn (): string => $registry->fingerprint())->toThrow(DefinitionError::class);
 })->with(['duplicate', 'missing', 'cycle', 'priority', 'order', 'capability']);
 
 it('отказывает panel с missing resolver или capability', function (bool $resolver): void {
@@ -173,21 +174,21 @@ it('отказывает panel с missing resolver или capability', function 
     if ($resolver) {
         $registry->registerSubjectResolver(new SubjectResolverDefinition('subjects', new class implements SubjectResolver
         {
-            public function resolve(SubjectRef $leaf): ?SubjectChain
+            public function resolve(SubjectRef $leaf): SubjectChain
             {
                 return new SubjectChain($leaf);
             }
         }, ['document']));
     }
     $registry->registerPanel(new PanelDefinition('files', 'subjects', [new PanelSlot('read', [])], ['absent']));
-    expect(fn () => $registry->freeze())->toThrow(DefinitionError::class);
+    expect(fn (): string => $registry->freeze())->toThrow(DefinitionError::class);
 })->with([false, true]);
 
 it('отклоняет несерилизуемый config, произвольный FQCN и missing selection', function (string $failure): void {
     $registry = new DefinitionRegistry($this->app->make(SettingRegistry::class));
     $configuration = new ExtensionConfiguration($this->app);
     $config = match ($failure) {
-        'closure' => ['observers' => [static fn () => null]],
+        'closure' => ['observers' => [static fn (): null => null]],
         'class' => ['providers' => ['App\\Untrusted']],
         'binding' => ['approved_providers' => ['bad' => stdClass::class]],
         'selection' => ['route_filters' => ['missing']],
@@ -207,7 +208,7 @@ it('RouteFilter не добавляет чужого кандидата и ум�
     $selector = new RouteSelector($this->app->make(CandidateSnapshots::class), $this->app->make(StrategyRegistry::class), new ExtensionRuntime($registry), ['add']);
     $request = selectionRequest($this->catalog['target']);
     $policy = selectionPolicy($this->tenant, $this->catalog['profile'], $this->catalog['target']);
-    expect(fn () => $selector->select($this->tenant, $this->catalog['profile'], $policy, $request, new RouteSelectionContext))
+    expect(fn (): SelectionResult => $selector->select($this->tenant, $this->catalog['profile'], $policy, $request, new RouteSelectionContext))
         ->toThrow(InvalidArgumentException::class, 'outside');
     $registry = conformanceRegistry($this, [new ExtensionDefinition('drop', ExtensionKind::RouteFilter, new ConformanceFilter(drop: true))]);
     $selector = new RouteSelector($this->app->make(CandidateSnapshots::class), $this->app->make(StrategyRegistry::class), new ExtensionRuntime($registry), ['drop']);
@@ -228,17 +229,17 @@ it('strategy не получает permit и её foreign selection отверг
             return 'malicious';
         }
 
-        public function select(array $candidates, WireRequest $request, RouteSelectionContext $context): ?Route
+        public function select(array $candidates, WireRequest $request, RouteSelectionContext $context): Route
         {
             return $this->route;
         }
     };
     $registry = new StrategyRegistry($this->app->make(RandomIndex::class), [$strategy]);
     $selector = new RouteSelector($this->app->make(CandidateSnapshots::class), $registry);
-    expect(fn () => $selector->select($this->tenant, $this->catalog['profile'],
+    expect(fn (): SelectionResult => $selector->select($this->tenant, $this->catalog['profile'],
         selectionPolicy($this->tenant, $this->catalog['profile'], $this->catalog['target'], 'malicious'),
         selectionRequest($this->catalog['target']), new RouteSelectionContext))->toThrow(InvalidArgumentException::class, 'outside');
-    expect((new ReflectionClass(AuthorizedWireRequest::class))->getConstructor()->isPrivate())->toBeTrue()
+    expect(new ReflectionClass(AuthorizedWireRequest::class)->getConstructor()->isPrivate())->toBeTrue()
         ->and($this->table('permits')->count())->toBe(0);
 });
 
@@ -270,7 +271,7 @@ it('contributor отклоняет чужой tenant key и незаявленн
     $runtime = new ExtensionRuntime($registry);
     $intent = $this->demandOperation();
     $route = $this->app->make(CatalogQueries::class)->findRoute($this->tenant, $this->catalog['route']);
-    expect(fn () => $runtime->contribute($intent['request'], $route, $this->tenant, ['bad'], [$this->scopeKey]))
+    expect(fn (): array => $runtime->contribute($intent['request'], $route, $this->tenant, ['bad'], [$this->scopeKey]))
         ->toThrow(AdmissionRejected::class, 'undeclared_budget_scope');
     expect($this->table('demands')->count())->toBe(0)->and($this->table('permits')->count())->toBe(0);
 });
@@ -281,7 +282,7 @@ it('shared contributor требует явный tenant grant', function (bool $
     $registry = conformanceRegistry($this, [new ExtensionDefinition('shared', ExtensionKind::BudgetScopeContributor,
         new FixtureBudgetContributor([new BudgetConstraint($key, 1)]), budgetSchema: new BudgetScopeSchema('consumer', keys: [$key], sharedTenants: $grant ? [$this->tenant->value] : []))]);
     $this->app->instance(DefinitionRegistry::class, $registry);
-    config(['proxyma.extensions.budget_contributors' => ['shared']]);
+    $this->reconfigureProxyma(['extensions.budget_contributors' => ['shared']]);
     $this->reservations = $this->app->make(ReservationService::class);
     $input = $this->reservationInput($this->demandOperation());
     $ticket = $this->reservations->enqueue($input, $this->work);
@@ -311,7 +312,7 @@ it('freeze отвергает guard с ранним tier, несовпадени
             }
         };
     }
-    expect(fn () => conformanceRegistry($this, [new ExtensionDefinition('guard', ExtensionKind::LockedAdmissionGuard, $guard,
+    expect(fn (): DefinitionRegistry => conformanceRegistry($this, [new ExtensionDefinition('guard', ExtensionKind::LockedAdmissionGuard, $guard,
         tier: $case === 'early' ? AdmissionLockTier::OwnerPrefix : AdmissionLockTier::AdapterGuard)]))->toThrow(DefinitionError::class);
 })->with(['early', 'mismatch', 'no_binding']);
 
@@ -321,7 +322,7 @@ it('locked guard не берёт ранние owner locks, не меняет wir
     $guard = new ConformanceGuard($this->db, $this->app->make(AuthorityLocker::class), $attack);
     $registry = conformanceRegistry($this, [new ExtensionDefinition('guard', ExtensionKind::LockedAdmissionGuard, $guard, tier: AdmissionLockTier::AdapterGuard)]);
     $this->app->instance(DefinitionRegistry::class, $registry);
-    config(['proxyma.extensions.locked_admission_guards' => ['guard']]);
+    $this->reconfigureProxyma(['extensions.locked_admission_guards' => ['guard']]);
     $exception = match ($attack) {
         'owner_lock' => LogicException::class, 'wire' => Error::class, 'deny' => AdmissionRejected::class
     };
@@ -340,7 +341,7 @@ it('locked guard не берёт ранние owner locks, не меняет wir
 })->with(['owner_lock', 'wire', 'deny'])->with([false, true]);
 
 it('observer видит committed completion, его ошибка сообщается и HTTP не повторяется', function (): void {
-    config(['proxyma.policy.project_defaults' => ['route.allow_direct' => true], 'app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
+    $this->reconfigureProxyma(['policy.project_defaults' => ['route.allow_direct' => true], 'app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
     $observer = new class($this->db) implements OutboundObserver
     {
         public int $calls = 0;
@@ -367,7 +368,7 @@ it('observer видит committed completion, его ошибка сообщае
         }
     };
     $registry = conformanceRegistry($this, [new ExtensionDefinition('observer', ExtensionKind::Observer, $observer),
-        new ExtensionDefinition('following', ExtensionKind::Observer, $following, priority: 1, dependencies: ['observer'])]);
+        new ExtensionDefinition('following', ExtensionKind::Observer, $following, dependencies: ['observer'], priority: 1)]);
     $logger = new class extends AbstractLogger
     {
         public array $events = [];
@@ -380,7 +381,7 @@ it('observer видит committed completion, его ошибка сообщае
     $this->app->instance(AttemptObservers::class, new AttemptObservers($registry, $this->transactions->scope, $logger, ['observer', 'following']));
     $physical = new FixturePhysicalTransport;
     $this->app->instance(PhysicalTransport::class, $physical);
-    $this->app->instance(DestinationPolicy::class, new DestinationPolicy(new DnsResolver($this->transactions->scope, static fn () => ['93.184.216.34'])));
+    $this->app->instance(DestinationPolicy::class, new DestinationPolicy(new DnsResolver($this->transactions->scope, static fn (): array => ['93.184.216.34'])));
     $id = Uuid::random();
     $operation = new OperationCorrelation($id, new OwnerRef($this->tenant, 'standalone', $id->value, 'token'), new DateTimeImmutable('+2 minutes'), 'observer:'.$id->value);
     $context = new ExecutionContext($operation, new SubjectChain(new SubjectRef($this->tenant, 'document', 'fixture')), new Duration(60000), hrtime(true) + 60000000000);
@@ -406,7 +407,7 @@ it('named policy definitions immutable, versioned и не допускают dup
     $definition = new ExtensionDefinition('policies', ExtensionKind::PolicyDefinitions, $provider);
     $registry = conformanceRegistry($this, [$definition]);
     expect($registry->policy('consumer.read')->timeouts->totalTimeoutMs)->toBe(100);
-    expect(fn () => $registry->policy('missing'))->toThrow(DefinitionError::class);
-    expect(fn () => conformanceRegistry($this, [$definition,
+    expect(fn (): PolicyDefinition => $registry->policy('missing'))->toThrow(DefinitionError::class);
+    expect(fn (): DefinitionRegistry => conformanceRegistry($this, [$definition,
         new ExtensionDefinition('duplicate', ExtensionKind::PolicyDefinitions, $provider, priority: 1)]))->toThrow(DefinitionError::class);
 });

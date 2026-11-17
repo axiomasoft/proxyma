@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Outcomes;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\OutcomeDecision;
 
 /**
  * Допустимые возвраты пользовательской политики исхода (OutcomePolicy).
  */
+#[Api(since: '1.0')]
 enum CallerOutcomeAction: string
 {
     case ReturnResponse = 'return_response';

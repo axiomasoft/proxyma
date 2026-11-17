@@ -8,9 +8,11 @@
 /.phpunit.result.cache
 /build/
 /packages/*/vendor/
+/packages/*/.phpunit.cache/
+*.sqlite*
+*.log
 /local/
 /.mcp.json
-/.codex/
 /.cursor/
 /.agents/
 /.claude/settings.local.json
@@ -21,4 +23,5 @@
 !/.swissknifeman/project.json
 __pycache__/
 *.pyc
+.DS_Store
 .mcp.json

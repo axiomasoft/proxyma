@@ -6,10 +6,10 @@ use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Routing\RouteSelector;
 use Proxyma\Application\Routing\StrategyRegistry;
-use Proxyma\Contracts\CandidateSnapshots;
-use Proxyma\Contracts\RandomIndex;
-use Proxyma\Contracts\RouteSelectionStrategy;
-use Proxyma\Contracts\SharedRouteCommands;
+use Proxyma\Contracts\Catalog\CandidateSnapshots;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
+use Proxyma\Contracts\Routing\RandomIndex;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\ProxyProtocol;
@@ -26,12 +26,13 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Execution\WireRequest;
 use Proxyma\Domain\Policy\BudgetConstraint;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Domain\Routing\SelectionResult;
 use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/SelectionFixtures.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 final readonly class FixtureRandom implements RandomIndex
 {
@@ -159,7 +160,7 @@ it('не расширяет общую origin quota и группирует не
     expect($result->route)->toBeNull();
     foreach ($result->snapshot->candidates as $candidate) {
         expect($candidate->exclusions)->toContain('quota_exhausted')->and($candidate->budgetScopes)->toContain($originKey);
-        if (in_array($candidate->routeId->value, array_map(fn ($id) => $id->value, $ids), true)) {
+        if (in_array($candidate->routeId->value, array_map(fn (Uuid $id): string => $id->value, $ids), true)) {
             expect($candidate->budgetScopes)->toContain($egressKey)->and($candidate->route->egress->conservativePoolFallback)->toBeTrue();
         }
     }
@@ -214,21 +215,19 @@ it('отклоняет выбор strategy вне approved snapshot даже п�
             return 'uniform_random';
         }
 
-        public function select(array $candidates, WireRequest $request, RouteSelectionContext $context): ?Route
+        public function select(array $candidates, WireRequest $request, RouteSelectionContext $context): Route
         {
             return $this->route;
         }
     };
     $selector = new RouteSelector($this->snapshotQuery, new StrategyRegistry(new FixtureRandom(0), [$evil]));
-    expect(fn () => $selector->select($this->tenant, $this->catalog['profile'], $this->policy, $this->request, new RouteSelectionContext))->toThrow(InvalidArgumentException::class, 'outside');
+    expect(fn (): SelectionResult => $selector->select($this->tenant, $this->catalog['profile'], $this->policy, $this->request, new RouteSelectionContext))->toThrow(InvalidArgumentException::class, 'outside');
 });
 
 it('показывает что отключение или удаление выбранного route требует повторной authoritative проверки', function (): void {
     $choice = $this->selector->select($this->tenant, $this->catalog['profile'], $this->policy, $this->request, new RouteSelectionContext);
-    $guard = function ($selected): bool {
-        return $this->table('routes')->where('id', $selected->route->id->value)->where('enabled', true)->where('revision', $selected->route->revision)->exists()
-            && $this->table('route_profile_members')->where('tenant_key', $this->tenant->value)->where('profile_id', $selected->selection->profileId->value)->where('route_id', $selected->route->id->value)->exists();
-    };
+    $guard = (fn ($selected): bool => $this->table('routes')->where('id', $selected->route->id->value)->where('enabled', true)->where('revision', $selected->route->revision)->exists()
+        && $this->table('route_profile_members')->where('tenant_key', $this->tenant->value)->where('profile_id', $selected->selection->profileId->value)->where('route_id', $selected->route->id->value)->exists());
     expect($guard($choice))->toBeTrue();
     $otherConnection = $this->connectionPdo();
     $disable = $otherConnection->prepare('UPDATE pxm_routes SET enabled = false, revision = revision + 1 WHERE tenant_key = ? AND id = ?');

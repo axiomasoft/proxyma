@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Database\PostgresConnection;
+use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
+use Packman\Testkit\Support\Database\TestDatabaseGuard;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\ReservationService;
@@ -14,8 +16,8 @@ use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Application\Policy\UpdatePolicy;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Catalog\ActorRef;
@@ -51,15 +53,16 @@ if (preg_match('/^pxm_t_[a-f0-9]{16}$/D', $schema) !== 1 || ! in_array($payload[
     || ! in_array($payload['label'], ['one', 'two'], true)) {
     throw new RuntimeException('Invalid reservation worker fixture.');
 }
-$pdo = new PDO('pgsql:host=db;port=5432;dbname=proxyma_test', 'proxyma_test', 'proxyma-test-only', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-if ($pdo->query('SELECT current_database(), current_user, (SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM)
-    !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
-    throw new RuntimeException('Refusing reservation writes outside marked test database.');
+$identity = SuiteDatabaseConnection::pgsqlIdentity();
+TestDatabaseGuard::assertDestructiveSafe($identity);
+$pdo = new PDO(SuiteDatabaseConnection::pgsqlDsn($identity), $identity->username, SuiteDatabaseConnection::pgsqlPassword(), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+if (getenv('PROXYMA_DOCKER_RIG') === '1' && $pdo->query('SELECT current_database(), current_user, (SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM) !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
+    throw new RuntimeException('Refusing writes outside isolated marked proxyma_test database.');
 }
 $pdo->exec('SET search_path TO '.$schema);
 $pdo->exec("SET statement_timeout = '8s'");
 $pdo->prepare("SELECT set_config('application_name', ?, false)")->execute(['proxyma-p33-'.$schema.'-'.$payload['label']]);
-$db = new PostgresConnection($pdo, 'proxyma_test', '', ['driver' => 'pgsql', 'name' => 'worker']);
+$db = new PostgresConnection($pdo, $identity->database, '', ['driver' => 'pgsql', 'name' => 'worker']);
 $db->setTransactionManager($manager = new DatabaseTransactionsManager);
 $scope = new ConnectionScope($db, $manager);
 $transactions = new TransactionCoordinator($scope);
@@ -87,11 +90,11 @@ $definitions->freeze();
 $root = $db->table('pxm_operations')->where('tenant_key', 'acme')->where('id', (new Uuid($payload['operation']))->value)->first();
 if ($payload['mode'] === 'catalog') {
     $members = $db->table('pxm_route_profile_members')->where('profile_id', $root->profile_id)->orderBy('position')->pluck('route_id')->all();
-    $profile = (new DatabaseCatalogCommands($db, $access))->upsertProfile(new UpsertRouteProfileCommand(new Uuid($root->profile_id), $tenant, 'default',
-        array_map(fn ($id) => new Uuid($id), $members), 'least_recent_authorized', new CatalogMutationActor($actor, 'fixture mutation', 1, 'profile-mutation')));
+    $profile = new DatabaseCatalogCommands($db, $access)->upsertProfile(new UpsertRouteProfileCommand(new Uuid($root->profile_id), $tenant, 'default',
+        array_map(fn ($id): Uuid => new Uuid($id), $members), 'least_recent_authorized', new CatalogMutationActor($actor, 'fixture mutation', 1, 'profile-mutation')));
     $output = ['status' => 'edited', 'revision' => $profile->revision];
 } elseif ($payload['mode'] === 'policy') {
-    $revision = (new UpdatePolicy($db, $access, $settings))->update(new UpdatePolicyCommand(new Uuid($payload['head']), $tenant, PolicyScope::Tenant,
+    $revision = new UpdatePolicy($db, $access, $settings)->update(new UpdatePolicyCommand(new Uuid($payload['head']), $tenant, PolicyScope::Tenant,
         'acme', '{"schema_version":1,"operations":{"retry.max_attempts":{"op":"set","value":2}}}',
         new CatalogMutationActor($actor, 'fixture mutation', 1, 'policy-mutation')));
     $output = ['status' => 'edited', 'revision' => $revision->revision];

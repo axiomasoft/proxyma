@@ -6,9 +6,11 @@ namespace Proxyma\Laravel\Console;
 
 use Illuminate\Console\Command;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Infrastructure\Http\TransportDoctor;
 
+#[Api(since: '1.0')]
 final class TransportDoctorCommand extends Command
 {
     protected $signature = 'proxyma:transport-doctor {--protocol=* : Required proxy protocols (http, https, socks5)}';
@@ -17,7 +19,14 @@ final class TransportDoctorCommand extends Command
 
     public function handle(): int
     {
-        foreach ($this->option('protocol') ?: ['http', 'https', 'socks5'] as $name) {
+        $rawProtocols = $this->option('protocol');
+        $protocols = $rawProtocols !== [] ? $rawProtocols : ['http', 'https', 'socks5'];
+        foreach ($protocols as $name) {
+            if (! is_string($name)) {
+                $this->error('Unknown proxy protocol.');
+
+                return self::INVALID;
+            }
             $protocol = ProxyProtocol::tryFrom($name);
             if ($protocol === null) {
                 $this->error('Unknown proxy protocol.');

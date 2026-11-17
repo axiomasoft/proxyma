@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Application\Admission;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
@@ -20,7 +21,10 @@ use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\QuotaRepository;
+use Proxyma\Internal\Database\RowValues;
+use stdClass;
 
+#[Api(since: '1.0')]
 final readonly class QuotaService
 {
     public function __construct(private TransactionCoordinator $transactions, private AuthorityLocker $locks,
@@ -45,23 +49,25 @@ final readonly class QuotaService
             $t = PackageSchema::tables();
             $row = $scope->connection->table($t['budgets'])->where('tenant_key', $tenant->value)->where('id', $budgetId->value)->first()
                 ?? throw new AdmissionRejected('budget_missing');
-            $row = $this->locks->rows(AuthorityLockTier::Budget, $tenant, [$row->scope_key], $tx)[0];
+            $row = $this->locks->rows(AuthorityLockTier::Budget, $tenant, [RowValues::colStr($row, 'scope_key')], $tx)[0];
             if ($this->receipt($tenant, $actor, $hash) !== null) {
                 return;
             }
-            if ((int) $row->revision !== $expectedRevision || $row->traffic_parent_id !== null) {
+            if (RowValues::colInt($row, 'revision') !== $expectedRevision || RowValues::colNullableStr($row, 'traffic_parent_id') !== null) {
                 throw new AdmissionRejected('budget_revision_changed');
             }
             $previous = clone $row;
-            $scope->connection->table($t['budgets'])->where('id', $row->id)->update(['hour_limit' => $hour, 'day_limit' => $day, 'revision' => $expectedRevision + 1, 'updated_at' => $scope->connection->raw('clock_timestamp()')]);
+            $scope->connection->table($t['budgets'])->where('id', RowValues::colStr($row, 'id'))
+                ->update(['hour_limit' => $hour, 'day_limit' => $day, 'revision' => $expectedRevision + 1, 'updated_at' => $scope->connection->raw('clock_timestamp()')]);
             $row->hour_limit = $hour;
             $row->day_limit = $day;
             $row->revision = $expectedRevision + 1;
             QuotaRepository::provisionWindows($scope->connection, $row, DatabaseClock::now($scope->connection), reconcileHistory: true);
-            (new CatalogAudit($scope->connection))->mutation('budgets', $tenant, $budgetId, 'catalog.budget.configure', $actor, $hash, $previous, $row, ['hour_limit', 'day_limit']);
+            new CatalogAudit($scope->connection)->mutation('budgets', $tenant, $budgetId, 'catalog.budget.configure', $actor, $hash, $previous, $row, ['hour_limit', 'day_limit']);
         });
     }
 
+    /** @param list<Uuid> $budgetIds */
     public function provision(TenantKey $tenant, array $budgetIds): void
     {
         $scope = $this->transactions->scope;
@@ -70,9 +76,10 @@ final readonly class QuotaService
             $this->access->authorize($tenant, 'catalog.budget.configure', $id);
         }
         $this->transactions->run(function ($tx) use ($scope, $tenant, $budgetIds): void {
-            $rows = $scope->connection->table(PackageSchema::tables()['budgets'])->where('tenant_key', $tenant->value)
-                ->whereIn('id', array_map(static fn (Uuid $id) => $id->value, $budgetIds))->get()->all();
-            if (count($rows) !== count(array_unique(array_map(static fn (Uuid $id) => $id->value, $budgetIds)))) {
+            $budgetIdValues = array_map(static fn (Uuid $id): string => $id->value, $budgetIds);
+            $rows = array_values($scope->connection->table(PackageSchema::tables()['budgets'])->where('tenant_key', $tenant->value)
+                ->whereIn('id', $budgetIdValues)->get()->all());
+            if (count($rows) !== count(array_unique($budgetIdValues))) {
                 throw new AdmissionRejected('budget_missing');
             }
             foreach ($this->demands->lockBudgets($rows, $tx) as $row) {
@@ -99,36 +106,40 @@ final readonly class QuotaService
             $parent = $this->locks->rows(AuthorityLockTier::Budget, $tenant, [$origin->budgetScopeKey()], $tx)[0];
             $receipt = $this->receipt($tenant, $actor, $hash);
             if ($receipt !== null) {
-                return new Uuid($receipt->id);
+                return new Uuid(RowValues::colStr($receipt, 'id'));
             }
-            if ($parent->id !== $originBudget->value || (int) $parent->revision !== $expectedRevision || $parent->traffic_parent_id !== null) {
+            $parentId = RowValues::colStr($parent, 'id');
+            if ($parentId !== $originBudget->value || RowValues::colInt($parent, 'revision') !== $expectedRevision || RowValues::colNullableStr($parent, 'traffic_parent_id') !== null) {
                 throw new AdmissionRejected('traffic_parent_conflict');
             }
             $key = TrafficSharePolicy::scope($origin, $class);
             $this->locks->enter(AuthorityLockTier::Budget, $key."\0".$tenant->value, $tx);
             $row = $scope->connection->table($t['budgets'])->where('tenant_key', $tenant->value)->where('scope_key', $key)->lockForUpdate()->first();
             $previous = $row === null ? null : clone $row;
-            $limit = TrafficSharePolicy::hourlyLimit((int) $parent->emission_interval_us, $percent);
+            $limit = TrafficSharePolicy::hourlyLimit(RowValues::colInt($parent, 'emission_interval_us'), $percent);
             if ($row === null) {
                 $id = Uuid::random();
                 $scope->connection->table($t['budgets'])->insert(['id' => $id->value, 'tenant_key' => $tenant->value, 'scope_key' => $key,
                     'emission_interval_us' => 1, 'burst' => 1, 'max_inflight' => PHP_INT_MAX, 'mandatory' => true,
-                    'traffic_class' => $class, 'traffic_parent_id' => $parent->id, 'traffic_percent' => $percent, 'hour_limit' => $limit]);
-                $row = $scope->connection->table($t['budgets'])->where('id', $id->value)->first();
+                    'traffic_class' => $class, 'traffic_parent_id' => $parentId, 'traffic_percent' => $percent, 'hour_limit' => $limit]);
+                $row = $scope->connection->table($t['budgets'])->where('id', $id->value)->first() ?? throw new AdmissionRejected('budget_missing');
             } else {
-                if ($row->traffic_parent_id !== $parent->id || $row->traffic_class !== $class) {
+                if (RowValues::colNullableStr($row, 'traffic_parent_id') !== $parentId || RowValues::colNullableStr($row, 'traffic_class') !== $class) {
                     throw new AdmissionRejected('traffic_parent_conflict');
                 }
-                $scope->connection->table($t['budgets'])->where('id', $row->id)->update(['hour_limit' => $limit, 'traffic_percent' => $percent, 'revision' => (int) $row->revision + 1, 'updated_at' => $scope->connection->raw('clock_timestamp()')]);
+                $nextRevision = RowValues::colInt($row, 'revision') + 1;
+                $scope->connection->table($t['budgets'])->where('id', RowValues::colStr($row, 'id'))
+                    ->update(['hour_limit' => $limit, 'traffic_percent' => $percent, 'revision' => $nextRevision, 'updated_at' => $scope->connection->raw('clock_timestamp()')]);
                 $row->hour_limit = $limit;
                 $row->traffic_percent = $percent;
-                $row->revision = (int) $row->revision + 1;
+                $row->revision = $nextRevision;
             }
+            $rowId = RowValues::colStr($row, 'id');
             QuotaRepository::provisionWindows($scope->connection, $row, DatabaseClock::now($scope->connection), reconcileHistory: true);
-            $childActor = new CatalogMutationActor($actor->actor, $actor->reason, (int) ($previous->revision ?? 0), $actor->idempotencyKey);
-            (new CatalogAudit($scope->connection))->mutation('budgets', $tenant, new Uuid($row->id), 'catalog.budget.traffic-share', $childActor, $hash, $previous, $row, ['hour_limit', 'traffic_percent', 'traffic_class', 'traffic_parent_id']);
+            $childActor = new CatalogMutationActor($actor->actor, $actor->reason, $previous === null ? 0 : RowValues::colInt($previous, 'revision'), $actor->idempotencyKey);
+            new CatalogAudit($scope->connection)->mutation('budgets', $tenant, new Uuid($rowId), 'catalog.budget.traffic-share', $childActor, $hash, $previous, $row, ['hour_limit', 'traffic_percent', 'traffic_class', 'traffic_parent_id']);
 
-            return new Uuid($row->id);
+            return new Uuid($rowId);
         });
     }
 
@@ -139,11 +150,11 @@ final readonly class QuotaService
         if ($receipt === null) {
             return null;
         }
-        if (! hash_equals($receipt->command_hash, $hash)) {
+        if (! hash_equals(RowValues::colStr($receipt, 'command_hash'), $hash)) {
             throw new AdmissionRejected('quota_idempotency_conflict');
         }
 
-        return json_decode($receipt->result, false, flags: JSON_THROW_ON_ERROR);
+        return RowValues::object(json_decode(RowValues::colStr($receipt, 'result'), false, flags: JSON_THROW_ON_ERROR));
     }
 
     public function assertWindow(string $permitId, int $requiredUs, TenantKey $tenant, Uuid $operation): void
@@ -156,7 +167,7 @@ final readonly class QuotaService
         $refs = $this->repository->references($permitId);
         $now = DatabaseClock::micros(DatabaseClock::now($this->transactions->scope->connection));
         foreach ($refs as $ref) {
-            if ($ref->state === 'reserved' && $now + $requiredUs >= DatabaseClock::micros(new DateTimeImmutable($ref->ends_at))) {
+            if (RowValues::colStr($ref, 'state') === 'reserved' && $now + $requiredUs >= DatabaseClock::micros(new DateTimeImmutable(RowValues::colStr($ref, 'ends_at')))) {
                 $this->replan($permitId);
             }
         }
@@ -167,7 +178,7 @@ final readonly class QuotaService
         $scope = $this->transactions->scope;
         $row = $scope->connection->table(PackageSchema::tables()['permits'])->where('id', $permitId)->first()
             ?? throw new AdmissionRejected('permit_missing');
-        $exception = new NeedsReplan(new TenantKey($row->tenant_key), new Uuid($row->operation_id), new Uuid($permitId));
+        $exception = new NeedsReplan(new TenantKey(RowValues::colStr($row, 'tenant_key')), new Uuid(RowValues::colStr($row, 'operation_id')), new Uuid($permitId));
         $cleanup = function () use ($exception): void {
             $exception->released = $this->releaseForReplan($exception);
         };
@@ -192,25 +203,31 @@ final readonly class QuotaService
             $this->locks->rows(AuthorityLockTier::Operation, $replan->tenant, [$replan->operationId->value], $tx);
             $row = $db->table($t['permits'])->where('tenant_key', $replan->tenant->value)->where('operation_id', $replan->operationId->value)
                 ->where('id', $replan->permitId->value)->first() ?? throw new AdmissionRejected('permit_missing');
-            $references = $db->table($t['reservations'])->where('permit_id', $row->id)->get()->all();
-            $quotaReferences = $this->repository->references($row->id);
-            $budgetIds = array_unique([...array_column($references, 'budget_id'), ...array_column($quotaReferences, 'budget_id')]);
-            $budgets = $db->table($t['budgets'])->whereIn('id', $budgetIds)->get()->all();
+            $permitId = RowValues::colStr($row, 'id');
+            $references = array_values($db->table($t['reservations'])->where('permit_id', $permitId)->get()->all());
+            $quotaReferences = $this->repository->references($permitId);
+            $budgetIds = array_values(array_unique([
+                ...array_map(static fn (stdClass $r): string => RowValues::colStr($r, 'budget_id'), $references),
+                ...array_map(static fn (stdClass $r): string => RowValues::colStr($r, 'budget_id'), $quotaReferences),
+            ]));
+            $budgets = array_values($db->table($t['budgets'])->whereIn('id', $budgetIds)->get()->all());
             $locked = $this->demands->lockBudgets($budgets, $tx);
-            $this->repository->lockWindows($locked, $row->id);
-            $this->locks->rows(AuthorityLockTier::Demand, $replan->tenant, [$row->demand_id], $tx);
-            $row = $this->locks->rows(AuthorityLockTier::Permit, $replan->tenant, [$row->id], $tx)[0];
-            if ($row->state === 'expired_before_send' || $row->state === 'cancelled_before_send') {
+            $this->repository->lockWindows($locked, $permitId);
+            $this->locks->rows(AuthorityLockTier::Demand, $replan->tenant, [RowValues::colStr($row, 'demand_id')], $tx);
+            $row = $this->locks->rows(AuthorityLockTier::Permit, $replan->tenant, [$permitId], $tx)[0];
+            $lockedPermitId = RowValues::colStr($row, 'id');
+            $lockedState = RowValues::colStr($row, 'state');
+            if ($lockedState === 'expired_before_send' || $lockedState === 'cancelled_before_send') {
                 return true;
             }
-            if ($row->state !== 'reserved') {
+            if ($lockedState !== 'reserved') {
                 return false;
             }
             PermitState::Reserved->transitionTo(PermitState::ExpiredBeforeSend);
-            $this->repository->release($row->id);
+            $this->repository->release($lockedPermitId);
             $this->budgets->release($references, $locked);
-            $db->table($t['permits'])->where('id', $row->id)->update(['state' => 'expired_before_send']);
-            $db->table($t['demands'])->where('id', $row->demand_id)->update(['state' => 'expired']);
+            $db->table($t['permits'])->where('id', $lockedPermitId)->update(['state' => 'expired_before_send']);
+            $db->table($t['demands'])->where('id', RowValues::colStr($row, 'demand_id'))->update(['state' => 'expired']);
 
             return true;
         });

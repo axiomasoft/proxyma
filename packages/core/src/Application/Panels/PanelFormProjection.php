@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Panels;
 
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Bindings\BindingContext;
 use Proxyma\Application\Bindings\BindingEditVersion;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\BindingQueries;
+use Proxyma\Contracts\Bindings\BindingQueries;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Panels\PanelFormData;
 use Proxyma\Domain\Panels\SubjectResolutionFailed;
 use Proxyma\Domain\Policy\PolicyConflict;
 use Proxyma\Domain\Policy\SubjectRef;
 
+#[Api(since: '1.0')]
 final readonly class PanelFormProjection
 {
     public function __construct(

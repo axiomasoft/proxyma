@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteProfile;
 use Proxyma\Domain\Catalog\Target;
 use Proxyma\Domain\Health\HealthEpochMap;
 
+#[Api(since: '1.0')]
 final readonly class LivePolicyAuthority
 {
     /** @var list<Route> */

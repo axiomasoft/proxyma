@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Health;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class HealthAuthorization
 {
     public function __construct(

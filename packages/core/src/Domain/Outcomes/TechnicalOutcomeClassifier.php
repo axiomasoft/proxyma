@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Outcomes;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Execution\BlockedReason;
 use Proxyma\Domain\Execution\DeferralReason;
@@ -16,6 +17,7 @@ use Proxyma\Domain\Health\HealthAttribution;
  * Технический классификатор физических попыток (AttemptFacts -> TechnicalClassification).
  * Отделяет транспортные/прокси/TLS/cooldown факты от доменного решения вызывающего кода.
  */
+#[Api(since: '1.0')]
 final readonly class TechnicalOutcomeClassifier
 {
     private const array REDIRECT_STATUSES = [301, 302, 303, 307, 308];
@@ -302,8 +304,8 @@ final readonly class TechnicalOutcomeClassifier
                 defaultDecision: OutcomeDecision::Block,
                 businessMeaning: 'protocol_violation',
                 blockedReason: BlockedReason::PolicyReview,
-                isAmbiguousAfterAuthorization: ! $facts->idempotency->allowsAutomaticRetry(),
                 forbidsAnyRetry: true,
+                isAmbiguousAfterAuthorization: ! $facts->idempotency->allowsAutomaticRetry(),
                 isMandatorySecurityBlock: true,
             ),
             TransportFailure::Storage => new TechnicalClassification(

@@ -8,7 +8,8 @@ use Closure;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use LogicException;
-use Proxyma\Contracts\OutcomePolicy;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Execution\OutcomePolicy;
 use Proxyma\Domain\Execution\AttemptResult;
 use Proxyma\Domain\Execution\BlockedReason;
 use Proxyma\Domain\Execution\DeferralReason;
@@ -32,18 +33,20 @@ use Throwable;
  * Отклоняет конфликты равного приоритета при freeze() и гарантирует, что пользовательская
  * политика не может изменить AttemptFacts, отменить атрибуцию здоровья, пропустить квоты,
  * подавить блокировки TLS/407 или обойти origin cooldown на 429.
+ *
+ * @phpstan-type OutcomePolicyCallable Closure(AttemptFacts, AttemptResult, WireRequest, TechnicalClassification): (OutcomeClassification|CallerOutcomeAction)
+ * @phpstan-type OutcomePolicyEntry array{
+ *     policy: OutcomePolicy|OutcomePolicyCallable,
+ *     tier: OutcomePolicyTier,
+ *     priority: int,
+ *     wafRateSignal: bool,
+ *     blockExcessiveRetryAfter: bool,
+ * }
  */
+#[Api(since: '1.0')]
 final class OutcomePolicyRegistry
 {
-    /**
-     * @var array<string, list<array{
-     *     policy: OutcomePolicy|Closure,
-     *     tier: OutcomePolicyTier,
-     *     priority: int,
-     *     wafRateSignal: bool,
-     *     blockExcessiveRetryAfter: bool,
-     * }>>
-     */
+    /** @var array<string, list<OutcomePolicyEntry>> */
     private array $registrations = [];
 
     private bool $frozen = false;
@@ -67,9 +70,7 @@ final class OutcomePolicyRegistry
         );
     }
 
-    /**
-     * @param  OutcomePolicy|(Closure(AttemptFacts, AttemptResult, WireRequest, TechnicalClassification): (OutcomeClassification|CallerOutcomeAction))  $policy
-     */
+    /** @param OutcomePolicy|OutcomePolicyCallable $policy */
     public function register(
         string $key,
         OutcomePolicy|Closure $policy,
@@ -118,12 +119,17 @@ final class OutcomePolicyRegistry
         return $this->frozen;
     }
 
+    /** @return OutcomePolicy|OutcomePolicyCallable */
     public function resolve(string $key): OutcomePolicy|Closure
     {
         return $this->resolveEntry($key)['policy'];
     }
 
-    /** Interpretation is copied into authorization; completion never re-reads this registry. */
+    /**
+     * Interpretation is copied into authorization; completion never re-reads this registry.
+     *
+     * @return array{key: string, revision: int, waf_rate_signal: bool}
+     */
     public function healthInterpretation(string $key): array
     {
         $entry = $this->resolveEntry($key);
@@ -165,15 +171,7 @@ final class OutcomePolicyRegistry
         return $this->enforceInvariants($facts, $technical, $proposal, $entry['tier'], $now);
     }
 
-    /**
-     * @return array{
-     *     policy: OutcomePolicy|Closure,
-     *     tier: OutcomePolicyTier,
-     *     priority: int,
-     *     wafRateSignal: bool,
-     *     blockExcessiveRetryAfter: bool,
-     * }
-     */
+    /** @return OutcomePolicyEntry */
     private function resolveEntry(string $key): array
     {
         $entries = $this->registrations[$key] ?? [];
@@ -195,15 +193,7 @@ final class OutcomePolicyRegistry
         return $entries[0];
     }
 
-    /**
-     * @return array{
-     *     policy: OutcomePolicy|Closure,
-     *     tier: OutcomePolicyTier,
-     *     priority: int,
-     *     wafRateSignal: bool,
-     *     blockExcessiveRetryAfter: bool,
-     * }|null
-     */
+    /** @return ?OutcomePolicyEntry */
     private function highestSecurityEntry(string $key): ?array
     {
         $candidates = [];
@@ -224,15 +214,7 @@ final class OutcomePolicyRegistry
         return $candidates[0];
     }
 
-    /**
-     * @param  list<array{
-     *     policy: OutcomePolicy|Closure,
-     *     tier: OutcomePolicyTier,
-     *     priority: int,
-     *     wafRateSignal: bool,
-     *     blockExcessiveRetryAfter: bool,
-     * }>  $entries
-     */
+    /** @param list<OutcomePolicyEntry> $entries */
     private function assertNoEqualPriorityConflict(string $key, array $entries): void
     {
         $seen = [];
@@ -247,6 +229,7 @@ final class OutcomePolicyRegistry
         }
     }
 
+    /** @param OutcomePolicy|OutcomePolicyCallable $policy */
     private function propose(
         OutcomePolicy|Closure $policy,
         AttemptFacts $facts,
@@ -264,9 +247,6 @@ final class OutcomePolicyRegistry
         }
         if ($proposal instanceof OutcomeClassification) {
             return $proposal;
-        }
-        if (! $proposal instanceof CallerOutcomeAction) {
-            return new OutcomeClassification(OutcomeDecision::Block, 'outcome_policy_failed', $technical->healthAttribution);
         }
 
         return new OutcomeClassification($proposal->toOutcomeDecision(),
@@ -370,7 +350,6 @@ final class OutcomePolicyRegistry
                 action: CallerOutcomeAction::DeferUntil,
                 winningTier: OutcomePolicyTier::SecurityOwnership,
                 deferralReason: DeferralReason::RateLimit,
-                blockedReason: null,
             );
         }
 

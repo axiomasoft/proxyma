@@ -12,19 +12,22 @@ use Filament\Support\Components\Attributes\Unexposed;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Livewire\Attributes\Locked;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\CatalogConflict;
-use Proxyma\Contracts\CatalogMutationFence;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
+use Proxyma\Contracts\Catalog\CatalogMutationFence;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthScope;
+use Proxyma\Filament\Internal\FilamentValue;
 use Proxyma\Filament\Queries\OperationsQuery;
 use UnitEnum;
 
 /** @property-read Schema $form */
+#[Api(since: '1.0')]
 abstract class OperationsPage extends Page
 {
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
@@ -34,9 +37,11 @@ abstract class OperationsPage extends Page
     #[Locked]
     public int $operationsPage = 1;
 
+    /** @var array<string, mixed> */
     #[Locked]
     public array $editing = [];
 
+    /** @var array<string, mixed> */
     public array $data = [];
 
     #[Unexposed]
@@ -86,7 +91,7 @@ abstract class OperationsPage extends Page
         }
         try {
             $this->assertEditing();
-            app(CatalogAccess::class)->authorize(app(TenantContextResolver::class)->resolve()->tenant, $ability, new Uuid($this->editing['id']));
+            app(CatalogAccess::class)->authorize(app(TenantContextResolver::class)->resolve()->tenant, $ability, new Uuid(FilamentValue::str($this->editing['id'] ?? null)));
 
             return true;
         } catch (AuthorizationDenied) {
@@ -94,23 +99,30 @@ abstract class OperationsPage extends Page
         }
     }
 
+    /** @param array<string, mixed> $state */
     protected function actor(array $state): CatalogMutationActor
     {
         $this->assertEditing();
 
-        return new CatalogMutationActor(app(TenantContextResolver::class)->resolve()->actor, $state['reason'],
-            (int) ($this->editing['revision'] ?? $this->editing['state_version']), $this->editing['key'], $this->editing['authority_version'] ?? null);
+        return new CatalogMutationActor(
+            app(TenantContextResolver::class)->resolve()->actor,
+            FilamentValue::str($state['reason'] ?? null),
+            FilamentValue::int($this->editing['revision'] ?? $this->editing['state_version'] ?? null),
+            FilamentValue::str($this->editing['key'] ?? null),
+            FilamentValue::nullableStr($this->editing['authority_version'] ?? null),
+        );
     }
 
     protected function assertEditing(): void
     {
-        if ($this->editing === [] || ($this->editing['tenant'] ?? null) !== app(TenantContextResolver::class)->resolve()->tenant->value) {
+        if ($this->editing === [] || FilamentValue::nullableStr($this->editing['tenant'] ?? null) !== app(TenantContextResolver::class)->resolve()->tenant->value) {
             throw new AuthorizationDenied;
         }
         app(OperationsQuery::class)->authorize(static::$kind);
-        app(OperationsQuery::class)->authorize(static::$kind, $this->editing['id']);
+        app(OperationsQuery::class)->authorize(static::$kind, FilamentValue::str($this->editing['id'] ?? null));
     }
 
+    /** @param Closure(): void $command */
     protected function command(Closure $command): void
     {
         try {
@@ -128,11 +140,16 @@ abstract class OperationsPage extends Page
         return HealthScope::Route;
     }
 
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
     protected function editState(array $row): array
     {
         return [];
     }
 
+    /** @return array<string, mixed> */
     protected function getViewData(): array
     {
         return ['records' => app(OperationsQuery::class)->page(static::$kind, $this->operationsPage, $this->selectedHealthScope())];

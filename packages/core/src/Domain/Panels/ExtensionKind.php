@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Panels;
 
+use Packman\Attributes\Api;
+
+#[Api(since: '1.0')]
 enum ExtensionKind: string
 {
     case RouteFilter = 'route_filter';

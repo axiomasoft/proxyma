@@ -7,18 +7,21 @@ namespace Proxyma\Filament\Pages;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Components\Attributes\Unexposed;
 use Livewire\Attributes\Locked;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Extensions\DefinitionRegistry;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\PolicyScope;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Filament\BindingEditor;
+use Proxyma\Filament\Internal\FilamentValue;
 use Proxyma\Filament\Schemas\ProxymaSettingsSection;
 use UnitEnum;
 
@@ -26,6 +29,7 @@ use UnitEnum;
  * @property-read Schema $selector
  * @property-read Schema $form
  */
+#[Api(since: '1.0')]
 class BindingsPage extends Page
 {
     protected string $view = 'proxyma-filament::bindings';
@@ -36,10 +40,13 @@ class BindingsPage extends Page
 
     protected static bool $readOnly = false;
 
+    /** @var array<string, mixed> */
     public array $selection = [];
 
+    /** @var array<string, mixed> */
     public array $data = [];
 
+    /** @var array<string, mixed> */
     #[Locked]
     public array $editing = [];
 
@@ -66,10 +73,19 @@ class BindingsPage extends Page
     {
         $definitions = app(DefinitionRegistry::class);
 
+        $panelKeys = array_keys($definitions->panels());
+
         return $schema->components([
-            Select::make('panel')->label('Панель')->options(array_combine(array_keys($definitions->panels()), array_keys($definitions->panels())))->required()->live(),
-            Select::make('slot')->label('Slot')->options(fn ($get): array => isset($definitions->panels()[$get('panel')])
-                ? array_combine(array_keys($definitions->panel($get('panel'))->slots), array_keys($definitions->panel($get('panel'))->slots)) : [])->required(),
+            Select::make('panel')->label('Панель')->options(array_combine($panelKeys, $panelKeys))->required()->live(),
+            Select::make('slot')->label('Slot')->options(function (Get $get) use ($definitions): array {
+                $panelKey = FilamentValue::nullableStr($get('panel'));
+                if ($panelKey === null || ! isset($definitions->panels()[$panelKey])) {
+                    return [];
+                }
+                $slots = array_keys($definitions->panel($panelKey)->slots);
+
+                return array_combine($slots, $slots);
+            })->required(),
             TextInput::make('type')->label('Тип субъекта')->required()->regex('/^[a-z][a-z0-9_.:-]{0,63}$/D'),
             TextInput::make('id')->label('ID субъекта')->required()->maxLength(255)->regex('/^[^\x00-\x20\x7f]+$/D'),
             TextInput::make('target')->label('Target UUID')->required()->uuid(),
@@ -82,9 +98,9 @@ class BindingsPage extends Page
         $selection = $this->selector->getState();
         try {
             $tenant = app(TenantContextResolver::class)->resolve()->tenant;
-            $subject = new SubjectRef($tenant, $selection['type'], $selection['id']);
-            $target = new Uuid($selection['target']);
-            $state = app(BindingEditor::class)->open($subject, $target, $selection['panel'], $selection['slot']);
+            $subject = new SubjectRef($tenant, FilamentValue::str($selection['type'] ?? null), FilamentValue::str($selection['id'] ?? null));
+            $target = new Uuid(FilamentValue::str($selection['target'] ?? null));
+            $state = app(BindingEditor::class)->open($subject, $target, FilamentValue::str($selection['panel'] ?? null), FilamentValue::str($selection['slot'] ?? null));
             $this->editing = $selection;
             $this->editing['tenant'] = $tenant->value;
             $this->resetErrorBag();
@@ -101,9 +117,22 @@ class BindingsPage extends Page
             return $schema->components([])->statePath('data');
         }
         $selection = $this->editing;
-        $subject = fn (): SubjectRef => new SubjectRef(new TenantKey($selection['tenant']), $selection['type'], $selection['id']);
+        $subject = fn (): SubjectRef => new SubjectRef(
+            new TenantKey(FilamentValue::str($selection['tenant'] ?? null)),
+            FilamentValue::str($selection['type'] ?? null),
+            FilamentValue::str($selection['id'] ?? null),
+        );
 
-        return $schema->components([ProxymaSettingsSection::make($subject, $selection['panel'], $selection['slot'], new Uuid($selection['target']), '', static::$readOnly)])->statePath('data');
+        return $schema->components([
+            ProxymaSettingsSection::make(
+                $subject,
+                FilamentValue::str($selection['panel'] ?? null),
+                FilamentValue::str($selection['slot'] ?? null),
+                new Uuid(FilamentValue::str($selection['target'] ?? null)),
+                '',
+                static::$readOnly,
+            ),
+        ])->statePath('data');
     }
 
     public function save(): void

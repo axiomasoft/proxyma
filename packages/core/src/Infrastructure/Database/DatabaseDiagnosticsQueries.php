@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\DiagnosticsQueries;
+use Proxyma\Contracts\Health\DiagnosticsQueries;
 use Proxyma\Domain\Execution\SchemaDiagnosticReport;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\CircuitState;
 use Proxyma\Domain\Health\HealthSnapshot;
 use Proxyma\Domain\Health\TargetAvailability;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Internal\Database\RowValues;
 
+#[Api(since: '1.0')]
 final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
 {
     public function __construct(private ConnectionScope $scope, private CatalogAccess $access) {}
@@ -27,7 +30,8 @@ final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
         }
         $missing = [];
         foreach (PackageSchema::tables() as $table) {
-            if ($db->selectOne('SELECT to_regclass(?) AS name', [$table])->name === null) {
+            $regclass = RowValues::nullableObject($db->selectOne('SELECT to_regclass(?) AS name', [$table]));
+            if ($regclass === null || RowValues::colNullableStr($regclass, 'name') === null) {
                 $missing[] = $table;
             }
         }
@@ -70,6 +74,7 @@ final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
         return $this->health('target_health', $tenant, ['target_id' => $targetId->value]);
     }
 
+    /** @param array<string, mixed> $where */
     private function health(string $table, TenantKey $tenant, array $where): ?HealthSnapshot
     {
         $this->scope->assertOutsideTransaction();
@@ -77,12 +82,25 @@ final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
         if ($row === null) {
             return null;
         }
-        $date = static fn ($value) => $value === null ? null : new DateTimeImmutable($value);
+        $date = static fn (?string $value): ?DateTimeImmutable => $value === null ? null : new DateTimeImmutable($value);
+        $probeToken = RowValues::colNullableStr($row, 'probe_token');
+        $availability = RowValues::colNullableStr($row, 'availability');
 
-        return new HealthSnapshot(new Uuid($row->id), CircuitState::from($row->state), (int) $row->health_epoch, (int) $row->state_version,
-            (int) $row->consecutive_failures, (int) $row->recent_openings, $row->reason_code,
-            $date($row->last_success_at), $date($row->last_failure_at), $date($row->open_until),
-            $row->probe_token === null ? null : new Uuid($row->probe_token), $date($row->probe_until), $date($row->stable_since),
-            isset($row->availability) ? TargetAvailability::from($row->availability) : null);
+        return new HealthSnapshot(
+            new Uuid(RowValues::colStr($row, 'id')),
+            CircuitState::from(RowValues::colStr($row, 'state')),
+            RowValues::colInt($row, 'health_epoch'),
+            RowValues::colInt($row, 'state_version'),
+            RowValues::colInt($row, 'consecutive_failures'),
+            RowValues::colInt($row, 'recent_openings'),
+            RowValues::colNullableStr($row, 'reason_code'),
+            $date(RowValues::colNullableStr($row, 'last_success_at')),
+            $date(RowValues::colNullableStr($row, 'last_failure_at')),
+            $date(RowValues::colNullableStr($row, 'open_until')),
+            $probeToken === null ? null : new Uuid($probeToken),
+            $date(RowValues::colNullableStr($row, 'probe_until')),
+            $date(RowValues::colNullableStr($row, 'stable_since')),
+            $availability !== null ? TargetAvailability::from($availability) : null,
+        );
     }
 }

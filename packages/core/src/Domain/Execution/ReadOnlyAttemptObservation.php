@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Policy\TenantKey;
 
+#[Api(since: '1.0')]
 final readonly class ReadOnlyAttemptObservation
 {
     public function __construct(

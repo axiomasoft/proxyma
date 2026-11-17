@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Budgets;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Policy\TenantKey;
 
+#[Api(since: '1.0')]
 final readonly class BudgetKey
 {
     public function __construct(public TenantKey $tenant, public string $scope)

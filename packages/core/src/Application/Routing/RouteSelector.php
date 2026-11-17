@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Application\Routing;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Extensions\ExtensionRuntime;
-use Proxyma\Contracts\CandidateSnapshots;
+use Proxyma\Contracts\Catalog\CandidateSnapshots;
+use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\ResolvedUrl;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\RouteSelectionContext;
@@ -17,8 +19,10 @@ use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Domain\Routing\Candidate;
 use Proxyma\Domain\Routing\SelectionResult;
 
+#[Api(since: '1.0')]
 final readonly class RouteSelector
 {
+    /** @param list<string> $filterIds */
     public function __construct(private CandidateSnapshots $snapshots, private StrategyRegistry $strategies,
         private ?ExtensionRuntime $extensions = null, private array $filterIds = []) {}
 
@@ -47,14 +51,20 @@ final readonly class RouteSelector
         $candidates = array_values(array_filter($snapshot->candidates, static fn (Candidate $c): bool => $c->eligible()));
         $exclusions = [];
         if ($this->extensions !== null) {
-            $routes = $this->extensions->filter(array_map(static fn (Candidate $candidate) => $candidate->route, $candidates), $request, $this->filterIds);
-            $ids = array_map(static fn ($route) => $route->id->value, $routes);
+            $eligibleRoutes = [];
+            foreach ($candidates as $candidate) {
+                if ($candidate->route !== null) {
+                    $eligibleRoutes[] = $candidate->route;
+                }
+            }
+            $routes = $this->extensions->filter($eligibleRoutes, $request, $this->filterIds);
+            $ids = array_map(static fn (Route $route): string => $route->id->value, $routes);
             foreach ($candidates as $candidate) {
                 if (! in_array($candidate->routeId->value, $ids, true)) {
                     $exclusions[$candidate->routeId->value] = 'route_filter';
                 }
             }
-            $candidates = array_values(array_filter($candidates, static fn (Candidate $candidate) => in_array($candidate->routeId->value, $ids, true)));
+            $candidates = array_values(array_filter($candidates, static fn (Candidate $candidate): bool => in_array($candidate->routeId->value, $ids, true)));
         }
         $tried = [];
         foreach ($context->triedRouteIds as $id) {

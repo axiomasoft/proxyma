@@ -12,9 +12,9 @@ use Filament\Schemas\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Livewire;
-use Proxyma\Contracts\BindingCommands;
-use Proxyma\Contracts\BindingQueries;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
+use Proxyma\Contracts\Bindings\BindingCommands;
+use Proxyma\Contracts\Bindings\BindingQueries;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\BindSubjectPolicyCommand;
 use Proxyma\Domain\Policy\SubjectRef;
@@ -29,7 +29,7 @@ require_once __DIR__.'/../../core/tests/Support/CatalogTestCase.php';
 require_once __DIR__.'/Support/WithFilament.php';
 require_once __DIR__.'/Support/WithBindingEditor.php';
 
-uses(CatalogTestCase::class, WithFilament::class, WithBindingEditor::class);
+uses(CatalogTestCase::class, WithFilament::class, WithBindingEditor::class)->group('pg');
 
 class EmbeddedProxymaEditor extends Component implements HasActions, HasSchemas
 {

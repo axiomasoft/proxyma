@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder;
+use LogicException;
+use Packman\Attributes\Internal;
 use Proxyma\Infrastructure\Eloquent\BindingRevisionRecord;
+use Proxyma\Internal\Database\RowValues;
 
 /** @internal */
+#[Internal]
 final class PanelBindingSchema
 {
     public static function down(Connection $db): void
@@ -15,8 +20,8 @@ final class PanelBindingSchema
         $t = PackageSchema::tables();
         $history = (new BindingRevisionRecord)->getTable();
         if ($db->table($history)->exists() || $db->table($t['audit_events'])->where('entity_type', 'bindings')->exists()
-            || $db->table($t['bindings'])->where(fn ($q) => $q->where('panel_key', '<>', 'default')->orWhere('slot_key', '<>', 'default')->orWhere('policy_key', '<>', 'default'))->exists()) {
-            throw new \LogicException('Binding history or scoped bindings prevent rollback.');
+            || $db->table($t['bindings'])->where(fn (Builder $q): Builder => $q->where('panel_key', '<>', 'default')->orWhere('slot_key', '<>', 'default')->orWhere('policy_key', '<>', 'default'))->exists()) {
+            throw new LogicException('Binding history or scoped bindings prevent rollback.');
         }
         $db->statement("DROP TABLE {$history}");
         $db->statement("ALTER TABLE {$t['bindings']} DROP CONSTRAINT pxm_binding_scope_unique,
@@ -35,7 +40,7 @@ final class PanelBindingSchema
         $constraints = $db->select("SELECT conname FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'u'
             AND pg_get_constraintdef(oid) = 'UNIQUE (tenant_key, subject_type, subject_id)'", [$table]);
         foreach ($constraints as $constraint) {
-            $name = str_replace('"', '""', $constraint->conname);
+            $name = str_replace('"', '""', RowValues::colStr(RowValues::object($constraint), 'conname'));
             $db->statement("ALTER TABLE {$table} DROP CONSTRAINT \"{$name}\"");
         }
         $db->statement("ALTER TABLE {$table}

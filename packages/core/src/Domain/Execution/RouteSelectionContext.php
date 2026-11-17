@@ -5,17 +5,16 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class RouteSelectionContext
 {
-    /** @var list<Uuid> */
-    public array $triedRouteIds;
-
     /**
      * @param  list<Uuid>  $triedRouteIds
      */
     public function __construct(
-        array $triedRouteIds = [],
+        public array $triedRouteIds = [],
         public ?Uuid $previousRouteId = null,
         public bool $preferUntried = false,
         public int $maxDistinctRoutes = 1,
@@ -23,7 +22,5 @@ final readonly class RouteSelectionContext
         if ($maxDistinctRoutes < 1) {
             throw new InvalidArgumentException('maxDistinctRoutes must be at least 1.');
         }
-
-        $this->triedRouteIds = $triedRouteIds;
     }
 }

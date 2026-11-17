@@ -5,12 +5,12 @@ declare(strict_types=1);
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
 use Proxyma\Application\Catalog\CatalogNotFound;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\CatalogCommands;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\RouteAccessChecks;
-use Proxyma\Contracts\SharedRouteCommands;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
+use Proxyma\Contracts\Catalog\CatalogCommands;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Catalog\RouteAccessChecks;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
@@ -36,7 +36,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 it('все query boundaries отвергают tenant из payload и отсутствие permissions до SQL', function (): void {
     $c = $this->provision();
@@ -140,7 +140,7 @@ it('shared flag не выдаёт wildcard, grant ограничен owner consu
     $commands->upsertRoute(new UpsertRouteCommand($c['route'], $this->tenant, 'direct-main', RouteKind::Direct, null, true, EgressIdentity::explicit('nat:fixture'), null, true, $this->actor(1)));
     $raw = new Route($c['route'], $this->tenant, 'direct-main', RouteKind::Direct, null, true, EgressIdentity::explicit('nat:fixture'), sharedGrant: true);
     expect($raw->isAccessibleBy($consumer))->toBeFalse();
-    expect(fn () => new SharedRouteGrant(Uuid::random(), $this->tenant, $this->tenant, $c['route']))->toThrow(InvalidArgumentException::class);
+    expect(fn (): SharedRouteGrant => new SharedRouteGrant(Uuid::random(), $this->tenant, $this->tenant, $c['route']))->toThrow(InvalidArgumentException::class);
     $this->useTenant($consumer);
     expect($queries->findRoute($consumer, $c['route']))->toBeNull();
     $profileId = Uuid::random();

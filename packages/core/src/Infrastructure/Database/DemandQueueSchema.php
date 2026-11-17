@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
 use RuntimeException;
 
+#[Internal]
 final class DemandQueueSchema
 {
     public static function up(Connection $db): void
@@ -34,7 +36,7 @@ final class DemandQueueSchema
             UNIQUE (tenant_key, demand_id, budget_tenant_key, budget_id))");
         $db->statement("CREATE INDEX pxm_demand_scope_conflict_idx ON {$t['demand_scopes']} (budget_id, demand_id)");
         $db->statement("CREATE INDEX pxm_demand_fifo_active_idx ON {$t['demands']} (sequence, id) WHERE physical_attempt_id IS NOT NULL AND state = 'active'");
-        $db->unprepared("CREATE FUNCTION pxm_demand_identity_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+        $db->statement("CREATE FUNCTION pxm_demand_identity_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF OLD.physical_attempt_id IS NOT NULL AND
                     ROW(NEW.tenant_key, NEW.operation_id, NEW.profile_id, NEW.target_id, NEW.physical_attempt_id, NEW.wire_fingerprint,
@@ -50,14 +52,14 @@ final class DemandQueueSchema
                     RAISE EXCEPTION 'Demand cannot reenter the queue' USING ERRCODE = '23514';
                 END IF;
                 RETURN NEW;
-            END; \$\$;
-            CREATE TRIGGER pxm_demand_identity_guard BEFORE UPDATE ON {$t['demands']}
-                FOR EACH ROW EXECUTE FUNCTION pxm_demand_identity_guard();
-            CREATE FUNCTION pxm_demand_scope_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
-            BEGIN RAISE EXCEPTION 'Demand conflict set is immutable' USING ERRCODE = '23514'; END; \$\$;
-            CREATE TRIGGER pxm_demand_scope_guard BEFORE UPDATE OR DELETE ON {$t['demand_scopes']}
-                FOR EACH ROW EXECUTE FUNCTION pxm_demand_scope_guard();
-            CREATE FUNCTION pxm_demand_scope_exact_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+            END; \$\$");
+        $db->statement("CREATE TRIGGER pxm_demand_identity_guard BEFORE UPDATE ON {$t['demands']}
+                FOR EACH ROW EXECUTE FUNCTION pxm_demand_identity_guard()");
+        $db->statement("CREATE FUNCTION pxm_demand_scope_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+            BEGIN RAISE EXCEPTION 'Demand conflict set is immutable' USING ERRCODE = '23514'; END; \$\$");
+        $db->statement("CREATE TRIGGER pxm_demand_scope_guard BEFORE UPDATE OR DELETE ON {$t['demand_scopes']}
+                FOR EACH ROW EXECUTE FUNCTION pxm_demand_scope_guard()");
+        $db->statement("CREATE FUNCTION pxm_demand_scope_exact_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             DECLARE demand uuid; expected text; actual text;
             BEGIN
                 IF TG_TABLE_NAME = '{$t['demands']}' THEN demand := NEW.id; ELSE demand := NEW.demand_id; END IF;
@@ -69,11 +71,11 @@ final class DemandQueueSchema
                     IF actual <> expected THEN RAISE EXCEPTION 'Demand conflict set differs from sealed scopes' USING ERRCODE = '23514'; END IF;
                 END IF;
                 RETURN NEW;
-            END; \$\$;
-            CREATE CONSTRAINT TRIGGER pxm_demand_scope_exact_guard AFTER INSERT ON {$t['demands']}
-                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pxm_demand_scope_exact_guard();
-            CREATE CONSTRAINT TRIGGER pxm_scope_exact_guard AFTER INSERT ON {$t['demand_scopes']}
-                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pxm_demand_scope_exact_guard();");
+            END; \$\$");
+        $db->statement("CREATE CONSTRAINT TRIGGER pxm_demand_scope_exact_guard AFTER INSERT ON {$t['demands']}
+                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pxm_demand_scope_exact_guard()");
+        $db->statement("CREATE CONSTRAINT TRIGGER pxm_scope_exact_guard AFTER INSERT ON {$t['demand_scopes']}
+                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pxm_demand_scope_exact_guard()");
     }
 
     public static function down(Connection $db): void
@@ -84,8 +86,11 @@ final class DemandQueueSchema
             throw new RuntimeException('Cannot remove durable operation/demand identity history.');
         }
         $db->statement("DROP TABLE {$t['demand_scopes']}");
-        $db->unprepared("DROP TRIGGER pxm_demand_identity_guard ON {$t['demands']}; DROP TRIGGER pxm_demand_scope_exact_guard ON {$t['demands']};
-            DROP FUNCTION pxm_demand_identity_guard(); DROP FUNCTION pxm_demand_scope_guard(); DROP FUNCTION pxm_demand_scope_exact_guard();");
+        $db->statement("DROP TRIGGER pxm_demand_identity_guard ON {$t['demands']}");
+        $db->statement("DROP TRIGGER pxm_demand_scope_exact_guard ON {$t['demands']}");
+        $db->statement('DROP FUNCTION pxm_demand_identity_guard()');
+        $db->statement('DROP FUNCTION pxm_demand_scope_guard()');
+        $db->statement('DROP FUNCTION pxm_demand_scope_exact_guard()');
         $db->statement('DROP INDEX pxm_demand_fifo_active_idx');
         $db->statement("ALTER TABLE {$t['demands']} DROP CONSTRAINT pxm_demand_identity_check, DROP CONSTRAINT pxm_demand_physical_unique,
             DROP COLUMN physical_attempt_id, DROP COLUMN wire_fingerprint, DROP COLUMN intent_hash, DROP COLUMN scope_hash, DROP COLUMN expires_at, DROP COLUMN admitted_at");

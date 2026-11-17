@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Health;
 
 use DateTimeImmutable;
+use Packman\Attributes\Internal;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\ReservationInput;
 use Proxyma\Domain\Execution\CompletionFact;
@@ -15,8 +16,10 @@ use Proxyma\Domain\Health\ProbeClaim;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 
 /** @internal Все строки health уже заблокированы в общем порядке admission. */
+#[Internal]
 final readonly class ProbeClaims
 {
     public function __construct(private ConnectionScope $scope) {}
@@ -29,20 +32,23 @@ final readonly class ProbeClaims
     public function ownsCompletion(CompletionFact $fact): bool
     {
         $s = $fact->summary;
-        if (($s['purpose'] ?? null) !== 'probe' || ! isset($s['probe_token'])) {
+        if (($s['purpose'] ?? null) !== 'probe' || ! is_string($s['probe_token'] ?? null)) {
             return false;
         }
-        $claim = $this->find($s['probe_token']);
+        $claim = $this->find(RowValues::str($s['probe_token']));
         $attempt = $this->scope->connection->table(PackageSchema::tables()['attempts'])->where('id', $fact->attemptId->value)->first();
 
-        return $claim !== null && $claim->tenant_key === $fact->tenant->value
-            && $claim->physical_attempt_id === $attempt?->physical_attempt_id
-            && $claim->operation_id === $attempt?->operation_id
-            && json_decode($claim->epochs, true, flags: JSON_THROW_ON_ERROR) === ($s['probe_epochs'] ?? [])
+        return $claim !== null
+            && $attempt !== null
+            && RowValues::colStr($claim, 'tenant_key') === $fact->tenant->value
+            && RowValues::colNullableStr($claim, 'physical_attempt_id') === RowValues::colNullableStr($attempt, 'physical_attempt_id')
+            && RowValues::colNullableStr($claim, 'operation_id') === RowValues::colNullableStr($attempt, 'operation_id')
+            && $this->decodeEpochs(RowValues::colStr($claim, 'epochs')) === ($s['probe_epochs'] ?? [])
             && $this->owns($claim, $this->rows($fact->authorizationEpochs->epochs));
     }
 
-    /** @param array<string, int> $epochs
+    /**
+     * @param  array<string, int>  $epochs
      * @return array<string, object>
      */
     public function rows(array $epochs): array
@@ -60,59 +66,88 @@ final readonly class ProbeClaims
         return $rows;
     }
 
+    /** @param array<string, int> $epochs */
     public function assertAdmission(ReservationInput $input, array $epochs): void
     {
         if ($input->operation->purpose !== DemandPurpose::Probe) {
             return;
         }
-        $token = $input->operation->probeToken->value;
-        $claim = $this->find($token);
-        if ($claim === null || $claim->tenant_key !== $input->operation->owner->tenantKey->value
-            || $claim->operation_id !== $input->operation->operationId->value
-            || $claim->route_id !== $input->route->id->value || $claim->target_id !== $input->target->id->value
-            || $claim->physical_attempt_id !== null || ! $this->owns($claim, $this->rows($epochs))) {
+        $probeToken = $input->operation->probeToken;
+        if ($probeToken === null) {
+            throw new AdmissionRejected('probe_ownership_lost');
+        }
+        $claim = $this->find($probeToken->value);
+        if ($claim === null
+            || RowValues::colStr($claim, 'tenant_key') !== $input->operation->owner->tenantKey->value
+            || RowValues::colNullableStr($claim, 'operation_id') !== $input->operation->operationId->value
+            || RowValues::colNullableStr($claim, 'route_id') !== $input->route->id->value
+            || RowValues::colNullableStr($claim, 'target_id') !== $input->target->id->value
+            || RowValues::col($claim, 'physical_attempt_id') !== null
+            || ! $this->owns($claim, $this->rows($epochs))) {
             throw new AdmissionRejected('probe_ownership_lost');
         }
     }
 
-    /** Exact equality, including all half-open rows on the selected path. */
+    /**
+     * Exact equality, including all half-open rows on the selected path.
+     *
+     * @param  array<string, object>  $rows
+     */
     public function owns(object $claim, array $rows): bool
     {
         $now = DatabaseClock::now($this->scope->connection);
-        $epochs = json_decode($claim->epochs, true, flags: JSON_THROW_ON_ERROR);
-        $pin = new ProbeClaim(new Uuid($claim->id), $epochs, new DateTimeImmutable($claim->expires_at));
-        if ($claim->purpose !== 'probe' || $pin->until <= $now) {
+        $epochs = $this->decodeEpochs(RowValues::colStr($claim, 'epochs'));
+        $claimId = RowValues::colStr($claim, 'id');
+        $pin = new ProbeClaim(new Uuid($claimId), $epochs, new DateTimeImmutable(RowValues::colStr($claim, 'expires_at')));
+        if (RowValues::colStr($claim, 'purpose') !== 'probe' || $pin->until <= $now) {
             return false;
         }
         $live = [];
         foreach ($rows as $key => $row) {
-            if ($row->state !== 'half_open') {
+            if (RowValues::colStr($row, 'state') !== 'half_open') {
                 continue;
             }
-            if ($row->probe_token !== $claim->id || $row->probe_until === null
-                || new DateTimeImmutable($row->probe_until) != $pin->until) {
+            $probeUntil = RowValues::colNullableStr($row, 'probe_until');
+            if (RowValues::colNullableStr($row, 'probe_token') !== $claimId || $probeUntil === null
+                || DatabaseClock::micros(new DateTimeImmutable($probeUntil)) !== DatabaseClock::micros($pin->until)) {
                 return false;
             }
-            $live[$key] = (int) $row->health_epoch;
+            $live[$key] = RowValues::colInt($row, 'health_epoch');
         }
         ksort($live, SORT_STRING);
 
         return $live === $pin->epochs->epochs;
     }
 
+    /** @return array<string, int> */
     public function consume(ReservationInput $input): array
     {
         if ($input->operation->purpose !== DemandPurpose::Probe) {
             return [];
         }
-        $claim = $this->find($input->operation->probeToken->value);
-        $updated = $this->scope->connection->table((new ProbeClaimRecord)->getTable())->where('id', $claim->id)
+        $probeToken = $input->operation->probeToken;
+        if ($probeToken === null) {
+            throw new AdmissionRejected('probe_ownership_lost');
+        }
+        $claim = $this->find($probeToken->value) ?? throw new AdmissionRejected('probe_ownership_lost');
+        $updated = $this->scope->connection->table((new ProbeClaimRecord)->getTable())->where('id', RowValues::colStr($claim, 'id'))
             ->whereNull('physical_attempt_id')->whereRaw('expires_at > clock_timestamp()')
             ->update(['physical_attempt_id' => $input->request->physicalAttemptId->value]);
         if ($updated !== 1) {
             throw new AdmissionRejected('probe_ownership_lost');
         }
 
-        return json_decode($claim->epochs, true, flags: JSON_THROW_ON_ERROR);
+        return $this->decodeEpochs(RowValues::colStr($claim, 'epochs'));
+    }
+
+    /** @return array<string, int> */
+    private function decodeEpochs(string $json): array
+    {
+        $epochs = [];
+        foreach (RowValues::jsonAssoc($json) as $scopeKey => $epoch) {
+            $epochs[$scopeKey] = RowValues::int($epoch);
+        }
+
+        return $epochs;
     }
 }

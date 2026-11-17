@@ -6,11 +6,13 @@ namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
 use LogicException;
+use Packman\Attributes\Internal;
 use Proxyma\Application\Catalog\CatalogNotFound;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 
 /** @internal Первый package lock owning transaction; перед network и budgets. */
+#[Internal]
 final readonly class OperationMutex
 {
     public function __construct(private Connection $db) {}

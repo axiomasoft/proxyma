@@ -17,6 +17,7 @@ use Filament\Schemas\SchemasServiceProvider;
 use Filament\Support\SupportServiceProvider;
 use Filament\Tables\TablesServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Auth\User;
 use Livewire\LivewireServiceProvider;
 use Proxyma\Domain\Catalog\Endpoint;
@@ -36,6 +37,7 @@ class TestPanelProvider extends PanelProvider
 
 trait WithFilament
 {
+    /** @param Application $app */
     protected function getEnvironmentSetUp($app): void
     {
         parent::getEnvironmentSetUp($app);

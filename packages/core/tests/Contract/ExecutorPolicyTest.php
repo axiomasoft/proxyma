@@ -11,12 +11,12 @@ use Proxyma\Application\Execution\ProxyResolver;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Application\Routing\RouteSelector;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\OutcomePolicy;
-use Proxyma\Contracts\PhysicalTransport;
-use Proxyma\Contracts\SecretResolver;
-use Proxyma\Contracts\SharedRouteCommands;
-use Proxyma\Contracts\TlsTrustPolicy;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
+use Proxyma\Contracts\Execution\OutcomePolicy;
+use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Security\SecretResolver;
+use Proxyma\Contracts\Security\TlsTrustPolicy;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CredentialRef;
@@ -77,15 +77,17 @@ foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'Reservation
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     config(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
-    config(['proxyma.policy.project_defaults' => [
-        'route.allow_direct' => true,
-        'retry.max_attempts' => 10,
-        'http.max_redirects' => 10,
-    ]]);
+    $this->reconfigureProxyma([
+        'policy.project_defaults' => [
+            'route.allow_direct' => true,
+            'retry.max_attempts' => 10,
+            'http.max_redirects' => 10,
+        ],
+    ]);
     $this->initializeClaimFixture();
     $this->table('budgets')->update(['burst' => 100, 'max_inflight' => 100, 'emission_interval_us' => 1]);
     $this->sleptUs = [];
@@ -455,7 +457,7 @@ it('configuration hold сохраняет scalar details без отправки
 });
 
 it('при 407 ставит credential_hold на прокси-маршрут, переключается на другой прокси и никогда не падает в direct', function (): void {
-    config(['proxyma.policy.project_defaults' => array_replace(config('proxyma.policy.project_defaults'), ['route.allow_direct' => false])]);
+    $this->reconfigureProxyma(['policy.project_defaults' => array_replace(config('proxyma.policy.project_defaults'), ['route.allow_direct' => false])]);
     $endpoint1 = Uuid::random();
     $endpoint2 = Uuid::random();
     $cred1 = new CredentialRef('proxy:cred1', 1);
@@ -720,11 +722,11 @@ it('соблюдает приоритет уровней OutcomePolicyRegistry �
     $conflictRegistry = new OutcomePolicyRegistry;
     $conflictRegistry->register('dup', $panelPolicy, OutcomePolicyTier::Project);
     $conflictRegistry->register('dup', $projectPolicy, OutcomePolicyTier::Project);
-    expect(fn () => $conflictRegistry->freeze())->toThrow(LogicException::class, 'Equal-priority outcome policy conflict');
+    expect(fn (): OutcomePolicyRegistry => $conflictRegistry->freeze())->toThrow(LogicException::class, 'Equal-priority outcome policy conflict');
     $globalConflict = new OutcomePolicyRegistry;
     $globalConflict->register('default', $securityPolicy, OutcomePolicyTier::SecurityOwnership);
     $globalConflict->register('tiered', $securityPolicy, OutcomePolicyTier::SecurityOwnership);
-    expect(fn () => $globalConflict->freeze())->toThrow(LogicException::class, 'Equal-priority outcome policy conflict');
+    expect(fn (): OutcomePolicyRegistry => $globalConflict->freeze())->toThrow(LogicException::class, 'Equal-priority outcome policy conflict');
 
     // Попытка нарушить безопасность (разрешить retry на AmbiguousWrite timeout или игнорировать 429) принудительно блокируется.
     $unsafePolicy = new class implements OutcomePolicy
@@ -821,7 +823,7 @@ it('сохраняет 429 cooldown при исключении политики
     $second = makeExecutorForTest($this, [deliveredHttp(200)])->execute($next, $nextContext);
     expect($second)->toBeInstanceOf(ExecutionDeferred::class)
         ->and($second->reason)->toBe(DeferralReason::RateLimit)
-        ->and($second->retryAt->value->format('U.u'))->toBe((new DateTimeImmutable($cooldown))->format('U.u'))
+        ->and($second->retryAt->value->format('U.u'))->toBe(new DateTimeImmutable($cooldown)->format('U.u'))
         ->and($this->dispatched)->toHaveCount(1)
         ->and($this->table('permits')->where('operation_id', $next->operationId->value)->count())->toBe(0);
 
@@ -846,8 +848,9 @@ it('продлевает исходный origin cooldown при устарев�
 });
 
 it('повторно читает текущую политику перед retry и не расширяет запрет direct', function (): void {
-    $executor = makeExecutorForTest($this, [function (): AttemptResult {
-        config(['proxyma.policy.project_defaults' => array_replace(config('proxyma.policy.project_defaults'), ['route.allow_direct' => false])]);
+    $test = $this;
+    $executor = makeExecutorForTest($this, [function () use ($test): AttemptResult {
+        $test->reconfigureProxyma(['policy.project_defaults' => array_replace(config('proxyma.policy.project_defaults'), ['route.allow_direct' => false])]);
 
         return deliveredHttp(503);
     }, deliveredHttp(200)]);

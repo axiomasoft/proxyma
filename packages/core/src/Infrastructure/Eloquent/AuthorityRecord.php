@@ -6,8 +6,10 @@ namespace Proxyma\Infrastructure\Eloquent;
 
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
+use Packman\Attributes\Internal;
 
 /** @internal Табличные имена и чтение; изменения выполняют application commands. */
+#[Internal]
 abstract class AuthorityRecord extends Model
 {
     public $incrementing = false;

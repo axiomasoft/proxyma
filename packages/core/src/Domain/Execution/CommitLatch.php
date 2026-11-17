@@ -7,12 +7,14 @@ namespace Proxyma\Domain\Execution;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use LogicException;
-use Proxyma\Contracts\ClaimActivationAuthority;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\ClaimActivationAuthority;
 
 /**
  * @internal Outermost SQL transaction commit latch, not a public capability factory.
  * Savepoint releases never mark this latch committed; rollback permanently invalidates it.
  */
+#[Api(since: '1.0')]
 final class CommitLatch
 {
     private const string STATE_PENDING = 'pending';
@@ -119,6 +121,7 @@ final class CommitLatch
         throw new LogicException('CommitLatch cannot be cloned.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('CommitLatch cannot be reconstructed.');

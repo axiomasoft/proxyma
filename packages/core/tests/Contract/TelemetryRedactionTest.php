@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Console\Kernel;
 use Proxyma\Application\Diagnostics\OperationsMetrics;
-use Proxyma\Contracts\Authorizer;
+use Proxyma\Contracts\Authorization\Authorizer;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
@@ -21,7 +21,7 @@ use Psr\Log\AbstractLogger;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'RecoveryFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class)->group('pg');
 beforeEach(fn () => $this->initializeRecoveryFixture());
 
 it('telemetry schema отбрасывает secrets/body/URLs и сохраняет только UUID correlation', function (): void {
@@ -121,7 +121,7 @@ it('CLI sanitizes exception messages и проверяет permission metrics б
         expect($kernel->call($command))->toBe(1);
         expect(trim($kernel->output()))->toBe('{"error":"operation_failed"}');
     }
-    $this->permissions(fn ($actor, $tenant, $ability) => $ability !== 'diagnostics.metrics');
+    $this->permissions(fn ($actor, $tenant, $ability): bool => $ability !== 'diagnostics.metrics');
     expect($this->app->make(Kernel::class)->call('proxyma:metrics'))->toBe(1);
     expect($this->app->make(Kernel::class)->output())->toContain('permission_denied');
 });

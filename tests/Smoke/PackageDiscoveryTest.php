@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 use Proxyma\Filament\ProxymaFilamentServiceProvider;
 use Proxyma\Laravel\ProxymaServiceProvider;
 
-it('loads both package providers', function () {
+it('loads both package providers', function (): void {
     $core = json_decode(file_get_contents(dirname(__DIR__, 2).'/packages/core/composer.json'), true, flags: JSON_THROW_ON_ERROR);
     $filament = json_decode(file_get_contents(dirname(__DIR__, 2).'/packages/filament/composer.json'), true, flags: JSON_THROW_ON_ERROR);
     expect($core['extra']['laravel']['providers'])->toContain(ProxymaServiceProvider::class);

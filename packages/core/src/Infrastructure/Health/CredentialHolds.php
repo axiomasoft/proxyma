@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Health;
 
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
 /** @internal Только внутри catalog transaction после блокировки endpoint/routes/health. */
+#[Internal]
 final readonly class CredentialHolds
 {
     public function __construct(private Connection $db) {}

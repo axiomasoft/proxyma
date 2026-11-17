@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Outcomes;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\BlockedReason;
 use Proxyma\Domain\Execution\DeferralReason;
 use Proxyma\Domain\Execution\OutcomeClassification;
@@ -16,6 +17,7 @@ use Proxyma\Domain\Health\HealthAttribution;
  * объединяет неизменяемую техническую классификацию (AttemptFacts + HealthAttribution)
  * и проверенное доменное решение OutcomePolicy.
  */
+#[Api(since: '1.0')]
 final readonly class ResolvedOutcome
 {
     public function __construct(

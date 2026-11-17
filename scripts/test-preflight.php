@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 foreach (['DB_HOST' => 'db', 'DB_DATABASE' => 'proxyma_test', 'DB_USERNAME' => 'proxyma_test', 'DB_PORT' => '5432', 'DB_URL' => ''] as $key => $expected) {
     if (getenv($key) !== $expected) {
         throw new RuntimeException("Unsafe {$key}");

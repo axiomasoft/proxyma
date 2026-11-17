@@ -8,9 +8,36 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Orchestra\Testbench\TestCase;
+use Packman\Schema\Laravel\SchemaServiceProvider;
+use Packman\Schema\Testing\MigratesSchemaSets;
+use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
+use Packman\Testkit\Support\Database\TestDatabaseGuard;
 use PDO;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\CatalogCommands;
+use Proxyma\Application\Admission\ClaimSend;
+use Proxyma\Application\Admission\ReservationService;
+use Proxyma\Application\Admission\TrafficSharePolicy;
+use Proxyma\Application\Bindings\BindingEditVersion;
+use Proxyma\Application\Bindings\DatabaseBindingCommands;
+use Proxyma\Application\Diagnostics\Doctor;
+use Proxyma\Application\Execution\OutboundExecutor;
+use Proxyma\Application\Execution\OutcomePolicyRegistry;
+use Proxyma\Application\Execution\WireSealer;
+use Proxyma\Application\Extensions\AttemptObservers;
+use Proxyma\Application\Maintenance\MaintenanceSchedule;
+use Proxyma\Application\Policy\PolicyResolver;
+use Proxyma\Application\Routing\RouteSelector;
+use Proxyma\Application\Routing\StrategyRegistry;
+use Proxyma\Configuration\PolicyOptions;
+use Proxyma\Configuration\ProxymaOptions;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Bindings\BindingCommands;
+use Proxyma\Contracts\Catalog\CandidateSnapshots;
+use Proxyma\Contracts\Catalog\CatalogCommands;
+use Proxyma\Contracts\Execution\OutboundClient;
+use Proxyma\Contracts\Policy\PolicyResolver as PolicyResolverContract;
+use Proxyma\Contracts\Security\TlsTrustPolicy;
+use Proxyma\Diagnostics\ProxymaDoctorCheck;
+use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
@@ -20,7 +47,9 @@ use Proxyma\Domain\Catalog\UpsertRouteCommand;
 use Proxyma\Domain\Catalog\UpsertRouteProfileCommand;
 use Proxyma\Domain\Catalog\UpsertTargetCommand;
 use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Health\HealthThresholds;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Infrastructure\Database\CandidateSnapshotQuery;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Laravel\ProxymaServiceProvider;
 use RuntimeException;
@@ -29,6 +58,7 @@ require_once __DIR__.'/TenantFixtures.php';
 
 abstract class CatalogTestCase extends TestCase
 {
+    use MigratesSchemaSets;
     use TenantFixtures;
 
     protected Connection $db;
@@ -39,32 +69,44 @@ abstract class CatalogTestCase extends TestCase
 
     protected function getPackageProviders($app): array
     {
-        return [ProxymaServiceProvider::class];
+        return [SchemaServiceProvider::class, ProxymaServiceProvider::class];
     }
 
     protected function getEnvironmentSetUp($app): void
     {
+        $identity = SuiteDatabaseConnection::pgsqlIdentity();
+        TestDatabaseGuard::assertDestructiveSafe($identity);
+
         $app['config']->set('database.default', 'pgsql');
-        $app['config']->set('database.connections.pgsql', [
-            'driver' => 'pgsql', 'host' => 'db', 'port' => '5432', 'database' => 'proxyma_test',
-            'username' => 'proxyma_test', 'password' => 'proxyma-test-only', 'charset' => 'utf8', 'prefix' => '', 'search_path' => 'public',
-        ]);
+        $app['config']->set('database.connections.pgsql', SuiteDatabaseConnection::laravelPgsqlConfig($identity));
     }
 
     protected function setUp(): void
     {
         parent::setUp();
+        $identity = SuiteDatabaseConnection::pgsqlIdentity();
+        TestDatabaseGuard::assertDestructiveSafe($identity);
+
         $this->db = $this->app['db']->connection('pgsql');
-        $identity = $this->db->selectOne('SELECT current_database() AS db, current_user AS usr, (SELECT value FROM proxyma_rig.marker) AS marker');
-        if ([$identity->db, $identity->usr, $identity->marker] !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
-            throw new RuntimeException('Refusing catalog fixture writes outside the marked proxyma_test database.');
+
+        if (getenv('PROXYMA_DOCKER_RIG') === '1') {
+            $row = $this->db->selectOne('SELECT current_database() AS db, current_user AS usr, (SELECT value FROM proxyma_rig.marker) AS marker');
+            if ([$row->db, $row->usr, $row->marker] !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
+                throw new RuntimeException('Refusing catalog fixture writes outside the marked proxyma_test database.');
+            }
+        } else {
+            $row = $this->db->selectOne('SELECT current_database() AS db');
+            if ($row->db !== $identity->database) {
+                throw new RuntimeException('Refusing catalog fixture writes outside expected test database '.$identity->database.'.');
+            }
         }
+
         $this->tenant = new TenantKey('acme');
         $this->useTenant($this->tenant);
         $this->fixtureSchema = 'pxm_t_'.bin2hex(random_bytes(8));
         $this->db->statement('CREATE SCHEMA '.$this->fixtureSchema);
         $this->db->statement('SET search_path TO '.$this->fixtureSchema);
-        $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+        $this->migrateSchemaSets(['axiomasoft/proxyma:proxyma'], 'pgsql');
     }
 
     protected function tearDown(): void
@@ -118,7 +160,7 @@ abstract class CatalogTestCase extends TestCase
         $commands->upsertProfile(new UpsertRouteProfileCommand($profile, $this->tenant, 'default', [$route], 'uniform_random', $this->actor()));
         $commands->upsertTarget(new UpsertTargetCommand($target, $this->tenant, 'fixture-origin', CanonicalOrigin::of('https', 'example.test'), 'default', $this->actor()));
 
-        return compact('route', 'profile', 'target');
+        return ['route' => $route, 'profile' => $profile, 'target' => $target];
     }
 
     protected function table(string $key): Builder
@@ -138,10 +180,63 @@ abstract class CatalogTestCase extends TestCase
 
     protected function connectionPdo(): PDO
     {
-        $pdo = new PDO('pgsql:host=db;port=5432;dbname=proxyma_test', 'proxyma_test', 'proxyma-test-only', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $identity = SuiteDatabaseConnection::pgsqlIdentity();
+        TestDatabaseGuard::assertDestructiveSafe($identity);
+        $pdo = new PDO(
+            SuiteDatabaseConnection::pgsqlDsn($identity),
+            $identity->username,
+            SuiteDatabaseConnection::pgsqlPassword(),
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
         $pdo->exec('SET search_path TO '.$this->fixtureSchema);
 
         return $pdo;
+    }
+
+    /** @param array<string, mixed> $overrides */
+    protected function reconfigureProxyma(array $overrides): void
+    {
+        foreach ($overrides as $key => $value) {
+            $fullKey = str_starts_with($key, 'proxyma.') || $key === 'app.key' ? $key : 'proxyma.'.$key;
+            $this->app['config']->set($fullKey, $value);
+        }
+
+        $this->app->forgetScopedInstances();
+
+        $resetTls = array_any(
+            array_keys($overrides),
+            static fn (string|int $key): bool => $key === 'proxyma' || str_contains((string) $key, 'tls'),
+        );
+
+        foreach ([
+            ProxymaOptions::class,
+            PolicyOptions::class,
+            HealthThresholds::class,
+            QueueLimits::class,
+            ...($resetTls ? [TlsTrustPolicy::class] : []),
+            WireSealer::class,
+            TrafficSharePolicy::class,
+            PolicyResolver::class,
+            PolicyResolverContract::class,
+            BindingEditVersion::class,
+            DatabaseBindingCommands::class,
+            BindingCommands::class,
+            ClaimSend::class,
+            ReservationService::class,
+            RouteSelector::class,
+            StrategyRegistry::class,
+            CandidateSnapshots::class,
+            CandidateSnapshotQuery::class,
+            AttemptObservers::class,
+            OutcomePolicyRegistry::class,
+            Doctor::class,
+            MaintenanceSchedule::class,
+            ProxymaDoctorCheck::class,
+            OutboundExecutor::class,
+            OutboundClient::class,
+        ] as $abstract) {
+            $this->app->forgetInstance($abstract);
+        }
     }
 
     protected function operation(array $catalog): Uuid

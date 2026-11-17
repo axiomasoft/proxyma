@@ -9,13 +9,15 @@ use Filament\Pages\Page;
 use Filament\Schemas\Schema;
 use Filament\Support\Components\Attributes\Unexposed;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Livewire\Attributes\Locked;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogNotFound;
-use Proxyma\Contracts\CatalogMutationFence;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
+use Proxyma\Contracts\Catalog\CatalogMutationFence;
+use Proxyma\Contracts\Catalog\CatalogQueries;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Catalog\RouteProfile;
@@ -25,6 +27,7 @@ use Proxyma\Filament\CatalogBrowser;
 use UnitEnum;
 
 /** @property-read Schema $form */
+#[Api(since: '1.0')]
 abstract class CatalogPage extends Page
 {
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
@@ -33,6 +36,7 @@ abstract class CatalogPage extends Page
 
     protected static string $kind;
 
+    /** @var array<string, mixed> */
     public array $data = [];
 
     #[Locked]
@@ -123,7 +127,7 @@ abstract class CatalogPage extends Page
                 'endpoint' => $queries->findEndpoint($tenant, $uuid),
                 'route' => $queries->findRoute($tenant, $uuid),
                 'profile' => $queries->findProfile($tenant, $uuid),
-                default => throw new \InvalidArgumentException('Unknown catalog section.'),
+                default => throw new InvalidArgumentException('Unknown catalog section.'),
             };
             abort_if($value === null || ! $value->tenantKey->equals($tenant), 404);
             $this->recordId = $id;
@@ -142,11 +146,13 @@ abstract class CatalogPage extends Page
         return Textarea::make('reason')->label('Причина изменения')->required()->maxLength(512);
     }
 
+    /** @return array<string, mixed> */
     protected function getViewData(): array
     {
         return ['records' => app(CatalogBrowser::class)->page(static::$kind, $this->catalogPage)];
     }
 
+    /** @return array<string, mixed> */
     abstract protected function defaults(): array;
 
     abstract public function form(Schema $schema): Schema;

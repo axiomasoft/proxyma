@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 
+#[Api(since: '1.0')]
 final readonly class PolicyDefinition
 {
     public string $policyKey;

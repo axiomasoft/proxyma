@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class BudgetConstraintSet
 {
-    /** @var array<string, BudgetConstraint> */
-    public array $byScopeKey;
-
     /**
      * @param  list<BudgetConstraint>  $mandatoryConstraints
      * @param  list<BudgetConstraint>  $contributedConstraints
@@ -52,10 +51,7 @@ final readonly class BudgetConstraintSet
     /**
      * @param  array<string, BudgetConstraint>  $byScopeKey
      */
-    private function __construct(array $byScopeKey)
-    {
-        $this->byScopeKey = $byScopeKey;
-    }
+    private function __construct(public array $byScopeKey) {}
 
     /**
      * Returns scope keys ordered in C collation order.

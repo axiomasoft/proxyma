@@ -6,28 +6,15 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
 
 /**
  * Immutable request body handle with verified SHA-256 digest and byte length.
  */
+#[Api(since: '1.0')]
 final readonly class WireBody
 {
-    public ContentHash $hash;
-
-    public int $length;
-
-    public bool $replayable;
-
-    private function __construct(
-        private string $bytes,
-        ContentHash $hash,
-        int $length,
-        bool $replayable = true,
-    ) {
-        $this->hash = $hash;
-        $this->length = $length;
-        $this->replayable = $replayable;
-    }
+    private function __construct(private string $bytes, public ContentHash $hash, public int $length, public bool $replayable = true) {}
 
     public static function fromString(string $bytes): self
     {
@@ -101,6 +88,7 @@ final readonly class WireBody
         throw new LogicException('WireBody cannot be serialized.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('WireBody cannot be reconstructed.');

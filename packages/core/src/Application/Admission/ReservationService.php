@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Proxyma\Application\Admission;
 
 use DateTimeImmutable;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Extensions\ExtensionRuntime;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\WorkBudget;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\WorkBudget;
+use Proxyma\Contracts\Catalog\CatalogQueries;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Admission\DemandIntent;
@@ -48,7 +49,10 @@ use Proxyma\Infrastructure\Database\DemandRepository;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
+use Proxyma\Internal\Database\RowValues;
+use stdClass;
 
+#[Api(since: '1.0')]
 final readonly class ReservationService
 {
     private QuotaRepository $quotas;
@@ -106,8 +110,8 @@ final readonly class ReservationService
         if (array_key_exists($request->trafficClass, $this->traffic->classes) || $persistedTraffic) {
             $extra[] = new BudgetConstraint(TrafficSharePolicy::scope($request->url->origin, $request->trafficClass), 1, PHP_INT_MAX, PHP_INT_MAX, true);
         }
-        $extra = [...$extra, ...(new ExtensionRuntime($this->definitions))->contribute(
-            $request, $route, $tenant, $this->contributorIds, [...$special, ...array_map(static fn ($b) => $b->scopeKey, $extra)])];
+        $extra = [...$extra, ...new ExtensionRuntime($this->definitions)->contribute(
+            $request, $route, $tenant, $this->contributorIds, [...$special, ...array_map(static fn (BudgetConstraint $b): string => $b->scopeKey, $extra)])];
         $origin = new BudgetConstraint($request->url->origin->budgetScopeKey(), 1, PHP_INT_MAX, PHP_INT_MAX, true);
         if ($operation->purpose === DemandPurpose::Probe) {
             $extra[] = new BudgetConstraint($request->url->origin->probeScopeKey(), 1, PHP_INT_MAX, PHP_INT_MAX, true);
@@ -130,7 +134,7 @@ final readonly class ReservationService
         $this->transactions->scope->assertOutsideTransaction();
 
         try {
-            return $this->transactions->run(fn ($tx) => $this->reserveLocked($ticket, $input, $tx, cost: $cost));
+            return $this->transactions->run(fn ($tx): ScheduledPermit => $this->reserveLocked($ticket, $input, $tx, cost: $cost));
         } catch (ReservationDeferred $deferred) {
             return $deferred->wait;
         }
@@ -158,9 +162,11 @@ final readonly class ReservationService
         }
         // Даже supplied owner state не заменяет live package root mutex. Повторный lock здесь до budgets.
         $root = $this->locks->operation($ticket->operationId, $owner, $tx);
-        if ($root->profile_id !== $input->profile->id->value || $root->target_id !== $input->target->id->value
-            || $input->request->timeouts->totalTimeoutMs > (int) $root->request_timeout_ms
-            || $input->request->timeouts->connectTimeoutMs > (int) $root->connect_timeout_ms) {
+        $rootId = RowValues::colStr($root, 'id');
+        if (RowValues::colStr($root, 'profile_id') !== $input->profile->id->value
+            || RowValues::colStr($root, 'target_id') !== $input->target->id->value
+            || $input->request->timeouts->totalTimeoutMs > RowValues::colInt($root, 'request_timeout_ms')
+            || $input->request->timeouts->connectTimeoutMs > RowValues::colInt($root, 'connect_timeout_ms')) {
             throw new AdmissionRejected('operation_intent_conflict');
         }
         $evidence = $this->catalogLocks->lock($input, $tx);
@@ -171,56 +177,66 @@ final readonly class ReservationService
             $this->locks->guard($definition->id, $definition->implementation, $input->request, $ownerState, $tx);
         }
         $own = $this->demands->resolveBudgets($tenant, $input->request, $input->selection, $input->additionalScopes());
-        (new ExtensionRuntime($this->definitions))->assertSharedBudgets($own, $tenant, $this->contributorIds);
+        new ExtensionRuntime($this->definitions)->assertSharedBudgets($own, $tenant, $this->contributorIds);
         $demand = $this->demands->byAttempt($tenant, $ticket->operationId, $ticket->physicalAttemptId);
-        if ($demand === null || $demand->id !== $ticket->demandId->value || $demand->wire_fingerprint !== $input->request->fingerprint()->hex
-            || $demand->intent_hash !== DemandIntent::hash($input->request, $input->selection, $own)) {
+        if ($demand === null || RowValues::colStr($demand, 'id') !== $ticket->demandId->value
+            || RowValues::colStr($demand, 'wire_fingerprint') !== $input->request->fingerprint()->hex
+            || RowValues::colStr($demand, 'intent_hash') !== DemandIntent::hash($input->request, $input->selection, $own)) {
             throw new AdmissionRejected('demand_fingerprint_conflict');
         }
-        $sets = $this->demands->scopes([$demand->id]);
-        if ($this->ids($own) !== $this->ids($sets[$demand->id] ?? [])) {
+        $demandId = RowValues::colStr($demand, 'id');
+        $sets = $this->demands->scopes([$demandId]);
+        if ($this->ids($own) !== $this->ids($sets[$demandId] ?? [])) {
             throw new AdmissionRejected('demand_scope_conflict');
         }
-        $older = $this->demands->predecessors($demand, array_column($own, 'id'));
+        $ownIdList = array_map(static fn (stdClass $row): string => RowValues::colStr($row, 'id'), $own);
+        $ownScopeKey = RowValues::colStr($own[0], 'scope_key');
+        $older = $this->demands->predecessors($demand, $ownIdList);
         if (count($older) > 1024) {
             throw new AdmissionRejected('conflict_scan_bound');
         }
-        $priorSets = $this->demands->scopes(array_column($older, 'id'));
+        $priorSets = $this->demands->scopes(array_map(static fn (stdClass $row): string => RowValues::colStr($row, 'id'), $older));
         $all = $own;
         foreach ($priorSets as $set) {
             $all = [...$all, ...$set];
         }
         $locked = $this->demands->lockBudgets($all, $tx);
-        $ownIds = array_flip(array_column($own, 'id'));
-        $this->quotas->lockWindows(array_values(array_filter($locked, static fn ($row) => isset($ownIds[$row->id]))));
-        $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$demand->id], $tx)[0];
-        $intent = hash('sha256', json_encode([$demand->intent_hash, $input->request->fingerprint()->hex, $input->selection->routeId->value,
+        $ownIds = array_flip($ownIdList);
+        $this->quotas->lockWindows(array_values(array_filter($locked, static fn (stdClass $row): bool => isset($ownIds[RowValues::colStr($row, 'id')]))));
+        $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$demandId], $tx)[0];
+        $demandId = RowValues::colStr($demand, 'id');
+        $intent = hash('sha256', json_encode([RowValues::colStr($demand, 'intent_hash'), $input->request->fingerprint()->hex, $input->selection->routeId->value,
             $cost, $this->ids($own), $input->policy->policyHash->hex, $input->constraints,
             $input->route->revision, $input->route->endpointRevision, $input->profile->revision, $input->target->revision], JSON_THROW_ON_ERROR));
-        $existing = $this->permits->existing($tenant, $demand->id, $tx);
+        $existing = $this->permits->existing($tenant, $demandId, $tx);
         if ($existing !== null) {
-            if ($existing->reservation_intent !== $intent) {
+            if (RowValues::colNullableStr($existing, 'reservation_intent') !== $intent) {
                 throw new AdmissionRejected('reservation_fingerprint_conflict');
             }
 
-            return $this->permits->result($existing, $this->demands->ticket($demand, $own[0]->scope_key));
+            return $this->permits->result($existing, $this->demands->ticket($demand, $ownScopeKey));
         }
-        if (! in_array($demand->state, ['active', 'admitted'], true)) {
+        if (! in_array(RowValues::colStr($demand, 'state'), ['active', 'admitted'], true)) {
             throw new AdmissionRejected('demand_terminal');
         }
         $snapshots = $this->budgets->read($locked, $input->constraints);
         $now = DatabaseClock::now($scope->connection);
         $nowUs = DatabaseClock::micros($now);
         $availability = $this->budgets->availability($snapshots, $nowUs);
-        $ownSnapshots = array_intersect_key($snapshots, array_flip(array_column($own, 'id')));
-        $quotaPlan = $this->quotas->plan(array_column($ownSnapshots, 'row'), $input->constraints, $now, $input->request->trafficClass, $input->request->url->origin->budgetScopeKey());
+        $ownSnapshots = array_intersect_key($snapshots, $ownIds);
+        $ownSnapshotRows = array_values(array_map(static fn (array $s): stdClass => $s['row'], $ownSnapshots));
+        $quotaPlan = $this->quotas->plan($ownSnapshotRows, $input->constraints, $now, $input->request->trafficClass, $input->request->url->origin->budgetScopeKey());
         $this->quotas->assertAvailable($quotaPlan);
         foreach ($this->quotas->availability($locked, $now) as $id => $ready) {
             $availability[$id] = max($availability[$id], $ready);
         }
-        $slotUs = max(array_intersect_key($availability, $ownSnapshots));
+        $ownAvailability = array_intersect_key($availability, $ownSnapshots);
+        if ($ownAvailability === []) {
+            throw new AdmissionRejected('required_budget_missing');
+        }
+        $slotUs = max($ownAvailability);
         foreach ($ownSnapshots as $snapshot) {
-            if ((int) $snapshot['row']->inflight >= $snapshot['cap']) {
+            if (RowValues::colInt($snapshot['row'], 'inflight') >= $snapshot['cap']) {
                 throw new ReservationDeferred(new DemandWait('capacity_wait', new RetryAt(DatabaseClock::instant($slotUs))));
             }
         }
@@ -228,21 +244,30 @@ final readonly class ReservationService
             throw new ReservationDeferred(new DemandWait('rate_wait', new RetryAt(DatabaseClock::instant($slotUs))));
         }
         $predecessors = [];
-        foreach ($this->demands->predecessors($demand, array_column($own, 'id')) as $prior) {
-            $set = $priorSets[$prior->id] ?? throw new AdmissionRejected('conflict_set_changed');
-            $ready = max(array_map(fn ($row) => $availability[$row->id], $set));
+        foreach ($this->demands->predecessors($demand, $ownIdList) as $prior) {
+            $priorId = RowValues::colStr($prior, 'id');
+            $set = $priorSets[$priorId] ?? throw new AdmissionRejected('conflict_set_changed');
+            if ($set === []) {
+                throw new AdmissionRejected('required_budget_missing');
+            }
+            $ready = $availability[RowValues::colStr($set[0], 'id')];
             foreach ($set as $row) {
-                if ((int) $snapshots[$row->id]['row']->inflight >= $snapshots[$row->id]['cap']) {
+                $rowId = RowValues::colStr($row, 'id');
+                $ready = max($ready, $availability[$rowId]);
+                if (RowValues::colInt($snapshots[$rowId]['row'], 'inflight') >= $snapshots[$rowId]['cap']) {
                     $ready = max($ready, $nowUs + $this->maxInlineWaitUs + 1);
                 }
             }
-            $predecessors[] = ['id' => $prior->id, 'sequence' => (int) $prior->sequence,
+            $predecessors[] = [
+                'id' => $priorId,
+                'sequence' => RowValues::colInt($prior, 'sequence'),
                 'ready' => $ready <= $nowUs + $this->maxInlineWaitUs ? $now : DatabaseClock::instant($ready),
-                'expires' => new DateTimeImmutable($prior->expires_at)];
+                'expires' => new DateTimeImmutable(RowValues::colStr($prior, 'expires_at')),
+            ];
         }
-        $expires = min(new DateTimeImmutable($demand->expires_at), new DateTimeImmutable($demand->deadline),
-            new DateTimeImmutable($root->deadline), $input->request->deadlineAt, $ownerState->deadlineAt);
-        $wait = (new FifoPolicy($this->limits))->wait($now, $now, $expires, $predecessors);
+        $expires = min(new DateTimeImmutable(RowValues::colStr($demand, 'expires_at')), new DateTimeImmutable(RowValues::colStr($demand, 'deadline')),
+            new DateTimeImmutable(RowValues::colStr($root, 'deadline')), $input->request->deadlineAt, $ownerState->deadlineAt);
+        $wait = new FifoPolicy($this->limits)->wait($now, $now, $expires, $predecessors);
         if ($wait !== null) {
             throw new ReservationDeferred($wait);
         }
@@ -256,35 +281,35 @@ final readonly class ReservationService
         if ($slotUs + $requiredUs >= DatabaseClock::micros($expires)) {
             throw new ReservationDeferred(new DemandWait('quota_window_wait', new RetryAt($expires)));
         }
-        $evidence['quota'] = array_map(static function ($row) {
+        $evidence['quota'] = array_map(static function (array $row): array {
             unset($row['reserved'], $row['spent']);
 
             return $row;
         }, $quotaPlan);
         $plan = $this->budgets->planReserve($ownSnapshots, $slotUs, $cost);
-        $evidence['versions']['operation:'.$root->id] = (int) $root->revision;
+        $evidence['versions']['operation:'.$rootId] = RowValues::colInt($root, 'revision');
         $effective = [];
         foreach ($ownSnapshots as $id => $snapshot) {
-            $evidence['versions']['budget:'.$id] = (int) $snapshot['row']->revision;
+            $evidence['versions']['budget:'.$id] = RowValues::colInt($snapshot['row'], 'revision');
             $effective[$id] = ['interval' => $snapshot['gcra']->intervalUs, 'burst' => $snapshot['gcra']->burst, 'cap' => $snapshot['cap']];
         }
         // Последний SQL guard — после всех возможных ожиданий locks, до первого изменения accounting.
-        $clock = $scope->connection->selectOne('SELECT clock_timestamp() AS now');
-        if (DatabaseClock::micros(new DateTimeImmutable($clock->now)) + $requiredUs > DatabaseClock::micros($expires)) {
+        $clock = RowValues::object($scope->connection->selectOne('SELECT clock_timestamp() AS now'));
+        if (DatabaseClock::micros(new DateTimeImmutable(RowValues::colStr($clock, 'now'))) + $requiredUs > DatabaseClock::micros($expires)) {
             throw new AdmissionRejected('reservation_deadline');
         }
         $this->budgets->applyReserve($ownSnapshots, $plan);
-        $permit = $this->permits->insert(['tenant_key' => $tenant->value, 'operation_id' => $root->id, 'demand_id' => $demand->id,
+        $permit = $this->permits->insert(['tenant_key' => $tenant->value, 'operation_id' => $rootId, 'demand_id' => $demandId,
             'route_id' => $input->route->id->value, 'target_id' => $input->target->id->value, 'physical_attempt_id' => $ticket->physicalAttemptId->value,
             'wire_fingerprint' => $input->request->fingerprint()->hex, 'cost' => $cost, 'not_before' => DatabaseClock::instant($slotUs)->format('Y-m-d H:i:s.uP'),
             'expires_at' => $expires->format('Y-m-d H:i:s.uP'), 'reservation_intent' => $intent,
             'reservation_evidence' => json_encode($evidence, JSON_THROW_ON_ERROR), 'reservation_limits' => json_encode($effective, JSON_THROW_ON_ERROR)], $own);
         $this->quotas->reserve($permit, $quotaPlan);
-        if ($demand->state === 'active') {
+        if (RowValues::colStr($demand, 'state') === 'active') {
             $this->demands->state($demand, 'admitted');
         }
 
-        return $this->permits->result($permit, $this->demands->ticket($demand, $own[0]->scope_key));
+        return $this->permits->result($permit, $this->demands->ticket($demand, $ownScopeKey));
     }
 
     public function cancel(TenantKey $tenant, Uuid $operationId, Uuid $permitId): void
@@ -298,29 +323,39 @@ final readonly class ReservationService
             $t = PackageSchema::tables();
             $row = $db->table($t['permits'])->where('tenant_key', $tenant->value)->where('operation_id', $operationId->value)->where('id', $permitId->value)->first()
                 ?? throw new AdmissionRejected('permit_missing');
-            $references = $this->permits->references($row->id);
-            $quotaReferences = $this->quotas->references($row->id);
-            $budgetIds = array_unique([...array_column($references, 'budget_id'), ...array_column($quotaReferences, 'budget_id')]);
-            $budgets = $db->table($t['budgets'])->whereIn('id', $budgetIds)->get()->all();
+            $rowId = RowValues::colStr($row, 'id');
+            $demandId = RowValues::colStr($row, 'demand_id');
+            $references = $this->permits->references($rowId);
+            $quotaReferences = $this->quotas->references($rowId);
+            $budgetIds = array_values(array_unique([
+                ...array_map(static fn (stdClass $r): string => RowValues::colStr($r, 'budget_id'), $references),
+                ...array_map(static fn (stdClass $r): string => RowValues::colStr($r, 'budget_id'), $quotaReferences),
+            ]));
+            $budgets = array_values($db->table($t['budgets'])->whereIn('id', $budgetIds)->get()->all());
             $locked = $this->demands->lockBudgets($budgets, $tx);
-            $this->quotas->lockWindows($locked, $row->id);
-            $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$row->demand_id], $tx)[0];
-            $row = $this->locks->rows(AuthorityLockTier::Permit, $tenant, [$row->id], $tx)[0];
-            $state = PermitState::from($row->state);
+            $this->quotas->lockWindows($locked, $rowId);
+            $demand = $this->locks->rows(AuthorityLockTier::Demand, $tenant, [$demandId], $tx)[0];
+            $row = $this->locks->rows(AuthorityLockTier::Permit, $tenant, [$rowId], $tx)[0];
+            $lockedPermitId = RowValues::colStr($row, 'id');
+            $state = PermitState::from(RowValues::colStr($row, 'state'));
             if ($state === PermitState::CancelledBeforeSend || $state === PermitState::ExpiredBeforeSend) {
                 return;
             }
             $next = $state->transitionTo(PermitState::CancelledBeforeSend);
-            $this->quotas->release($row->id);
+            $this->quotas->release($lockedPermitId);
             $this->budgets->release($references, $locked);
-            $db->table($t['permits'])->where('id', $row->id)->update(['state' => $next->value]);
+            $db->table($t['permits'])->where('id', $lockedPermitId)->update(['state' => $next->value]);
             $this->demands->state($demand, 'cancelled');
         });
     }
 
+    /**
+     * @param  list<stdClass>  $rows
+     * @return list<string>
+     */
     private function ids(array $rows): array
     {
-        $ids = array_column($rows, 'id');
+        $ids = array_map(static fn (stdClass $row): string => RowValues::colStr($row, 'id'), $rows);
         sort($ids, SORT_STRING);
 
         return $ids;

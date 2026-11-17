@@ -6,9 +6,11 @@ namespace Proxyma\Domain\Health;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class ProbeClaim
 {
     public HealthEpochMap $epochs;
@@ -21,9 +23,8 @@ final readonly class ProbeClaim
             throw new InvalidArgumentException('A probe requires a nonempty exact scope set and probe purpose.');
         }
         foreach ($epochs as $key => $epoch) {
-            /** @var mixed $epoch */
             [$scope, $id] = array_pad(explode(':', $key, 2), 2, '');
-            if (HealthScope::tryFrom($scope) === null || ! is_int($epoch) || $epoch < 1) {
+            if (HealthScope::tryFrom($scope) === null || $epoch < 1) {
                 throw new InvalidArgumentException('Invalid probe scope or epoch.');
             }
             new Uuid($id);

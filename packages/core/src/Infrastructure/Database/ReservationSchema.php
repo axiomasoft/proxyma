@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
+use Proxyma\Internal\Database\RowValues;
 use RuntimeException;
 
+#[Internal]
 final class ReservationSchema
 {
     public static function up(Connection $db): void
@@ -23,17 +26,17 @@ final class ReservationSchema
         $foreign = $db->select("SELECT conname FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'f'
             AND confrelid IN (?::regclass, ?::regclass)", [$t['reservations'], $t['budgets'], $t['quota_windows']]);
         foreach ($foreign as $key) {
-            $db->statement("ALTER TABLE {$t['reservations']} DROP CONSTRAINT ".$db->getQueryGrammar()->wrap($key->conname));
+            $db->statement("ALTER TABLE {$t['reservations']} DROP CONSTRAINT ".$db->getQueryGrammar()->wrap(RowValues::colStr(RowValues::object($key), 'conname')));
         }
-        $db->unprepared("CREATE FUNCTION pxm_reservation_owner_default() RETURNS trigger LANGUAGE plpgsql AS \$\$
-            BEGIN NEW.budget_tenant_key := COALESCE(NEW.budget_tenant_key, NEW.tenant_key); RETURN NEW; END; \$\$;
-            CREATE TRIGGER pxm_reservation_owner_default BEFORE INSERT ON {$t['reservations']}
-                FOR EACH ROW EXECUTE FUNCTION pxm_reservation_owner_default();");
+        $db->statement('CREATE FUNCTION pxm_reservation_owner_default() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN NEW.budget_tenant_key := COALESCE(NEW.budget_tenant_key, NEW.tenant_key); RETURN NEW; END; $$');
+        $db->statement("CREATE TRIGGER pxm_reservation_owner_default BEFORE INSERT ON {$t['reservations']}
+                FOR EACH ROW EXECUTE FUNCTION pxm_reservation_owner_default()");
         $db->statement("ALTER TABLE {$t['reservations']} ALTER COLUMN budget_tenant_key SET NOT NULL,
             ADD CONSTRAINT pxm_reservation_owner_check CHECK (budget_tenant_key = tenant_key OR budget_tenant_key = 'system'),
             ADD CONSTRAINT pxm_reservation_budget_owner_fk FOREIGN KEY (budget_tenant_key, budget_id) REFERENCES {$t['budgets']} (tenant_key, id),
             ADD CONSTRAINT pxm_reservation_window_owner_fk FOREIGN KEY (budget_tenant_key, quota_window_id, budget_id) REFERENCES {$t['quota_windows']} (tenant_key, id, budget_id)");
-        $db->unprepared("CREATE FUNCTION pxm_permit_reservation_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+        $db->statement("CREATE FUNCTION pxm_permit_reservation_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF OLD.reservation_intent IS NOT NULL AND ROW(NEW.tenant_key, NEW.operation_id, NEW.demand_id, NEW.route_id, NEW.target_id,
                     NEW.physical_attempt_id, NEW.wire_fingerprint, NEW.cost, NEW.not_before, NEW.expires_at, NEW.reservation_intent,
@@ -43,10 +46,10 @@ final class ReservationSchema
                     RAISE EXCEPTION 'Reservation intent is immutable' USING ERRCODE = '23514';
                 END IF;
                 RETURN NEW;
-            END; \$\$;
-            CREATE TRIGGER pxm_permit_reservation_guard BEFORE UPDATE ON {$t['permits']}
-                FOR EACH ROW EXECUTE FUNCTION pxm_permit_reservation_guard();
-            CREATE FUNCTION pxm_reservation_reference_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+            END; \$\$");
+        $db->statement("CREATE TRIGGER pxm_permit_reservation_guard BEFORE UPDATE ON {$t['permits']}
+                FOR EACH ROW EXECUTE FUNCTION pxm_permit_reservation_guard()");
+        $db->statement("CREATE FUNCTION pxm_reservation_reference_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF EXISTS (SELECT 1 FROM {$t['permits']} WHERE id = OLD.permit_id AND reservation_intent IS NOT NULL) THEN
                     IF ROW(NEW.tenant_key, NEW.permit_id, NEW.budget_tenant_key, NEW.budget_id, NEW.quota_window_id, NEW.cost)
@@ -59,9 +62,9 @@ final class ReservationSchema
                     END IF;
                 END IF;
                 RETURN NEW;
-            END; \$\$;
-            CREATE TRIGGER pxm_reservation_reference_guard BEFORE UPDATE ON {$t['reservations']}
-                FOR EACH ROW EXECUTE FUNCTION pxm_reservation_reference_guard();");
+            END; \$\$");
+        $db->statement("CREATE TRIGGER pxm_reservation_reference_guard BEFORE UPDATE ON {$t['reservations']}
+                FOR EACH ROW EXECUTE FUNCTION pxm_reservation_reference_guard()");
     }
 
     public static function down(Connection $db): void
@@ -72,9 +75,12 @@ final class ReservationSchema
             || $db->table($t['operations'])->where('purpose', '<>', 'ordinary')->exists()) {
             throw new RuntimeException('Cannot remove durable reservation history.');
         }
-        $db->unprepared("DROP TRIGGER pxm_permit_reservation_guard ON {$t['permits']}; DROP FUNCTION pxm_permit_reservation_guard();
-            DROP TRIGGER pxm_reservation_owner_default ON {$t['reservations']}; DROP FUNCTION pxm_reservation_owner_default();
-            DROP TRIGGER pxm_reservation_reference_guard ON {$t['reservations']}; DROP FUNCTION pxm_reservation_reference_guard();");
+        $db->statement("DROP TRIGGER pxm_permit_reservation_guard ON {$t['permits']}");
+        $db->statement('DROP FUNCTION pxm_permit_reservation_guard()');
+        $db->statement("DROP TRIGGER pxm_reservation_owner_default ON {$t['reservations']}");
+        $db->statement('DROP FUNCTION pxm_reservation_owner_default()');
+        $db->statement("DROP TRIGGER pxm_reservation_reference_guard ON {$t['reservations']}");
+        $db->statement('DROP FUNCTION pxm_reservation_reference_guard()');
         $db->statement("ALTER TABLE {$t['reservations']} DROP CONSTRAINT pxm_reservation_owner_check,
             DROP CONSTRAINT pxm_reservation_budget_owner_fk, DROP CONSTRAINT pxm_reservation_window_owner_fk, DROP COLUMN budget_tenant_key,
             ADD FOREIGN KEY (tenant_key, budget_id) REFERENCES {$t['budgets']} (tenant_key, id),

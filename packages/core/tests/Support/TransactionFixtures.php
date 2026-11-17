@@ -7,9 +7,9 @@ namespace Proxyma\Tests\Support;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Proxyma\Application\Admission\AuthorityLocker;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\SqlConnectionParticipant;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Execution\AdmissionLockTier;
@@ -54,7 +54,7 @@ final readonly class ProjectOwnerAuthority implements OwnerAuthority, SqlConnect
         return $this->connection()->getName();
     }
 
-    public function snapshot(OwnerRef $owner): ?OwnerSnapshot
+    public function snapshot(OwnerRef $owner): OwnerSnapshot
     {
         $this->scope->assertOutsideTransaction();
         $row = $this->connection()->table('fixture_work')->first();

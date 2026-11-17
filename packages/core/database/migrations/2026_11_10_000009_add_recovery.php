@@ -2,19 +2,18 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Database\RecoverySchema;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
     public function up(): void
     {
-        RecoverySchema::up(DB::connection(config('proxyma.connection', 'pgsql')));
+        RecoverySchema::up($this->db());
     }
 
     public function down(): void
     {
-        RecoverySchema::down(DB::connection(config('proxyma.connection', 'pgsql')));
+        RecoverySchema::down($this->db());
     }
 };

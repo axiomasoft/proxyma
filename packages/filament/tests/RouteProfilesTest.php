@@ -6,9 +6,9 @@ use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyExceptio
 use Livewire\Livewire;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogNotFound;
-use Proxyma\Contracts\CatalogCommands;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\SharedRouteCommands;
+use Proxyma\Contracts\Catalog\CatalogCommands;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Catalog\SharedRouteCommands;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RetireCatalogEntityCommand;
 use Proxyma\Domain\Catalog\RouteKind;
@@ -27,7 +27,7 @@ use Proxyma\Tests\Support\CatalogTestCase;
 require_once __DIR__.'/../../core/tests/Support/CatalogTestCase.php';
 require_once __DIR__.'/Support/WithFilament.php';
 
-uses(CatalogTestCase::class, WithFilament::class);
+uses(CatalogTestCase::class, WithFilament::class)->group('pg');
 
 beforeEach(function (): void {
     $this->prepareFilament();

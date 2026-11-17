@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Admission;
 
 use LogicException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final class LockPosition
 {
     private int $tier = 0;

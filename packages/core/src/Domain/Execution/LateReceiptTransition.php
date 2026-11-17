@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Execution;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Health\HealthEpochMap;
 
 /**
@@ -13,6 +14,7 @@ use Proxyma\Domain\Health\HealthEpochMap;
  * - Duplicate receipt with same receiptId and receiptDigest is idempotent; differing digest or receiptId is a conflict.
  * - Stale health epoch forbids health reducer update, but does not prevent receipt persistence or permit completion.
  */
+#[Api(since: '1.0')]
 final readonly class LateReceiptTransition
 {
     public static function evaluate(

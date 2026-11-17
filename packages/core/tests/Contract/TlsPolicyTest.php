@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Proxyma\Contracts\TlsTrustPolicy;
+use Proxyma\Contracts\Security\TlsTrustPolicy;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CredentialRef;
@@ -19,13 +19,15 @@ use Proxyma\Tests\Support\ClaimFixtures;
 use Proxyma\Tests\Support\DemandFixtures;
 use Proxyma\Tests\Support\ReservationFixtures;
 
+use function Proxyma\Tests\Support\fixtureDestination;
+
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/SelectionFixtures.php';
 require_once __DIR__.'/../Support/DemandFixtures.php';
 require_once __DIR__.'/../Support/ReservationFixtures.php';
 require_once __DIR__.'/../Support/ClaimFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeClaimFixture();
@@ -43,7 +45,7 @@ it('default policy использует system roots с обязательной
 });
 
 it('verify=false невозможно для origin и proxy', function (bool $peer, bool $host): void {
-    expect(fn () => new TlsTrustConfiguration(verifyPeer: $peer, verifyHost: $host))->toThrow(InvalidArgumentException::class);
+    expect(fn (): TlsTrustConfiguration => new TlsTrustConfiguration(verifyPeer: $peer, verifyHost: $host))->toThrow(InvalidArgumentException::class);
 })->with([[false, true], [true, false], [false, false]]);
 
 it('ищет CA по normalized original host независимо от target ID и сохраняет hash bundle', function (string $configured, string $requested): void {
@@ -57,7 +59,7 @@ it('ищет CA по normalized original host независимо от target I
 })->with([['EXAMPLE.TEST.', 'example.test'], ['bücher.test', 'xn--bcher-kva.test'], ['[2001:db8::1]', '2001:db8::1']]);
 
 it('origin и proxy trust разделены даже при одинаковом host и config wiring', function (): void {
-    $this->app['config']->set('proxyma.tls.origin_bundles', ['EXAMPLE.TEST.' => $this->caPath]);
+    $this->reconfigureProxyma(['tls.origin_bundles' => ['EXAMPLE.TEST.' => $this->caPath]]);
     $originOnly = $this->app->make(TlsTrustPolicy::class);
     expect($originOnly->tlsConfigurationFor(CanonicalOrigin::of('https', 'example.test'), Uuid::random())->caBundlePath)->toBe($this->caPath)
         ->and($originOnly->proxyConfigurationFor('example.test')->caBundlePath)->toBeNull();
@@ -69,15 +71,15 @@ it('origin и proxy trust разделены даже при одинаково�
 it('не делает fallback с отсутствующего или malformed configured bundle', function (string $kind): void {
     $path = $kind === 'missing' ? '/nonexistent/proxyma-ca.pem' : __FILE__;
     $policy = new TlsTrust($this->transactions->scope, ['example.test' => $path], ['proxy.test' => $path]);
-    expect(fn () => $policy->tlsConfigurationFor(CanonicalOrigin::of('https', 'example.test'), Uuid::random()))->toThrow(InvalidArgumentException::class);
-    expect(fn () => $policy->proxyConfigurationFor('proxy.test'))->toThrow(InvalidArgumentException::class);
+    expect(fn (): TlsTrustConfiguration => $policy->tlsConfigurationFor(CanonicalOrigin::of('https', 'example.test'), Uuid::random()))->toThrow(InvalidArgumentException::class);
+    expect(fn (): TlsTrustConfiguration => $policy->proxyConfigurationFor('proxy.test'))->toThrow(InvalidArgumentException::class);
 })->with(['missing', 'malformed']);
 
 it('не принимает false, пустые paths, userinfo или ambiguous duplicate host configuration', function (): void {
     foreach ([['example.test' => false], ['example.test' => ''], ['example.test' => "bad\0path"],
         ['user:pass@example.test' => $this->caPath], ['example.test' => $this->caPath, 'EXAMPLE.TEST.' => $this->caPath]] as $map) {
-        expect(fn () => new TlsTrust($this->transactions->scope, $map))->toThrow(InvalidArgumentException::class);
-        expect(fn () => new TlsTrust($this->transactions->scope, [], $map))->toThrow(InvalidArgumentException::class);
+        expect(fn (): TlsTrust => new TlsTrust($this->transactions->scope, $map))->toThrow(InvalidArgumentException::class);
+        expect(fn (): TlsTrust => new TlsTrust($this->transactions->scope, [], $map))->toThrow(InvalidArgumentException::class);
     }
 });
 
@@ -85,9 +87,9 @@ it('TLS trust resolution не выполняет file I/O в SQL transaction', f
     $policy = new TlsTrust($this->transactions->scope, ['example.test' => $this->caPath]);
     $this->db->beginTransaction();
     try {
-        expect(fn () => $policy->tlsConfigurationFor(CanonicalOrigin::of('https', 'example.test'), Uuid::random()))
+        expect(fn (): TlsTrustConfiguration => $policy->tlsConfigurationFor(CanonicalOrigin::of('https', 'example.test'), Uuid::random()))
             ->toThrow(LogicException::class, 'transactionLevel zero');
-        expect(fn () => $policy->proxyConfigurationFor('proxy.test'))->toThrow(LogicException::class, 'transactionLevel zero');
+        expect(fn (): TlsTrustConfiguration => $policy->proxyConfigurationFor('proxy.test'))->toThrow(LogicException::class, 'transactionLevel zero');
     } finally {
         $this->db->rollBack();
     }
@@ -96,7 +98,7 @@ it('TLS trust resolution не выполняет file I/O в SQL transaction', f
 it('sealing связывает proxy trust и содержимое CA, а verify под locks остаётся pure', function (): void {
     $intent = $this->demandOperation();
     $input = $this->reservationInput($intent);
-    $destination = \Proxyma\Tests\Support\fixtureDestination($this->transactions->scope, $intent['request']);
+    $destination = fixtureDestination($this->transactions->scope, $intent['request']);
     $policy = new TlsTrust($this->transactions->scope, ['example.test' => $this->caPath], ['proxy.test' => $this->caPath]);
     $tls = $policy->tlsConfigurationFor($intent['request']->url->origin, $intent['request']->targetId);
     $proxy = $policy->proxyConfigurationFor('proxy.test');

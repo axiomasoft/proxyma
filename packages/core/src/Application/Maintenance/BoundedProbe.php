@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Maintenance;
 
+use InvalidArgumentException;
+use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Admission\OperationCommands;
 use Proxyma\Application\Admission\ReservationService;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Health\ProbeCoordinator;
 use Proxyma\Application\Health\ProbeReview;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\OutboundClient;
-use Proxyma\Contracts\PolicyResolver;
-use Proxyma\Contracts\WorkBudget;
+use Proxyma\Contracts\Admission\WorkBudget;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Execution\OutboundClient;
+use Proxyma\Contracts\Policy\PolicyResolver;
 use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\Duration;
 use Proxyma\Domain\Execution\ExecutionContext;
@@ -30,6 +33,7 @@ use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 
 /** Один exact route/target, HEAD /, без retries/redirects; обычный admission обязателен. */
+#[Api(since: '1.0')]
 final readonly class BoundedProbe
 {
     public function __construct(private ConnectionScope $scope, private CatalogAccess $access, private CatalogQueries $catalog,
@@ -40,7 +44,7 @@ final readonly class BoundedProbe
     {
         $this->scope->assertOutsideTransaction();
         if ($seconds < 16 || $seconds > 60) {
-            throw new \InvalidArgumentException('Probe duration must be 16..60 seconds.');
+            throw new InvalidArgumentException('Probe duration must be 16..60 seconds.');
         }
         $tenant = $subjects->tenant;
         $this->access->authorize($tenant, 'health.probe.execute', $routeId);
@@ -48,13 +52,13 @@ final readonly class BoundedProbe
         $route = $this->catalog->findRoute($tenant, $routeId);
         $target = $this->catalog->findTarget($tenant, $targetId);
         if ($profile === null || $route === null || $target === null || ! $profile->containsRoute($routeId)) {
-            throw new \InvalidArgumentException('Probe requires an exact profile member and target.');
+            throw new InvalidArgumentException('Probe requires an exact profile member and target.');
         }
-        $policy = $this->policies->explain($subjects, $targetId)->effectivePolicy ?? throw new \LogicException('Effective policy required.');
+        $policy = $this->policies->explain($subjects, $targetId)->effectivePolicy ?? throw new LogicException('Effective policy required.');
         if (! $policy->isProfileAllowed($profile->profileKey)
             || ($policy->routeProfileId !== null && ! $policy->routeProfileId->equals($profileId))
             || ($policy->routeProfileKey !== null && $policy->routeProfileKey !== $profile->profileKey)) {
-            throw new \InvalidArgumentException('Probe profile conflicts with policy.');
+            throw new InvalidArgumentException('Probe profile conflicts with policy.');
         }
         $id = Uuid::random();
         $now = DatabaseClock::now($this->scope->connection);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Database\PostgresConnection;
+use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
+use Packman\Testkit\Support\Database\TestDatabaseGuard;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\DemandQueue;
@@ -17,8 +19,8 @@ use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Health\ProbeCoordinator;
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\NeedsReplan;
@@ -45,6 +47,8 @@ use Proxyma\Infrastructure\Database\PermitRepository;
 use Proxyma\Infrastructure\Database\QuotaRepository;
 use Proxyma\Tests\Support\FixtureWorkBudget;
 
+use function Proxyma\Tests\Support\fixtureDestination;
+
 require dirname(__DIR__, 4).'/vendor/autoload.php';
 require __DIR__.'/DemandFixtures.php';
 require __DIR__.'/SelectionFixtures.php';
@@ -54,15 +58,16 @@ $schema = $payload['schema'];
 if (preg_match('/^pxm_t_[a-f0-9]{16}$/D', $schema) !== 1 || ! in_array($payload['label'], ['one', 'two'], true)) {
     throw new RuntimeException('Invalid reservation worker fixture.');
 }
-$pdo = new PDO('pgsql:host=db;port=5432;dbname=proxyma_test', 'proxyma_test', 'proxyma-test-only', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-if ($pdo->query('SELECT current_database(), current_user, (SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM)
-    !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
-    throw new RuntimeException('Refusing reservation writes outside marked test database.');
+$identity = SuiteDatabaseConnection::pgsqlIdentity();
+TestDatabaseGuard::assertDestructiveSafe($identity);
+$pdo = new PDO(SuiteDatabaseConnection::pgsqlDsn($identity), $identity->username, SuiteDatabaseConnection::pgsqlPassword(), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+if (getenv('PROXYMA_DOCKER_RIG') === '1' && $pdo->query('SELECT current_database(), current_user, (SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM) !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
+    throw new RuntimeException('Refusing writes outside isolated marked proxyma_test database.');
 }
 $pdo->exec('SET search_path TO '.$schema.', pg_catalog');
 $pdo->exec("SET statement_timeout = '8s'");
 $pdo->prepare("SELECT set_config('application_name', ?, false)")->execute(['proxyma-p41-'.$schema.'-'.$payload['label']]);
-$db = new PostgresConnection($pdo, 'proxyma_test', '', ['driver' => 'pgsql', 'name' => 'worker']);
+$db = new PostgresConnection($pdo, $identity->database, '', ['driver' => 'pgsql', 'name' => 'worker']);
 $db->setTransactionManager($manager = new DatabaseTransactionsManager);
 $scope = new ConnectionScope($db, $manager);
 $transactions = new TransactionCoordinator($scope);
@@ -101,7 +106,7 @@ if (isset($payload['recovery_action']) && $payload['recovery_action'] !== 'crash
     require __DIR__.'/RecoveryWorkerActions.php';
     exit;
 }
-if ($payload['mode'] === 'configure') {
+if (($payload['mode'] ?? null) === 'configure') {
     $quotaService->configure($tenant, new Uuid($payload['budget']), $payload['hour'], $payload['day'], $payload['revision']);
     echo json_encode(['status' => 'configured', 'bytes' => 0, 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()], JSON_THROW_ON_ERROR);
     exit;
@@ -124,16 +129,16 @@ $request = new WireRequest($operation->operationId, new Uuid($payload['attempt']
     new RequestTimeoutPolicy(1, 1, 1, 0, maxAttempts: 8, maxDistinctRoutes: 8), $deadline,
     idempotency: IdempotencyClass::from($payload['idempotency'] ?? 'read_only'), purpose: $operation->purpose, trafficClass: $payload['class']);
 $route = $catalog->findRoute($tenant, new Uuid($payload['route']));
-$wire = $sealer->seal($request, $route, \Proxyma\Tests\Support\fixtureDestination($scope, $request), new TlsTrustConfiguration);
+$wire = $sealer->seal($request, $route, fixtureDestination($scope, $request), new TlsTrustConfiguration);
 $selection = new RouteSelection($route->id, $route->kind, new Uuid($root->profile_id), $route->endpointId, $route->credentialVersion, $route->egress);
 $policy = selectionPolicy($tenant, new Uuid($root->profile_id), new Uuid($root->target_id), trafficKey: $payload['class']);
 $input = $service->prepare($wire->request, $operation, $selection, $policy, new FixtureWorkBudget);
-if ($payload['mode'] === 'probe_claim') {
+if (($payload['mode'] ?? null) === 'probe_claim') {
     echo json_encode(['ready' => true, 'pid' => $pdo->query('SELECT pg_backend_pid()')->fetchColumn()], JSON_THROW_ON_ERROR)."\n";
     flush();
     $pdo->prepare('SELECT pg_advisory_lock_shared(hashtextextended(?,0))')->execute(['fixture:probe-start:'.$schema]);
     try {
-        $claim = (new ProbeCoordinator($transactions, $locks, $owners, $access, $catalogLocks))->claim($input, 30);
+        $claim = new ProbeCoordinator($transactions, $locks, $owners, $access, $catalogLocks)->claim($input, 30);
         $status = 'claimed';
     } catch (AdmissionRejected $rejected) {
         $status = $rejected->reason;
@@ -160,7 +165,7 @@ if ($payload['cas_gate']) {
 $bytes = 0;
 $released = null;
 try {
-    if ($payload['mode'] === 'reserve') {
+    if (($payload['mode'] ?? null) === 'reserve') {
         $result = $service->reserve($ticket, $input);
         $status = $result instanceof DemandWait ? 'wait' : 'reserved';
     } else {

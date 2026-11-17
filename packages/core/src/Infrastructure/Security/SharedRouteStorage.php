@@ -6,12 +6,15 @@ namespace Proxyma\Infrastructure\Security;
 
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
+use Packman\Attributes\Internal;
 use Proxyma\Domain\Catalog\SharedRouteGrant;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 
 /** @internal */
+#[Internal]
 final readonly class SharedRouteStorage
 {
     public function __construct(private Connection $db) {}
@@ -26,7 +29,15 @@ final readonly class SharedRouteStorage
 
     public static function map(object $row): SharedRouteGrant
     {
-        return new SharedRouteGrant(new Uuid($row->id), new TenantKey($row->tenant_key), new TenantKey($row->consumer_tenant_key),
-            new Uuid($row->route_id), (int) $row->revision, $row->retired_at === null ? null : new DateTimeImmutable($row->retired_at));
+        $retiredAt = RowValues::colNullableStr($row, 'retired_at');
+
+        return new SharedRouteGrant(
+            new Uuid(RowValues::colStr($row, 'id')),
+            new TenantKey(RowValues::colStr($row, 'tenant_key')),
+            new TenantKey(RowValues::colStr($row, 'consumer_tenant_key')),
+            new Uuid(RowValues::colStr($row, 'route_id')),
+            RowValues::colInt($row, 'revision'),
+            $retiredAt === null ? null : new DateTimeImmutable($retiredAt),
+        );
     }
 }

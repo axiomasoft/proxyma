@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Catalog;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\Uuid;
 
+#[Api(since: '1.0')]
 final readonly class CanonicalOrigin
 {
     private const array DEFAULT_PORTS = ['http' => 80, 'https' => 443];
@@ -94,8 +96,8 @@ final readonly class CanonicalOrigin
 
     public static function normalizeHost(string $host): string
     {
-        if (str_contains($host, '%') || str_contains($host, '\\') || preg_match('/^[0-9.]+$/D', $host) && filter_var($host, FILTER_VALIDATE_IP) === false
-            || (filter_var($host, FILTER_VALIDATE_IP) === false && preg_match('/^(?:0x[0-9a-f]+|[0-9]+)(?:\.|$)/i', $host))) {
+        if (str_contains($host, '%') || str_contains($host, '\\') || (preg_match('/^[0-9.]+$/D', $host) === 1 && filter_var($host, FILTER_VALIDATE_IP) === false)
+            || (filter_var($host, FILTER_VALIDATE_IP) === false && preg_match('/^(?:0x[0-9a-f]+|[0-9]+)(?:\.|$)/i', $host) === 1)) {
             throw new InvalidArgumentException('Ambiguous host.');
         }
         $host = rtrim(strtolower(trim($host, '[]')), '.');
@@ -109,7 +111,8 @@ final readonly class CanonicalOrigin
 
         if (preg_match('/[^\x00-\x7f]/', $host) === 1 || str_contains($host, 'xn--')) {
             $ascii = idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII | IDNA_USE_STD3_RULES, INTL_IDNA_VARIANT_UTS46, $info);
-            if (! is_string($ascii) || $ascii === '' || ($info['errors'] ?? 0) !== 0) {
+            $idnErrors = is_array($info) ? ($info['errors'] ?? 0) : 0;
+            if (! is_string($ascii) || $ascii === '' || $idnErrors !== 0) {
                 throw new InvalidArgumentException('Origin host is not a valid IDNA name.');
             }
             $host = strtolower($ascii);

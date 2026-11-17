@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Eloquent\AuditEventRecord;
 use Proxyma\Infrastructure\Eloquent\EndpointRecord;
 use Proxyma\Infrastructure\Eloquent\OperationRecord;
@@ -11,11 +10,11 @@ use Proxyma\Infrastructure\Eloquent\RouteHealthRecord;
 use Proxyma\Infrastructure\Eloquent\RouteRecord;
 use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
     public function up(): void
     {
-        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $db = $this->db();
         $claims = (new ProbeClaimRecord)->getTable();
         $operations = (new OperationRecord)->getTable();
         $health = (new RouteHealthRecord)->getTable();
@@ -45,7 +44,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $db = $this->db();
         $audit = (new AuditEventRecord)->getTable();
         if ($db->table($audit)->whereIn('entity_type', ['route_health', 'route_target_health', 'target_health'])->exists()) {
             throw new LogicException('Health audit history prevents rollback.');

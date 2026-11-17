@@ -14,13 +14,16 @@ use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Policy\SettingRegistry;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\SettingType;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Filament\BindingEditor;
+use Proxyma\Filament\Internal\FilamentValue;
 
+#[Api(since: '1.0')]
 class ProxymaSettingsSection
 {
     /**
@@ -53,15 +56,16 @@ class ProxymaSettingsSection
             if ($descriptor->optional) {
                 $modes['disable'] = 'Отключить';
             }
+            $allowedValues = FilamentValue::strList($descriptor->allowedValues);
             $value = match ($descriptor->type) {
                 SettingType::Boolean => Toggle::make('value'),
                 SettingType::Integer => TextInput::make('value')->integer()->minValue($descriptor->minimum)->maxValue($descriptor->maximum)
-                    ->dehydrateStateUsing(static fn ($state) => is_numeric($state) && (string) (int) $state === (string) $state ? (int) $state : $state),
-                SettingType::Identifier => Select::make('value')->options(array_combine($descriptor->allowedValues, $descriptor->allowedValues)),
+                    ->dehydrateStateUsing(static fn ($state) => is_int($state) || (is_string($state) && preg_match('/^-?[0-9]+$/D', $state) === 1) ? (int) $state : $state),
+                SettingType::Identifier => Select::make('value')->options(array_combine($allowedValues, $allowedValues)),
                 SettingType::IntegerList, SettingType::IdentifierList => Repeater::make('value')->simple(
                     $descriptor->type === SettingType::IntegerList
                         ? TextInput::make('item')->integer()->minValue($descriptor->minimum)->maxValue($descriptor->maximum)
-                            ->dehydrateStateUsing(static fn ($state) => is_numeric($state) && (string) (int) $state === (string) $state ? (int) $state : $state)
+                            ->dehydrateStateUsing(static fn ($state) => is_int($state) || (is_string($state) && preg_match('/^-?[0-9]+$/D', $state) === 1) ? (int) $state : $state)
                         : TextInput::make('item')->regex('/^[a-z0-9][a-z0-9_.:-]{0,127}$/D')
                 )->maxItems(256)->defaultItems(0),
             };

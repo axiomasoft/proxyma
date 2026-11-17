@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Admission;
 
+use DateTimeImmutable;
 use Illuminate\Database\DatabaseTransactionRecord;
+use Illuminate\Database\Query\Builder;
 use LogicException;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\SqlConnectionParticipant;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Admission\LockPosition;
@@ -23,9 +26,11 @@ use Proxyma\Domain\Execution\WireRequest;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
 use stdClass;
 use WeakMap;
 
+#[Api(since: '1.0')]
 final class AuthorityLocker
 {
     /** @var WeakMap<DatabaseTransactionRecord, LockPosition> */
@@ -67,7 +72,8 @@ final class AuthorityLocker
         if ($state instanceof ExecutionBlocked || ! $state->owner->matchesIdentityAndToken($owner)) {
             throw new AdmissionRejected('owner_lost');
         }
-        $now = new \DateTimeImmutable($this->scope->connection->selectOne('SELECT clock_timestamp() AS now')->now);
+        $clock = RowValues::object($this->scope->connection->selectOne('SELECT clock_timestamp() AS now'));
+        $now = new DateTimeImmutable(RowValues::colStr($clock, 'now'));
         if (min($snapshot->deadlineAt, $state->deadlineAt) <= $now) {
             throw new AdmissionRejected('owner_deadline');
         }
@@ -86,7 +92,7 @@ final class AuthorityLocker
     {
         $this->scope->assertActive($tx);
         $registered = $this->owners[$state] ?? null;
-        if ($registered === null || $registered[0] !== $this->scope->root() || $registered[1] != $snapshot) {
+        if ($registered === null || $registered[0] !== $this->scope->root() || ! self::ownerSnapshotsEqual($registered[1], $snapshot)) {
             throw new AdmissionRejected('unverified_owner_state');
         }
     }
@@ -179,16 +185,16 @@ final class AuthorityLocker
             return [];
         }
         $query = $this->scope->connection->table(PackageSchema::tables()['policy_heads']);
-        $query->where(function ($query) use ($requested): void {
+        $query->where(static function (Builder $query) use ($requested): void {
             foreach ($requested as [$tenant, $scopeKey]) {
-                $query->orWhere(function ($query) use ($tenant, $scopeKey): void {
+                $query->orWhere(static function (Builder $query) use ($tenant, $scopeKey): void {
                     $query->where('tenant_key', $tenant->value)->where('scope_key', $scopeKey);
                 });
             }
         });
         $locked = [];
         foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lock('FOR SHARE')->get() as $row) {
-            $locked[$row->scope_key."\0".$row->tenant_key] = $row;
+            $locked[RowValues::colStr($row, 'scope_key')."\0".RowValues::colStr($row, 'tenant_key')] = $row;
         }
         if (array_keys($locked) !== array_keys($requested)) {
             throw new AdmissionRejected('required_state_missing');
@@ -205,7 +211,7 @@ final class AuthorityLocker
     {
         $requested = [];
         foreach ($budgets as $budget) {
-            $requested[$budget->scope_key."\0".$budget->tenant_key] = $budget;
+            $requested[RowValues::colStr($budget, 'scope_key')."\0".RowValues::colStr($budget, 'tenant_key')] = $budget;
         }
         ksort($requested, SORT_STRING);
         $locked = [];
@@ -214,22 +220,23 @@ final class AuthorityLocker
                 $this->enter(AuthorityLockTier::Budget, $key, $transaction);
             }
             $query = $this->scope->connection->table(PackageSchema::tables()['budgets']);
-            $query->where(function ($query) use ($chunk): void {
+            $query->where(static function (Builder $query) use ($chunk): void {
                 foreach ($chunk as $budget) {
-                    $query->orWhere(function ($query) use ($budget): void {
-                        $query->where('tenant_key', $budget->tenant_key)->where('scope_key', $budget->scope_key);
+                    $query->orWhere(static function (Builder $query) use ($budget): void {
+                        $query->where('tenant_key', RowValues::colStr($budget, 'tenant_key'))
+                            ->where('scope_key', RowValues::colStr($budget, 'scope_key'));
                     });
                 }
             });
             $found = [];
             foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lock('FOR UPDATE')->get() as $row) {
-                $found[$row->scope_key."\0".$row->tenant_key] = $row;
+                $found[RowValues::colStr($row, 'scope_key')."\0".RowValues::colStr($row, 'tenant_key')] = $row;
             }
             if (array_keys($found) !== array_keys($chunk)) {
                 throw new AdmissionRejected('required_state_missing');
             }
             foreach ($chunk as $key => $budget) {
-                if ($found[$key]->id !== $budget->id) {
+                if (RowValues::colStr($found[$key], 'id') !== RowValues::colStr($budget, 'id')) {
                     throw new AdmissionRejected('budget_identity_changed');
                 }
                 $locked[] = $found[$key];
@@ -253,13 +260,30 @@ final class AuthorityLocker
     public function operation(Uuid $id, OwnerRef $owner, LockedTransactionContext $transaction): stdClass
     {
         $row = $this->rows(AuthorityLockTier::Operation, $owner->tenantKey, [$id->value], $transaction)[0];
-        $now = new \DateTimeImmutable($this->scope->connection->selectOne('SELECT clock_timestamp() AS now')->now);
-        if ($row->owner_type !== $owner->ownerType || $row->owner_id !== $owner->ownerId
-            || ! hash_equals($row->owner_token, $owner->token()) || (int) $row->owner_generation !== $owner->generation
-            || $row->status !== 'active' || $row->revoked_at !== null || new \DateTimeImmutable($row->deadline) <= $now) {
+        $clock = RowValues::object($this->scope->connection->selectOne('SELECT clock_timestamp() AS now'));
+        $now = new DateTimeImmutable(RowValues::colStr($clock, 'now'));
+        if (RowValues::colStr($row, 'owner_type') !== $owner->ownerType || RowValues::colStr($row, 'owner_id') !== $owner->ownerId
+            || ! hash_equals(RowValues::colStr($row, 'owner_token'), $owner->token()) || RowValues::colInt($row, 'owner_generation') !== $owner->generation
+            || RowValues::colStr($row, 'status') !== 'active' || RowValues::colNullableStr($row, 'revoked_at') !== null
+            || new DateTimeImmutable(RowValues::colStr($row, 'deadline')) <= $now) {
             throw new AdmissionRejected('operation_owner_lost');
         }
 
         return $row;
+    }
+
+    private static function ownerSnapshotsEqual(OwnerSnapshot $left, OwnerSnapshot $right): bool
+    {
+        return $left->owner->matchesIdentityAndToken($right->owner)
+            && ($left->deadlineAt <=> $right->deadlineAt) === 0
+            && $left->inputRevision === $right->inputRevision
+            && $left->inputHash?->hex === $right->inputHash?->hex
+            && $left->controlVersions === $right->controlVersions
+            && $left->subjectGenerations === $right->subjectGenerations
+            && $left->parentAttemptId?->value === $right->parentAttemptId?->value
+            && $left->adapterHealthId?->value === $right->adapterHealthId?->value
+            && $left->adapterHealthEpoch === $right->adapterHealthEpoch
+            && $left->purpose === $right->purpose
+            && $left->probeToken?->value === $right->probeToken?->value;
     }
 }

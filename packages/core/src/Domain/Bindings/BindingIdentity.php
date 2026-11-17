@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Bindings;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Panels\PanelSlot;
 use Proxyma\Domain\Policy\PolicyScope;
 use Proxyma\Domain\Policy\SubjectRef;
 
+#[Api(since: '1.0')]
 final class BindingIdentity
 {
     public static function id(SubjectRef $subject, string $panel, string $slot): Uuid

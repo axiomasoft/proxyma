@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Policy;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class FieldExplanation
 {
     public mixed $effectiveValue;
-
-    /** @var list<FieldProvenanceStep> */
-    public array $provenance;
 
     /**
      * @param  list<FieldProvenanceStep>  $provenance
@@ -34,13 +33,12 @@ final readonly class FieldExplanation
         public ?string $clampedByScope = null,
         public ?int $clampedByRevision = null,
         public bool $sensitive = false,
-        array $provenance = [],
+        public array $provenance = [],
     ) {
         if ($key === '' || $sourceScope === '' || $permission === '' || $reason === '' || $sourceRevision < 1) {
             throw new InvalidArgumentException('FieldExplanation requires non-empty key, sourceScope, permission, reason, and positive sourceRevision.');
         }
 
         $this->effectiveValue = $sensitive ? null : $effectiveValue;
-        $this->provenance = $provenance;
     }
 }

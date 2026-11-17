@@ -13,7 +13,7 @@ use Symfony\Component\Process\Process;
 foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'ReservationFixtures', 'ClaimFixtures', 'QuotaFixtures', 'RecoveryFixtures'] as $file) {
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, RecoveryFixtures::class)->group('pg');
 beforeEach(function (): void {
     $this->initializeRecoveryFixture();
     $this->barrier = $this->connectionPdo();
@@ -35,7 +35,7 @@ afterEach(function (): void {
 function healthWorker($test, array $prepared, string $label, string $action = 'complete', int $status = 200): Process
 {
     [, $input] = $prepared;
-    $worker = new Process(['php', dirname(__DIR__).'/Support/QuotaWorker.php', json_encode([
+    $worker = new Process([PHP_BINARY, __DIR__.'/../Support/QuotaWorker.php', json_encode([
         'schema' => $test->healthSchema, 'label' => $label, 'mode' => 'reserve', 'cas_gate' => false,
         'recovery_action' => $action, 'receipt_status' => $status,
         'operation' => $input->operation->operationId->value, 'attempt' => $input->request->physicalAttemptId->value,

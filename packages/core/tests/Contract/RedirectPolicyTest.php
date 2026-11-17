@@ -9,10 +9,10 @@ use Proxyma\Application\Execution\ProxyResolver;
 use Proxyma\Application\Policy\PolicyResolver;
 use Proxyma\Application\Recovery\CompletionCoordinator;
 use Proxyma\Application\Routing\RouteSelector;
-use Proxyma\Contracts\CatalogQueries;
-use Proxyma\Contracts\PhysicalTransport;
-use Proxyma\Contracts\SecretResolver;
-use Proxyma\Contracts\TlsTrustPolicy;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Security\SecretResolver;
+use Proxyma\Contracts\Security\TlsTrustPolicy;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CredentialRef;
 use Proxyma\Domain\Catalog\UpsertTargetCommand;
@@ -56,15 +56,17 @@ foreach (['CatalogTestCase', 'SelectionFixtures', 'DemandFixtures', 'Reservation
     require_once __DIR__.'/../Support/'.$file.'.php';
 }
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class, ClaimFixtures::class, QuotaFixtures::class, PhysicalFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     config(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
-    config(['proxyma.policy.project_defaults' => [
-        'route.allow_direct' => true,
-        'retry.max_attempts' => 10,
-        'http.max_redirects' => 10,
-    ]]);
+    $this->reconfigureProxyma([
+        'policy.project_defaults' => [
+            'route.allow_direct' => true,
+            'retry.max_attempts' => 10,
+            'http.max_redirects' => 10,
+        ],
+    ]);
     $this->initializeClaimFixture();
     $this->table('budgets')->update(['burst' => 100, 'max_inflight' => 100, 'emission_interval_us' => 1]);
     $this->dispatched = [];
@@ -106,7 +108,7 @@ function makeRedirectExecutor(
 
         $secretResolver = new class implements SecretResolver
         {
-            public function resolve(CredentialRef $credential, TenantKey $tenant): ?ResolvedSecret
+            public function resolve(CredentialRef $credential, TenantKey $tenant): ResolvedSecret
             {
                 return new ResolvedSecret($credential, 'proxy-user', 'proxy-pass');
             }

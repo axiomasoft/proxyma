@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Consumer;
 
-use Proxyma\Contracts\RouteSelectionStrategy;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\RouteSelectionContext;
 use Proxyma\Domain\Execution\WireRequest;

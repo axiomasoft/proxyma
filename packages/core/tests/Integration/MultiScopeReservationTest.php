@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Health\ProbeCoordinator;
-use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\Policy\PolicyCommands;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\ReservationDeferred;
@@ -37,7 +37,7 @@ require_once __DIR__.'/../Support/SelectionFixtures.php';
 require_once __DIR__.'/../Support/DemandFixtures.php';
 require_once __DIR__.'/../Support/ReservationFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeReservationFixture();
@@ -68,7 +68,7 @@ it('блокирует budget scopes пакетно в каноническом 
 
         return $locked;
     });
-    expect($queries)->toBe(1)->and(array_map(fn ($row) => $row->scope_key."\0".$row->tenant_key, $locked))
+    expect($queries)->toBe(1)->and(array_map(fn ($row): string => $row->scope_key."\0".$row->tenant_key, $locked))
         ->toBe(['batch:a'."\0".'acme', 'batch:a'."\0".TenantKey::SYSTEM, 'batch:z'."\0".'acme']);
     $missing = clone $rows[0];
     $missing->scope_key = 'batch:missing';
@@ -265,10 +265,10 @@ it('integer GCRA сохраняет burst precision и отклоняет overfl
     $gcra = new Gcra(100, 3);
     expect($gcra->eligibleAt(1500, 1000))->toBe(1300)->and($gcra->advance(1500, 1300))->toBe(1600);
     $large = 9007199254740993;
-    expect((new Gcra(1, 1))->advance($large, $large))->toBe($large + 1);
-    expect(fn () => new Gcra(PHP_INT_MAX, 3))->toThrow(OverflowException::class);
-    expect(fn () => new Gcra(0, 1))->toThrow(InvalidArgumentException::class);
-    expect(fn () => (new Gcra(2, 1))->advance(PHP_INT_MAX - 1, PHP_INT_MAX - 1))->toThrow(OverflowException::class);
+    expect(new Gcra(1, 1)->advance($large, $large))->toBe($large + 1);
+    expect(fn (): Gcra => new Gcra(PHP_INT_MAX, 3))->toThrow(OverflowException::class);
+    expect(fn (): Gcra => new Gcra(0, 1))->toThrow(InvalidArgumentException::class);
+    expect(fn (): int => new Gcra(2, 1)->advance(PHP_INT_MAX - 1, PHP_INT_MAX - 1))->toThrow(OverflowException::class);
 });
 
 it('overflow и positive infinity последнего budget не оставляют partial accounting', function (string $bad): void {

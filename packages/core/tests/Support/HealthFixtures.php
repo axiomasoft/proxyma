@@ -56,7 +56,7 @@ trait HealthFixtures
 
     protected function narrowCooldowns(): void
     {
-        $this->app['config']->set('proxyma.health_cooldown_scopes', ['route-origin', 'egress-origin']);
+        $this->reconfigureProxyma(['health_cooldown_scopes' => ['route-origin', 'egress-origin']]);
         $this->app->forgetInstance(ClaimSend::class);
         $this->claims = $this->app->make(ClaimSend::class);
     }

@@ -5,8 +5,8 @@ declare(strict_types=1);
 use Illuminate\Database\Connection;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\LockedAdmissionGuard;
-use Proxyma\Contracts\SqlConnectionParticipant;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
 use Proxyma\Domain\Execution\AdmissionLockTier;
 use Proxyma\Domain\Execution\ClaimDenied;
 use Proxyma\Domain\Execution\LockedOwnerState;
@@ -39,7 +39,7 @@ test('consumer guard не может объявить ранний owner tier в
     $registry = new DefinitionRegistry(new SettingRegistry([]));
     $registry->registerExtension(new ExtensionDefinition('consumer.adapter', ExtensionKind::LockedAdmissionGuard, $guard, tier: $tier));
     if ($tier !== AdmissionLockTier::AdapterGuard) {
-        expect(fn () => $registry->freeze())->toThrow(DefinitionError::class);
+        expect(fn (): string => $registry->freeze())->toThrow(DefinitionError::class);
 
         return;
     }

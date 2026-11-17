@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Admission;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class QueueLimits
 {
     public function __construct(public int $maxPendingPerScope = 64, public int $ticketTtlMs = 30000,

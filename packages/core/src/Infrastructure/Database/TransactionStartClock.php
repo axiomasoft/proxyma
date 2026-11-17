@@ -6,9 +6,11 @@ namespace Proxyma\Infrastructure\Database;
 
 use Illuminate\Database\Connection;
 use LogicException;
+use Packman\Attributes\Internal;
 use WeakMap;
 
 /** One sampler per connection; no request scopes are retained by the connection hook. */
+#[Internal]
 final class TransactionStartClock
 {
     /** @var WeakMap<Connection, self>|null */

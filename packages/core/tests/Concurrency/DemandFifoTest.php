@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/DemandFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeDemandFixture();
@@ -20,7 +20,7 @@ beforeEach(function (): void {
 
 function demandWorker($test, array $intent, string $mode, string $label, int $capacity = 64, string $demandId = '-'): Process
 {
-    $process = new Process(['php', dirname(__DIR__).'/Support/ConcurrentDemandWorker.php', $test->fixtureSchemaForDemandWorker,
+    $process = new Process([PHP_BINARY, __DIR__.'/../Support/ConcurrentDemandWorker.php', $test->fixtureSchemaForDemandWorker,
         $mode, $intent['operation']->operationId->value, $intent['request']->physicalAttemptId->value,
         $intent['request']->deadlineAt->format('U.u'), $label, (string) $capacity, $demandId]);
     $process->setTimeout(15);

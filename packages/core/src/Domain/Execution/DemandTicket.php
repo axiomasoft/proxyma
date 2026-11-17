@@ -7,7 +7,9 @@ namespace Proxyma\Domain\Execution;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 
+#[Api(since: '1.0')]
 final readonly class DemandTicket
 {
     public DateTimeImmutable $expiresAt;
@@ -53,8 +55,9 @@ final readonly class DemandTicket
             throw new InvalidArgumentException('Cannot compare FIFO priority across different limiting scopes.');
         }
 
-        return ($this->ticketSequence <=> $other->ticketSequence)
-            ?: ($this->demandId->value <=> $other->demandId->value);
+        $cmp = $this->ticketSequence <=> $other->ticketSequence;
+
+        return $cmp !== 0 ? $cmp : ($this->demandId->value <=> $other->demandId->value);
     }
 
     public function withState(DemandState $nextState): self

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\Policy\PolicyCommands;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\EgressIdentity;
 use Proxyma\Domain\Catalog\RouteKind;
@@ -20,7 +20,7 @@ require_once __DIR__.'/../Support/SelectionFixtures.php';
 require_once __DIR__.'/../Support/DemandFixtures.php';
 require_once __DIR__.'/../Support/ReservationFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class, ReservationFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeReservationFixture();
@@ -31,11 +31,11 @@ beforeEach(function (): void {
 
 function gcraWorker($test, array $intent, string $label, string $mode = 'reserve', ?string $head = null): Process
 {
-    return (new Process(['php', dirname(__DIR__).'/Support/ReservationWorker.php', json_encode([
+    return new Process([PHP_BINARY, __DIR__.'/../Support/ReservationWorker.php', json_encode([
         'schema' => $test->workerSchema, 'mode' => $mode, 'label' => $label, 'head' => $head,
         'operation' => $intent['operation']->operationId->value, 'attempt' => $intent['request']->physicalAttemptId->value,
         'deadline' => $intent['request']->deadlineAt->format('U.u'), 'route' => $intent['route']->routeId->value,
-    ], JSON_THROW_ON_ERROR)]))->setTimeout(15);
+    ], JSON_THROW_ON_ERROR)])->setTimeout(15);
 }
 
 function gcraWorkers($test, array $workers, bool $ordered = false, ?Closure $beforeRelease = null): array

@@ -9,7 +9,7 @@ require_once __DIR__.'/DestinationFixtures.php';
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Application\Admission\ReservationService;
-use Proxyma\Contracts\CatalogQueries;
+use Proxyma\Contracts\Catalog\CatalogQueries;
 use Proxyma\Domain\Execution\DemandPurpose;
 use Proxyma\Domain\Execution\OperationCorrelation;
 use Proxyma\Domain\Execution\OwnerRef;
@@ -88,7 +88,7 @@ trait QuotaFixtures
 
     protected function trafficShares(array $classes): void
     {
-        $this->app['config']->set('proxyma.traffic_shares', $classes);
+        $this->reconfigureProxyma(['traffic_shares' => $classes]);
         $this->workerClasses = $classes;
         $this->reservations = $this->app->make(ReservationService::class);
         $this->quota = $this->app->make(QuotaService::class);
@@ -98,7 +98,7 @@ trait QuotaFixtures
 
     protected function quotaCounts(): array
     {
-        return array_map(static fn ($row) => (array) $row, $this->table('quota_windows')->orderBy('budget_id')->orderBy('window_kind')->orderBy('starts_at')
+        return array_map(static fn ($row): array => (array) $row, $this->table('quota_windows')->orderBy('budget_id')->orderBy('window_kind')->orderBy('starts_at')
             ->select(['id', 'budget_id', 'window_kind', 'starts_at', 'ends_at', 'quota_limit', 'reserved', 'spent'])->get()->all());
     }
 }

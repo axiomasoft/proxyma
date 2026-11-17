@@ -2,20 +2,14 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
-    public function getConnection(): ?string
-    {
-        return config('proxyma.connection', 'pgsql');
-    }
-
     public function up(): void
     {
-        $db = DB::connection($this->getConnection());
+        $db = $this->db();
         $table = PackageSchema::tables()['attempts'];
         $db->statement("ALTER TABLE {$table} ADD COLUMN dispatch_outcome text NOT NULL DEFAULT 'unknown'
             CHECK (dispatch_outcome IN ('unknown','not_dispatched')), ADD COLUMN dispatch_refused_at timestamptz,
@@ -38,7 +32,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $db = DB::connection($this->getConnection());
+        $db = $this->db();
         $table = PackageSchema::tables()['attempts'];
         if ($db->table($table)->whereNotNull('dispatch_refused_at')->exists()) {
             throw new LogicException('Dispatch refusal history prevents rollback.');

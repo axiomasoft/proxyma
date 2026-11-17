@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Execution\DestinationPolicy;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\Target;
 use WeakMap;
 
+#[Api(since: '1.0')]
 final class ResolvedUrl
 {
+    /** @var WeakMap<self, bool>|null */
     private static ?WeakMap $verified = null;
 
     /** @var non-empty-list<string> */
@@ -71,9 +74,13 @@ final class ResolvedUrl
 
     public static function isUrlVerifiedForTarget(Uuid $targetId, SafeUrl $url, int $targetRevision, CanonicalOrigin $targetOrigin): bool
     {
-        foreach (self::$verified ?? [] as $resolved => $verified) {
-            if ($resolved->url === $url && $resolved->targetId?->equals($targetId)
-                && $resolved->targetRevision === $targetRevision && $resolved->targetOrigin?->equals($targetOrigin)) {
+        if (self::$verified === null) {
+            return false;
+        }
+
+        foreach (self::$verified as $resolved => $verified) {
+            if ($verified && $resolved->url === $url && $resolved->targetId?->equals($targetId) === true
+                && $resolved->targetRevision === $targetRevision && $resolved->targetOrigin?->equals($targetOrigin) === true) {
                 return true;
             }
         }
@@ -83,7 +90,7 @@ final class ResolvedUrl
 
     public function isPolicyVerified(): bool
     {
-        return isset(self::$verified[$this]);
+        return self::$verified !== null && isset(self::$verified[$this]);
     }
 
     public function withAddress(string $address): self
@@ -95,6 +102,7 @@ final class ResolvedUrl
         $result = new self($this->url, $address, $this->addresses, $this->originalHost, $this->port, $this->targetId, $this->targetRevision, $this->destinationPolicyKey,
             targetOrigin: $this->targetOrigin);
         if ($this->isPolicyVerified()) {
+            self::$verified ??= new WeakMap;
             self::$verified[$result] = true;
         }
 

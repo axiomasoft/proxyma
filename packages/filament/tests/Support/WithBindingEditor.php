@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Filament\Tests\Support;
 
 use Livewire\Livewire;
+use LogicException;
 use Proxyma\Application\Extensions\DefinitionRegistry;
 use Proxyma\Application\Policy\CoreSettings;
 use Proxyma\Application\Policy\SettingRegistry;
-use Proxyma\Contracts\SubjectResolver;
+use Proxyma\Contracts\Bindings\SubjectResolver;
 use Proxyma\Domain\Panels\PanelSlot;
 use Proxyma\Domain\Panels\SubjectResolverDefinition;
 use Proxyma\Domain\Policy\PanelDefinition;
@@ -27,7 +28,7 @@ class EditorSubjects implements SubjectResolver
     public function resolve(SubjectRef $leaf): ?SubjectChain
     {
         if (app('db')->connection('pgsql')->transactionLevel() !== 0) {
-            throw new \LogicException('Subject I/O inside SQL transaction.');
+            throw new LogicException('Subject I/O inside SQL transaction.');
         }
 
         return $this->chains[$leaf->key()] ?? null;

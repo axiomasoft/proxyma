@@ -8,17 +8,22 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\Paginator;
+use InvalidArgumentException;
+use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Execution\TransportFailure;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Health\HealthScope;
 use Proxyma\Filament\CatalogBrowser;
+use Proxyma\Filament\Internal\FilamentValue;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
+#[Api(since: '1.0')]
 class OperationsQuery
 {
     public function __construct(private ConnectionScope $scope, private CatalogAccess $access, private TenantContextResolver $tenants) {}
@@ -28,34 +33,50 @@ class OperationsQuery
         $this->access->authorize($this->tenants->resolve()->tenant, "operations.{$kind}.".($id === null ? 'list' : 'read'), new Uuid($id ?? CatalogBrowser::CollectionId));
     }
 
+    /** @return Paginator<int, array<string, mixed>> */
     public function page(string $kind, int $page = 1, HealthScope $healthScope = HealthScope::Route): Paginator
     {
         $this->authorize($kind);
         [$table, $columns] = $this->projection($kind, $healthScope);
         $query = $this->query($table);
-        /** @var Paginator $paginator */
         $paginator = $query->orderBy('id')->simplePaginate(25, $columns, 'operationsPage', max(1, min(100000, $page)));
+        if (! $paginator instanceof Paginator) {
+            throw new LogicException('Expected Paginator instance.');
+        }
         $rows = [];
         $now = DatabaseClock::now($this->scope->connection);
-        $windows = $kind === 'budgets' ? $this->scope->connection->table(PackageSchema::tables()['quota_windows'])
-            ->where('tenant_key', $this->tenants->resolve()->tenant->value)->whereIn('budget_id', array_column($paginator->items(), 'id'))
-            ->where('starts_at', '<=', $now)->where('ends_at', '>', $now)->get()->groupBy('budget_id') : collect();
-        foreach ($paginator->items() as $row) {
+        $pageItems = array_values(array_filter($paginator->items(), is_object(...)));
+        $windowMap = [];
+        if ($kind === 'budgets' && $pageItems !== []) {
+            $budgetIds = array_map(static fn (object $item): string => FilamentValue::colStr($item, 'id'), $pageItems);
+            $windowsResult = $this->scope->connection->table(PackageSchema::tables()['quota_windows'])
+                ->where('tenant_key', $this->tenants->resolve()->tenant->value)->whereIn('budget_id', $budgetIds)
+                ->where('starts_at', '<=', $now)->where('ends_at', '>', $now)->get();
+            foreach ($windowsResult as $windowRow) {
+                $windowMap[FilamentValue::colStr($windowRow, 'budget_id')][] = $windowRow;
+            }
+        }
+        foreach ($pageItems as $row) {
+            $rowId = FilamentValue::colStr($row, 'id');
             try {
-                $this->authorize($kind, $row->id);
+                $this->authorize($kind, $rowId);
             } catch (AuthorizationDenied) {
                 continue;
             }
             $rows[] = match ($kind) {
-                'budgets' => $this->budget($row, $windows->get($row->id, collect())->all(), $now),
+                'budgets' => $this->budget($row, $windowMap[$rowId] ?? [], $now),
                 'health' => $this->health($row, $healthScope),
-                default => (array) $row,
+                default => FilamentValue::assoc(get_object_vars($row)),
             };
         }
 
-        return $paginator->setCollection(collect($rows));
+        /** @var Paginator<int, array<string, mixed>> $typedPaginator */
+        $typedPaginator = $paginator->setCollection(collect($rows));
+
+        return $typedPaginator;
     }
 
+    /** @return array<string, mixed>|null */
     public function find(string $kind, string $id, HealthScope $healthScope = HealthScope::Route): ?array
     {
         $this->authorize($kind);
@@ -69,7 +90,7 @@ class OperationsQuery
         return match ($kind) {
             'health' => $this->health($row, $healthScope),
             'budgets' => $this->budget($row, [], DatabaseClock::now($this->scope->connection)),
-            default => (array) $row,
+            default => FilamentValue::assoc(get_object_vars($row)),
         };
     }
 
@@ -80,6 +101,7 @@ class OperationsQuery
         return $this->scope->connection->table(PackageSchema::tables()[$table])->where('tenant_key', $this->tenants->resolve()->tenant->value);
     }
 
+    /** @return array{0: string, 1: list<string>} */
     private function projection(string $kind, HealthScope $scope): array
     {
         return match ($kind) {
@@ -87,16 +109,17 @@ class OperationsQuery
             'health' => [$scope->value, ['id', ...($scope !== HealthScope::Target ? ['route_id'] : []), ...($scope !== HealthScope::Route ? ['target_id'] : []), 'state', 'state_version', 'health_epoch', 'reason_code', 'open_until', 'probe_until']],
             'attempts' => ['attempts', ['id', 'operation_id', 'physical_attempt_id', 'status', 'authorized_at', 'completed_at']],
             'audit' => ['audit_events', ['id', 'entity_type', 'entity_id', 'event_kind', 'ability', 'previous_revision', 'revision', 'actor_type', 'actor_id', 'reason', 'created_at']],
-            default => throw new \InvalidArgumentException('Unknown operations section.'),
+            default => throw new InvalidArgumentException('Unknown operations section.'),
         };
     }
 
+    /** @return array<string, mixed> */
     private function health(object $row, HealthScope $scope): array
     {
-        $data = (array) $row;
+        $data = FilamentValue::assoc(get_object_vars($row));
         $data['scope'] = $scope->value;
         // reason_code остаётся открытой строкой в storage; UI показывает только код, не произвольный payload.
-        $reason = $data['reason_code'];
+        $reason = FilamentValue::colNullableStr($row, 'reason_code');
         $data['reason_code'] = $reason === null ? null : (str_starts_with($reason, 'credential_hold') ? 'credential_hold'
             : (TransportFailure::tryFrom($reason) !== null || preg_match('/^http_[1-5][0-9]{2}$/D', $reason) === 1
                 || in_array($reason, ['probe_expired', 'waf_rate_signal'], true) ? $reason : 'health_hold'));
@@ -104,45 +127,65 @@ class OperationsQuery
         return $data;
     }
 
+    /**
+     * @param  list<object>  $windows
+     * @return array<string, mixed>
+     */
     private function budget(object $row, array $windows, DateTimeImmutable $now): array
     {
         $next = DatabaseClock::micros($now);
-        $allowance = (int) $row->emission_interval_us > intdiv(PHP_INT_MAX, max(1, (int) $row->burst - 1))
-            ? PHP_INT_MAX : (int) $row->emission_interval_us * ((int) $row->burst - 1);
+        $emissionIntervalUs = FilamentValue::colInt($row, 'emission_interval_us');
+        $burst = FilamentValue::colInt($row, 'burst');
+        $allowance = $emissionIntervalUs > intdiv(PHP_INT_MAX, max(1, $burst - 1))
+            ? PHP_INT_MAX : $emissionIntervalUs * ($burst - 1);
         foreach (['tat', 'send_tat', 'cooldown_until'] as $field) {
-            if ($row->$field !== null && ! in_array($row->$field, ['-infinity', 'infinity'], true)) {
-                $next = max($next, DatabaseClock::micros(new DateTimeImmutable($row->$field)) - ($field === 'cooldown_until' ? 0 : $allowance));
+            $ts = FilamentValue::colNullableStr($row, $field);
+            if ($ts !== null && ! in_array($ts, ['-infinity', 'infinity'], true)) {
+                $next = max($next, DatabaseClock::micros(new DateTimeImmutable($ts)) - ($field === 'cooldown_until' ? 0 : $allowance));
             }
         }
         $quotas = [];
         $unknown = false;
+        $quotaPolicyKey = FilamentValue::colNullableStr($row, 'quota_policy_key');
         foreach (['hour', 'day'] as $kind) {
-            $configured = $row->{$kind.'_limit'};
+            $configured = FilamentValue::colNullableInt($row, $kind.'_limit');
             if ($configured === null) {
                 continue;
             }
-            $window = array_find($windows, static fn ($w): bool => $w->window_kind === $kind && $w->policy_key === $row->quota_policy_key);
-            $unknown = $unknown || $window === null || (int) $configured === 0;
-            if ($window !== null && (int) $window->spent + (int) $window->reserved >= min((int) $window->quota_limit, (int) $configured)) {
-                $next = max($next, DatabaseClock::micros(new DateTimeImmutable($window->ends_at)));
+            $window = array_find(
+                $windows,
+                static fn (object $w): bool => FilamentValue::colStr($w, 'window_kind') === $kind
+                    && FilamentValue::colNullableStr($w, 'policy_key') === $quotaPolicyKey,
+            );
+            $unknown = $unknown || $window === null || $configured === 0;
+            if ($window !== null && FilamentValue::colInt($window, 'spent') + FilamentValue::colInt($window, 'reserved') >= min(FilamentValue::colInt($window, 'quota_limit'), $configured)) {
+                $next = max($next, DatabaseClock::micros(new DateTimeImmutable(FilamentValue::colStr($window, 'ends_at'))));
             }
-            $quotas[] = ['window' => $kind, 'timezone' => 'UTC', 'limit' => (int) $configured,
-                'consumed' => $window === null ? null : (int) $window->spent, 'reserved' => $window === null ? null : (int) $window->reserved,
-                'starts_at' => $window === null ? null : $this->utc($window->starts_at), 'ends_at' => $window === null ? null : $this->utc($window->ends_at)];
+            $quotas[] = ['window' => $kind, 'timezone' => 'UTC', 'limit' => $configured,
+                'consumed' => $window === null ? null : FilamentValue::colInt($window, 'spent'),
+                'reserved' => $window === null ? null : FilamentValue::colInt($window, 'reserved'),
+                'starts_at' => $window === null ? null : $this->utc(FilamentValue::colStr($window, 'starts_at')),
+                'ends_at' => $window === null ? null : $this->utc(FilamentValue::colStr($window, 'ends_at'))];
         }
-        $dimension = explode(':', $row->scope_key, 2)[0];
+        $scopeKey = FilamentValue::colStr($row, 'scope_key');
+        $dimension = explode(':', $scopeKey, 2)[0];
+        $inflight = FilamentValue::colInt($row, 'inflight');
+        $maxInflight = FilamentValue::colInt($row, 'max_inflight');
+        $tat = FilamentValue::colNullableStr($row, 'tat');
+        $sendTat = FilamentValue::colNullableStr($row, 'send_tat');
+        $cooldownUntil = FilamentValue::colNullableStr($row, 'cooldown_until');
 
-        return ['id' => $row->id, 'revision' => (int) $row->revision,
+        return ['id' => FilamentValue::colStr($row, 'id'), 'revision' => FilamentValue::colInt($row, 'revision'),
             'scope' => in_array($dimension, ['system', 'tenant', 'panel', 'entity', 'operation', 'origin', 'route', 'route-origin', 'egress-origin', 'traffic', 'probe'], true) ? $dimension : 'custom',
-            'scope_fingerprint' => hash('sha256', $row->scope_key), 'quotas' => $quotas,
-            'emission_interval_us' => (int) $row->emission_interval_us, 'burst' => (int) $row->burst,
-            'inflight' => (int) $row->inflight, 'max_inflight' => (int) $row->max_inflight,
-            'hour_limit' => $row->hour_limit === null ? null : (int) $row->hour_limit,
-            'day_limit' => $row->day_limit === null ? null : (int) $row->day_limit,
-            'editable' => $row->traffic_parent_id === null,
-            'next_eligible_at' => $unknown || (int) $row->inflight >= (int) $row->max_inflight || $row->tat === 'infinity' || $row->send_tat === 'infinity' || $row->cooldown_until === 'infinity'
+            'scope_fingerprint' => hash('sha256', $scopeKey), 'quotas' => $quotas,
+            'emission_interval_us' => $emissionIntervalUs, 'burst' => $burst,
+            'inflight' => $inflight, 'max_inflight' => $maxInflight,
+            'hour_limit' => FilamentValue::colNullableInt($row, 'hour_limit'),
+            'day_limit' => FilamentValue::colNullableInt($row, 'day_limit'),
+            'editable' => FilamentValue::col($row, 'traffic_parent_id') === null,
+            'next_eligible_at' => $unknown || $inflight >= $maxInflight || $tat === 'infinity' || $sendTat === 'infinity' || $cooldownUntil === 'infinity'
                 ? null : DatabaseClock::instant($next)->format('Y-m-d\TH:i:s.u\Z'),
-            'cooldown_until' => $row->cooldown_until === null ? null : $this->utc($row->cooldown_until)];
+            'cooldown_until' => $cooldownUntil === null ? null : $this->utc($cooldownUntil)];
     }
 
     private function utc(string $date): ?string
@@ -151,6 +194,6 @@ class OperationsQuery
             return null;
         }
 
-        return (new DateTimeImmutable($date))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z');
+        return new DateTimeImmutable($date)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z');
     }
 }

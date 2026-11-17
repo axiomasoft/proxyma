@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Proxyma\Infrastructure\Http;
 
+use InflateContext;
+use LengthException;
 use LogicException;
+use Packman\Attributes\Internal;
 use Proxyma\Domain\Execution\BinaryBodyArtifact;
 use Proxyma\Domain\Execution\ContentHash;
 use Proxyma\Domain\Execution\RawResponseBody;
@@ -12,11 +15,13 @@ use Proxyma\Domain\Execution\ResponseBody;
 use Proxyma\Domain\Execution\ResponseProfile;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 
+#[Internal]
 final class ResponseReader
 {
-    private mixed $stream;
+    /** @var resource */
+    private $stream;
 
-    private mixed $inflater = null;
+    private ?InflateContext $inflater = null;
 
     private int $wire = 0;
 
@@ -34,19 +39,24 @@ final class ResponseReader
             throw new LogicException('Unsupported content encoding.');
         }
         if ($encoding === 'gzip' || $encoding === 'deflate') {
-            $this->inflater = inflate_init($encoding === 'gzip' ? ZLIB_ENCODING_GZIP : ZLIB_ENCODING_DEFLATE);
+            $inflater = inflate_init($encoding === 'gzip' ? ZLIB_ENCODING_GZIP : ZLIB_ENCODING_DEFLATE);
+            if ($inflater === false) {
+                throw new LogicException('Cannot create response sink.');
+            }
+            $this->inflater = $inflater;
         }
-        $this->stream = tmpfile();
-        if ($this->stream === false || $this->inflater === false) {
+        $stream = tmpfile();
+        if (! is_resource($stream)) {
             throw new LogicException('Cannot create response sink.');
         }
+        $this->stream = $stream;
     }
 
     public function write(string $chunk): void
     {
         $this->wire += strlen($chunk);
         if ($this->wire > $this->profile->maxWireBytes) {
-            throw new \LengthException('Wire byte limit exceeded.');
+            throw new LengthException('Wire byte limit exceeded.');
         }
         foreach (str_split($chunk, 512) as $part) {
             $decoded = $this->inflater === null ? $part : @inflate_add($this->inflater, $part, ZLIB_SYNC_FLUSH);
@@ -55,7 +65,7 @@ final class ResponseReader
             }
             $this->decoded += strlen($decoded);
             if ($this->decoded > $this->profile->maxEntityBytes) {
-                throw new \LengthException('Entity byte limit exceeded.');
+                throw new LengthException('Entity byte limit exceeded.');
             }
             if ($this->profile->kind === 'binary') {
                 if (fwrite($this->stream, $decoded) !== strlen($decoded)) {

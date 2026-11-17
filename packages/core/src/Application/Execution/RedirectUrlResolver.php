@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Proxyma\Application\Execution;
 
 use InvalidArgumentException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\SafeUrl;
 
 /** @internal Общая RFC relative-reference обработка обоих execution entry points. */
+#[Api(since: '1.0')]
 final class RedirectUrlResolver
 {
     public function resolve(SafeUrl $baseUrl, string $location): SafeUrl

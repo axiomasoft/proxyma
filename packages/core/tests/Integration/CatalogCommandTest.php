@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
+use Packman\Schema\Contracts\Migration\SchemaSets;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
 use Proxyma\Application\Catalog\CatalogNotFound;
 use Proxyma\Application\Catalog\CatalogStorageFailure;
-use Proxyma\Contracts\CatalogCommands;
-use Proxyma\Contracts\CatalogQueries;
+use Proxyma\Contracts\Catalog\CatalogCommands;
+use Proxyma\Contracts\Catalog\CatalogQueries;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\CatalogMutationActor;
@@ -31,13 +32,13 @@ use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 it('не пишет без явного Authorizer и без обязательных revision/idempotency metadata', function (): void {
-    expect(fn () => new ActorRef('Invalid type', 'operator'))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new ActorRef('operator', ''))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new CatalogMutationActor('operator', 'reason', -1, 'key'))->toThrow(InvalidArgumentException::class);
-    expect(fn () => new CatalogMutationActor('operator', 'reason', 0, "bad\nkey"))->toThrow(InvalidArgumentException::class);
+    expect(fn (): ActorRef => new ActorRef('Invalid type', 'operator'))->toThrow(InvalidArgumentException::class);
+    expect(fn (): ActorRef => new ActorRef('operator', ''))->toThrow(InvalidArgumentException::class);
+    expect(fn (): CatalogMutationActor => new CatalogMutationActor('operator', 'reason', -1, 'key'))->toThrow(InvalidArgumentException::class);
+    expect(fn (): CatalogMutationActor => new CatalogMutationActor('operator', 'reason', 0, "bad\nkey"))->toThrow(InvalidArgumentException::class);
     $unconfigured = $this->app->make(CatalogCommands::class);
     $denied = new UpsertTargetCommand(Uuid::random(), $this->tenant, 'denied', CanonicalOrigin::of('https', 'example.test'), 'default', $this->actor());
     expect(fn () => $unconfigured->upsertTarget($denied))->toThrow(AuthorizationDenied::class);
@@ -204,8 +205,10 @@ it('bootstrap не делает SQL, миграция имеет один autolo
     expect($queries)->toBe([]);
     $paths = $this->app['migrator']->paths();
     $expected = dirname(__DIR__, 2).'/database/migrations';
-    $normalized = array_map(static fn (string $path): string => realpath($path), $paths);
-    expect(count(array_filter($normalized, static fn (string $path): bool => $path === realpath($expected))))->toBe(1);
+    $normalized = array_map(realpath(...), $paths);
+    $central = $this->app->make(SchemaSets::class)->get('axiomasoft/proxyma:proxyma');
+    expect($normalized)->not->toContain(realpath($expected))
+        ->and($central->path !== null ? realpath($central->path) : false)->toBe(realpath($expected));
     $published = ProxymaServiceProvider::pathsToPublish(ProxymaServiceProvider::class);
     foreach (array_keys($published) as $source) {
         expect($source)->not->toContain('migrations');

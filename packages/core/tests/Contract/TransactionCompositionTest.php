@@ -5,9 +5,9 @@ declare(strict_types=1);
 use Illuminate\Database\PostgresConnection;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\TransactionCoordinator;
-use Proxyma\Contracts\ClaimActivationAuthority;
-use Proxyma\Contracts\OwnerAuthority;
-use Proxyma\Contracts\TransactionCoordinator as CoordinatorContract;
+use Proxyma\Contracts\Admission\ClaimActivationAuthority;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\TransactionCoordinator as CoordinatorContract;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\AuthorityLockTier;
 use Proxyma\Domain\Catalog\EgressIdentity;
@@ -37,13 +37,13 @@ require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/SelectionFixtures.php';
 require_once __DIR__.'/../Support/TransactionFixtures.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 // Test-only primitive harness: production activate additionally requires a durable sealed CAS.
-function compositionActivate($coordinator, $candidate, $wire, $snapshot, ?int $now = null)
+function compositionActivate($coordinator, $candidate, $wire, $snapshot, ?int $now = null): AuthorizedWireRequest
 {
     $coordinator->scope->assertOutsideTransaction();
-    $candidates = (new ReflectionProperty($coordinator, 'candidates'))->getValue($coordinator);
+    $candidates = new ReflectionProperty($coordinator, 'candidates')->getValue($coordinator);
     $latch = $candidates[$candidate] ?? throw new LogicException('Unknown candidate');
     $authority = new class($coordinator, $now) implements ClaimActivationAuthority
     {
@@ -71,7 +71,7 @@ function compositionActivate($coordinator, $candidate, $wire, $snapshot, ?int $n
             return null;
         }
     };
-    (new ReflectionProperty($candidate, 'activationAuthority'))->setValue($candidate, $authority);
+    new ReflectionProperty($candidate, 'activationAuthority')->setValue($candidate, $authority);
 
     return AuthorizedWireRequest::activate($candidate, $latch, 0, $wire, $snapshot, $now);
 }
@@ -114,11 +114,11 @@ it('исполняет standalone и caller-owned пути на одной Conne
     expect($this->app->make(OwnerAuthority::class))->toBeInstanceOf(DatabaseOwnerAuthority::class);
     $candidate = $this->transactions->run(fn ($tx) => ($this->candidate)($tx));
     expect(compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot)->isConsumed())->toBeFalse();
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     $this->db->beginTransaction();
     $second = $this->transactions->locked($this->db, fn ($tx) => ($this->candidate)($tx));
     expect($this->db->transactionLevel())->toBe(1);
-    expect(fn () => compositionActivate($this->transactions, $second, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $second, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     $this->db->commit();
     expect(compositionActivate($this->transactions, $second, $this->wire, $this->wireSnapshot)->isConsumed())->toBeFalse();
 });
@@ -128,16 +128,16 @@ it('отклоняет неверную Connection даже с тем же им�
     $other = new PostgresConnection($this->connectionPdo(), 'proxyma_test', '', $config);
     $other->setTransactionManager($this->app['db.transactions']);
     $this->db->transaction(function () use ($other): void {
-        expect(fn () => $this->transactions->locked($other, fn () => true))->toThrow(LogicException::class, 'same Connection');
+        expect(fn () => $this->transactions->locked($other, fn (): true => true))->toThrow(LogicException::class, 'same Connection');
         $this->db->beginTransaction();
-        expect(fn () => $this->transactions->locked($other, fn () => true))->toThrow(LogicException::class, 'same Connection');
+        expect(fn () => $this->transactions->locked($other, fn (): true => true))->toThrow(LogicException::class, 'same Connection');
         $this->db->rollBack();
         $this->transactions->run(function ($tx): void {
             $forged = new LockedTransactionContext($tx->connectionName, $tx->outerTransactionToken, $tx->monotonicSampledBeforeTxNs);
             expect(fn () => ($this->candidate)($forged))->toThrow(LogicException::class, 'Foreign');
         });
     });
-    expect(fn () => $this->transactions->locked($this->db, fn () => true))->toThrow(LogicException::class, 'active PostgreSQL');
+    expect(fn () => $this->transactions->locked($this->db, fn (): true => true))->toThrow(LogicException::class, 'active PostgreSQL');
 });
 
 it('снимает monotonic sample до caller-owned outer transaction', function (): void {
@@ -151,7 +151,7 @@ it('снимает monotonic sample до caller-owned outer transaction', functi
 it('после savepoint release разрешает активацию только после outer commit', function (): void {
     $this->db->beginTransaction();
     $candidate = $this->db->transaction(fn () => $this->transactions->run(fn ($tx) => ($this->candidate)($tx)));
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     $this->db->commit();
     expect(compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot)->isConsumed())->toBeFalse();
 });
@@ -159,16 +159,16 @@ it('после savepoint release разрешает активацию толь�
 it('отклоняет expiry и потерю локального latch после замены coordinator', function (): void {
     $candidate = $this->transactions->run(fn ($tx) => ($this->candidate)($tx));
     $newProcess = new TransactionCoordinator($this->scope);
-    expect(fn () => $newProcess->activate($candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class, 'Unknown candidate');
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot, PHP_INT_MAX))->toThrow(LogicException::class, 'expired');
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class, 'already been activated');
+    expect(fn (): AuthorizedWireRequest => $newProcess->activate($candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class, 'Unknown candidate');
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot, PHP_INT_MAX))->toThrow(LogicException::class, 'expired');
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class, 'already been activated');
 });
 
 it('откатывает finance и network при первом blocker включая false и typed denial', function (string $mode): void {
     $leaked = null;
     expect(function () use ($mode, &$leaked): void {
         $this->db->transaction(function () use ($mode, &$leaked) {
-            return $this->transactions->locked($this->db, function ($tx) use ($mode, &$leaked) {
+            return $this->transactions->locked($this->db, function ($tx) use ($mode, &$leaked): ClaimDenied|false {
                 $this->locks->owner($this->owners, $this->owner, $this->ownerSnapshot, $tx);
                 $this->finance->reserve($tx);
                 $this->locks->operation($this->operationId, $this->owner, $tx);
@@ -183,16 +183,16 @@ it('откатывает finance и network при первом blocker вклю
     })->toThrow(AdmissionRejected::class);
     expect($this->db->table('fixture_finance')->value('reserved'))->toBe(0)
         ->and($this->db->table('fixture_network')->value('reserved'))->toBe(0);
-    expect(fn () => compositionActivate($this->transactions, $leaked, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $leaked, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
 })->with(['exception', 'false', 'denial']);
 
 it('не активирует savepoint release и инвалидирует candidate при outer rollback', function (): void {
     $this->db->beginTransaction();
     $candidate = $this->db->transaction(fn () => $this->transactions->run(fn ($tx) => ($this->candidate)($tx)));
     expect($this->db->transactionLevel())->toBe(1);
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     $this->db->rollBack();
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     expect($this->db->table('fixture_network')->value('reserved'))->toBe(0);
 });
 
@@ -204,7 +204,7 @@ it('сохраняет несколько candidates одного outer commit �
     $good = $this->transactions->run(fn ($tx) => ($this->candidate)($tx));
     $another = $this->transactions->run(fn ($tx) => ($this->candidate)($tx));
     $this->db->commit();
-    expect(fn () => compositionActivate($this->transactions, $bad, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $bad, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     expect(compositionActivate($this->transactions, $good, $this->wire, $this->wireSnapshot)->isConsumed())->toBeFalse()
         ->and(compositionActivate($this->transactions, $another, $this->wire, $this->wireSnapshot)->isConsumed())->toBeFalse();
 });
@@ -217,7 +217,7 @@ it('инвалидирует candidate при настоящем deferred constr
             $this->table('policy_heads')->insert(['tenant_key' => $this->tenant->value, 'scope_key' => 'fixture', 'current_revision_id' => Uuid::random()->value]);
         }, maxAttempts: 1);
     })->toThrow(PDOException::class);
-    expect(fn () => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
+    expect(fn (): AuthorizedWireRequest => compositionActivate($this->transactions, $candidate, $this->wire, $this->wireSnapshot))->toThrow(LogicException::class);
     expect($this->db->table('fixture_network')->value('reserved'))->toBe(0);
 });
 

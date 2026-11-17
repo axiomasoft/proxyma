@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Proxyma\Application\Extensions;
 
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\BudgetScopeContributor;
+use Proxyma\Contracts\Routing\RouteFilter;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Catalog\Route;
 use Proxyma\Domain\Execution\WireRequest;
@@ -11,7 +14,9 @@ use Proxyma\Domain\Panels\ExtensionKind;
 use Proxyma\Domain\Policy\BudgetConstraint;
 use Proxyma\Domain\Policy\RouteSubsetEnforcer;
 use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Internal\Database\RowValues;
 
+#[Api(since: '1.0')]
 final readonly class ExtensionRuntime
 {
     public function __construct(private DefinitionRegistry $registry) {}
@@ -23,6 +28,9 @@ final readonly class ExtensionRuntime
     public function filter(array $routes, WireRequest $request, array $ids): array
     {
         foreach ($this->registry->selectExtensions(ExtensionKind::RouteFilter, $ids) as $definition) {
+            if (! $definition->implementation instanceof RouteFilter) {
+                throw new AdmissionRejected('invalid_route_filter');
+            }
             $routes = RouteSubsetEnforcer::enforceSubset($routes, $definition->implementation->filter($routes, $request));
         }
 
@@ -37,14 +45,12 @@ final readonly class ExtensionRuntime
     {
         $extra = [];
         foreach ($this->registry->selectExtensions(ExtensionKind::BudgetScopeContributor, $ids) as $definition) {
-            /** @var array<array-key, mixed> $constraints */
-            $constraints = $definition->implementation->contribute($request, $route, $request->url->origin);
-            if (! array_is_list($constraints)) {
-                throw new AdmissionRejected('invalid_budget_contribution');
+            if (! $definition->implementation instanceof BudgetScopeContributor || $definition->budgetSchema === null) {
+                throw new AdmissionRejected('undeclared_budget_scope');
             }
+            $constraints = $definition->implementation->contribute($request, $route, $request->url->origin);
             foreach ($constraints as $constraint) {
-                if (! $constraint instanceof BudgetConstraint
-                    || (! in_array($constraint->scopeKey, $coreKeys, true) && ! $definition->budgetSchema->allows($constraint->scopeKey, $tenant))) {
+                if (! in_array($constraint->scopeKey, $coreKeys, true) && ! $definition->budgetSchema->allows($constraint->scopeKey, $tenant)) {
                     throw new AdmissionRejected('undeclared_budget_scope');
                 }
                 $extra[] = $constraint;
@@ -60,8 +66,12 @@ final readonly class ExtensionRuntime
     public function assertSharedBudgets(array $budgets, TenantKey $tenant, array $ids): void
     {
         foreach ($this->registry->selectExtensions(ExtensionKind::BudgetScopeContributor, $ids) as $definition) {
+            if ($definition->budgetSchema === null) {
+                throw new AdmissionRejected('undeclared_budget_scope');
+            }
             foreach ($budgets as $budget) {
-                if ($definition->budgetSchema->allows($budget->scope_key, $tenant) && $budget->tenant_key !== $tenant->value
+                if ($definition->budgetSchema->allows(RowValues::colStr($budget, 'scope_key'), $tenant)
+                    && RowValues::colStr($budget, 'tenant_key') !== $tenant->value
                     && ! in_array($tenant->value, $definition->budgetSchema->sharedTenants, true)) {
                     throw new AdmissionRejected('budget_sharing_grant_required');
                 }

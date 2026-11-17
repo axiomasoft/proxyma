@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Connection;
 use Proxyma\Application\Authorization\AuthorizationDenied;
-use Proxyma\Contracts\WorkBudget;
+use Proxyma\Contracts\Admission\WorkBudget;
 use Proxyma\Domain\Admission\AdmissionRejected;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\QueueLimits;
@@ -29,7 +29,7 @@ use Proxyma\Tests\Support\FixtureWorkBudget;
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/DemandFixtures.php';
 
-uses(CatalogTestCase::class, DemandFixtures::class);
+uses(CatalogTestCase::class, DemandFixtures::class)->group('pg');
 
 beforeEach(function (): void {
     $this->initializeDemandFixture();

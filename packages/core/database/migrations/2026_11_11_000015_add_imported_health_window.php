@@ -2,15 +2,14 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Eloquent\ImportedHealthSampleRecord;
 
-return new class extends Migration
+return new class extends ProxymaMigration
 {
     public function up(): void
     {
-        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $db = $this->db();
         $table = (new ImportedHealthSampleRecord)->getTable();
         $db->statement("CREATE TABLE {$table} (
             tenant_key text NOT NULL, observation_id uuid NOT NULL, attempt_id uuid NOT NULL,
@@ -25,7 +24,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $db = DB::connection(config('proxyma.connection', 'pgsql'));
+        $db = $this->db();
         $table = (new ImportedHealthSampleRecord)->getTable();
         $db->statement("DROP TABLE IF EXISTS {$table}");
     }

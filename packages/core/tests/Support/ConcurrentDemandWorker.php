@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Database\PostgresConnection;
+use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
+use Packman\Testkit\Support\Database\TestDatabaseGuard;
 use Proxyma\Application\Admission\AuthorityLocker;
 use Proxyma\Application\Admission\DemandQueue;
 use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\Authorizer;
-use Proxyma\Contracts\TenantContextResolver;
+use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Admission\DemandWait;
 use Proxyma\Domain\Admission\QueueLimits;
 use Proxyma\Domain\Catalog\ActorRef;
@@ -37,15 +39,17 @@ if (preg_match('/^pxm_t_[a-f0-9]{16}$/D', $schema) !== 1 || ! in_array($mode, ['
     || ! in_array($label, ['one', 'two'], true) || ! in_array($capacity, ['1', '64'], true)) {
     throw new RuntimeException('Invalid isolated demand worker input.');
 }
-$pdo = new PDO('pgsql:host=db;port=5432;dbname=proxyma_test', 'proxyma_test', 'proxyma-test-only', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-if ($pdo->query('SELECT current_database(), current_user, (SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM)
+$identity = SuiteDatabaseConnection::pgsqlIdentity();
+TestDatabaseGuard::assertDestructiveSafe($identity);
+$pdo = new PDO(SuiteDatabaseConnection::pgsqlDsn($identity), $identity->username, SuiteDatabaseConnection::pgsqlPassword(), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+if (getenv('PROXYMA_DOCKER_RIG') === '1' && $pdo->query('SELECT current_database(), current_user, (SELECT value FROM proxyma_rig.marker)')->fetch(PDO::FETCH_NUM)
     !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']) {
     throw new RuntimeException('Refusing demand worker writes outside the marked test database.');
 }
 $pdo->exec('SET search_path TO '.$schema);
 $pdo->exec("SET statement_timeout = '8s'");
 $pdo->prepare("SELECT set_config('application_name', ?, false)")->execute(['proxyma-p32-'.$schema.'-'.$label]);
-$db = new PostgresConnection($pdo, 'proxyma_test', '', ['name' => 'worker', 'driver' => 'pgsql']);
+$db = new PostgresConnection($pdo, $identity->database, '', ['name' => 'worker', 'driver' => 'pgsql']);
 $db->setTransactionManager($manager = new DatabaseTransactionsManager);
 $scope = new ConnectionScope($db, $manager);
 $transactions = new TransactionCoordinator($scope);

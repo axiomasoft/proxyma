@@ -6,11 +6,13 @@ namespace Proxyma\Domain\Execution;
 
 use InvalidArgumentException;
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Execution\ProxyResolver;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 
 /** Endpoint identity and a single locally resolved address, prepared before admission. */
+#[Api(since: '1.0')]
 final readonly class ProxyDestination
 {
     private function __construct(public Endpoint $endpoint, public string $address)
@@ -31,6 +33,7 @@ final readonly class ProxyDestination
         throw new LogicException('ProxyDestination cannot be serialized.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('ProxyDestination cannot be reconstructed.');

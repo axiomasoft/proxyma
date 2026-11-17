@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Proxyma\Domain\Outcomes;
 
 use LogicException;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Catalog\CanonicalOrigin;
 use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Execution\AttemptResult;
@@ -20,6 +21,7 @@ use Proxyma\Domain\Execution\WireRequest;
  * Неизменяемый технический слепок фактов физической попытки отправки (AttemptFacts).
  * Отделяет фактический результат транспорта и маршрута от доменного решения OutcomePolicy.
  */
+#[Api(since: '1.0')]
 final readonly class AttemptFacts
 {
     public function __construct(
@@ -122,6 +124,7 @@ final readonly class AttemptFacts
         throw new LogicException('AttemptFacts cannot be serialized.');
     }
 
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
         throw new LogicException('AttemptFacts cannot be reconstructed.');

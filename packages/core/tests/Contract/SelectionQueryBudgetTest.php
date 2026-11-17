@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 use Proxyma\Application\Routing\RouteSelector;
 use Proxyma\Application\Routing\StrategyRegistry;
-use Proxyma\Contracts\CandidateSnapshots;
-use Proxyma\Contracts\RandomIndex;
+use Proxyma\Contracts\Catalog\CandidateSnapshots;
+use Proxyma\Contracts\Routing\RandomIndex;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 use Proxyma\Domain\Execution\RouteSelectionContext;
 use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Routing\SelectionResult;
 use Proxyma\Tests\Support\CatalogTestCase;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/SelectionFixtures.php';
 
-uses(CatalogTestCase::class);
+uses(CatalogTestCase::class)->group('pg');
 
 final readonly class QueryBudgetRandom implements RandomIndex
 {
@@ -62,8 +64,8 @@ it('выбирает least-recent со стабильным UUID tie-break и ra
     $randomPolicy = selectionPolicy($this->tenant, $c['profile'], $c['target']);
     expect($random->select($this->tenant, $c['profile'], $randomPolicy, $request, new RouteSelectionContext)->route->id->value)->toBe($all[2]);
     $bad = new RouteSelector($query, new StrategyRegistry(new QueryBudgetRandom(3)));
-    expect(fn () => $bad->select($this->tenant, $c['profile'], $randomPolicy, $request, new RouteSelectionContext))->toThrow(InvalidArgumentException::class, 'outside');
-    expect(fn () => (new StrategyRegistry(new QueryBudgetRandom(0)))->get('App\\Injected'))->toThrow(InvalidArgumentException::class);
+    expect(fn (): SelectionResult => $bad->select($this->tenant, $c['profile'], $randomPolicy, $request, new RouteSelectionContext))->toThrow(InvalidArgumentException::class, 'outside');
+    expect(fn (): RouteSelectionStrategy => new StrategyRegistry(new QueryBudgetRandom(0))->get('App\\Injected'))->toThrow(InvalidArgumentException::class);
 });
 
 it('last authorization использует фактические permits, а не порядок membership', function (): void {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Infrastructure\Cache;
 
+use Packman\Attributes\Api;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\EffectivePolicy;
 use Proxyma\Domain\Policy\PolicyScope;
@@ -20,6 +21,7 @@ use Proxyma\Domain\Policy\TenantKey;
  * Кэш никогда не принимает решение о праве на отправку (send eligibility)
  * и не принимает записи внутри открытой БД-транзакции до её коммита.
  */
+#[Api(since: '1.0')]
 final class PolicyResolutionCache
 {
     /** @var array<string, array{tenant: string, policy: EffectivePolicy}> */

@@ -6,9 +6,10 @@ namespace Proxyma\Application\Policy;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
+use Packman\Attributes\Api;
 use Proxyma\Application\Authorization\CatalogAccess;
-use Proxyma\Contracts\CatalogMutationFence;
-use Proxyma\Contracts\PolicyCommands;
+use Proxyma\Contracts\Catalog\CatalogMutationFence;
+use Proxyma\Contracts\Policy\PolicyCommands;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\InvalidSettingPatch;
 use Proxyma\Domain\Policy\PolicyConflict;
@@ -20,7 +21,9 @@ use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
+use Proxyma\Internal\Database\RowValues;
 
+#[Api(since: '1.0')]
 final readonly class UpdatePolicy implements PolicyCommands
 {
     public function __construct(
@@ -52,25 +55,25 @@ final readonly class UpdatePolicy implements PolicyCommands
                 $tenant = $command->tenant->value;
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy:'.$tenant.':'.$command->scopeKey()]);
-                $key = CatalogAudit::key((string) $command->actor->idempotencyKey);
+                $key = CatalogAudit::key($command->actor->idempotencyKey);
                 $receipt = $this->db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant)->where('idempotency_key', $key)->first();
                 if ($receipt !== null) {
-                    if (! hash_equals($receipt->command_hash, $hash)) {
+                    if (! hash_equals(RowValues::colStr($receipt, 'command_hash'), $hash)) {
                         throw new PolicyConflict;
                     }
-                    $saved = json_decode($receipt->result, false, flags: JSON_THROW_ON_ERROR);
-                    if (! is_object($saved) || ! isset($saved->head_id, $saved->revision_id)) {
+                    $saved = json_decode(RowValues::colStr($receipt, 'result'), true, flags: JSON_THROW_ON_ERROR);
+                    if (! is_array($saved) || ! is_string($saved['head_id'] ?? null) || ! is_string($saved['revision_id'] ?? null)) {
                         throw new PolicyStorageFailure;
                     }
                     $revision = $this->db->table($t['policy_revisions'])->where('tenant_key', $tenant)
-                        ->where('head_id', $saved->head_id)->where('id', $saved->revision_id)->first();
-                    if ($revision === null || $saved->head_id !== $command->headId->value) {
+                        ->where('head_id', $saved['head_id'])->where('id', $saved['revision_id'])->first();
+                    if ($revision === null || $saved['head_id'] !== $command->headId->value) {
                         throw new PolicyStorageFailure;
                     }
-                    $result = SettingPatch::decode($revision->definition);
+                    $result = SettingPatch::decode(RowValues::colStr($revision, 'definition'));
                     $this->registry->validate($result, $command->scope, stored: true);
 
-                    return new PolicyRevision($command->headId, new Uuid($revision->id), (int) $revision->revision, $result);
+                    return new PolicyRevision($command->headId, new Uuid(RowValues::colStr($revision, 'id')), RowValues::colInt($revision, 'revision'), $result);
                 }
                 $head = $this->db->table($t['policy_heads'])->where('tenant_key', $tenant)->where('id', $command->headId->value)->lockForUpdate()->first();
                 if ($head === null) {
@@ -79,15 +82,17 @@ final readonly class UpdatePolicy implements PolicyCommands
                     }
                     $previous = new SettingPatch(1, []);
                 } else {
-                    if ($head->scope_key !== $command->scopeKey() || (int) $head->revision !== $command->actor->expectedRevision || $head->current_revision_id === null) {
+                    $currentRevisionId = RowValues::colNullableStr($head, 'current_revision_id');
+                    $headRevision = RowValues::colInt($head, 'revision');
+                    if (RowValues::colStr($head, 'scope_key') !== $command->scopeKey() || $headRevision !== $command->actor->expectedRevision || $currentRevisionId === null) {
                         throw new PolicyConflict;
                     }
                     $old = $this->db->table($t['policy_revisions'])->where('tenant_key', $tenant)->where('head_id', $command->headId->value)
-                        ->where('id', $head->current_revision_id)->first();
-                    if ($old === null || (int) $old->revision !== (int) $head->revision) {
+                        ->where('id', $currentRevisionId)->first();
+                    if ($old === null || RowValues::colInt($old, 'revision') !== $headRevision) {
                         throw new PolicyStorageFailure;
                     }
-                    $previous = SettingPatch::decode($old->definition);
+                    $previous = SettingPatch::decode(RowValues::colStr($old, 'definition'));
                 }
                 $next = $this->registry->apply($previous, $patch, $command->scope);
                 $revision = $command->actor->expectedRevision + 1;
