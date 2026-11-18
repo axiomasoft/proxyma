@@ -35,19 +35,20 @@ final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
                 $missing[] = $table;
             }
         }
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
-        $required = [[$t['policy_heads'], 'pxm_policy_current_fk'], [$t['budgets'], 'pxm_budget_lock_idx'],
-            [$t['route_health'], 'pxm_credential_hold_identity'], [$t['budgets'], 'pxm_cooldown_finite']];
+        $required = [[$t['policy_heads'], "{$p}policy_current_fk"], [$t['budgets'], "{$p}budget_lock_idx"],
+            [$t['route_health'], "{$p}credential_hold_identity"], [$t['budgets'], "{$p}cooldown_finite"]];
         $constraints = [];
         foreach ($required as [$table, $name]) {
             if ($db->selectOne('SELECT 1 AS present FROM pg_constraint WHERE conrelid=to_regclass(?) AND conname=? AND convalidated', [$table, $name]) === null) {
                 $constraints[] = $name;
             }
         }
-        foreach ([[$t['permits'], 'pxm_permit_transition'], [$t['attempts'], 'pxm_attempt_authorization'],
-            [$t['attempts'], 'pxm_receipt_guard'], [$t['permits'], 'pxm_lease_release_guard'],
-            [$t['quota_reservations'], 'pxm_quota_ledger'], [$t['quota_windows'], 'pxm_quota_window'],
-            [$t['audit_events'], 'pxm_audit_events_immutable']] as [$table, $name]) {
+        foreach ([[$t['permits'], "{$p}permit_transition"], [$t['attempts'], "{$p}attempt_authorization"],
+            [$t['attempts'], "{$p}receipt_guard"], [$t['permits'], "{$p}lease_release_guard"],
+            [$t['quota_reservations'], "{$p}quota_ledger"], [$t['quota_windows'], "{$p}quota_window"],
+            [$t['audit_events'], "{$p}audit_events_immutable"]] as [$table, $name]) {
             if ($db->selectOne("SELECT 1 AS present FROM pg_trigger WHERE tgrelid=to_regclass(?) AND tgname=? AND tgenabled IN ('O','A')", [$table, $name]) === null) {
                 $constraints[] = $name;
             }

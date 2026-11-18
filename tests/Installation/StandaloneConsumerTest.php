@@ -35,7 +35,7 @@ it('независимый Composer consumer выполняет discovery и con
         expect($report['boot_queries'])->toBe(0)->and($report['missing_schema_reported'])->toBeTrue()
             ->and($report['worker_isolated'])->toBeTrue()->and(strlen($report['registry']))->toBe(64);
         $packages = require $environment['APP_PACKAGES_CACHE'];
-        expect($packages)->toHaveKey('axiomasoft/proxyma')->not->toHaveKey('axiomasoft/proxyma-filament');
+        expect($packages)->toHaveKey('axiomasoft/proxyma-core')->not->toHaveKey('axiomasoft/proxyma-filament');
         $lock = json_decode(file_get_contents($directory.'/composer.lock'), true, flags: JSON_THROW_ON_ERROR);
         $names = array_column($lock['packages'], 'name');
         expect($names)->not->toContain('axiomasoft/proxyma-filament')->and(array_filter($names, static fn ($name): bool => str_starts_with($name, 'filament/')))->toBe([]);

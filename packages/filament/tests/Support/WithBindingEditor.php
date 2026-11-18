@@ -19,7 +19,7 @@ use Proxyma\Domain\Policy\SettingMerge;
 use Proxyma\Domain\Policy\SettingType;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
-use Proxyma\Filament\Pages\BindingsPage;
+use Proxyma\Filament\Pages\Policy\BindingsPage;
 
 class EditorSubjects implements SubjectResolver
 {

@@ -15,9 +15,10 @@ final class QuotaSchema
 {
     public static function up(Connection $db): void
     {
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
-        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT pxm_audit_events_entity_type_check,
-            ADD CONSTRAINT pxm_audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','bindings','budgets'))");
+        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT {$p}audit_events_entity_type_check,
+            ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','bindings','budgets'))");
         $db->statement("ALTER TABLE {$t['budgets']} ADD COLUMN hour_limit bigint CHECK (hour_limit >= 0),
             ADD COLUMN day_limit bigint CHECK (day_limit >= 0), ADD COLUMN quota_policy_key text NOT NULL DEFAULT 'default',
             ADD COLUMN traffic_class text, ADD COLUMN traffic_parent_id uuid, ADD COLUMN traffic_percent integer,
@@ -58,27 +59,27 @@ final class QuotaSchema
             SELECT r.tenant_key,r.permit_id,r.budget_tenant_key,r.budget_id,r.quota_window_id,r.cost,
                 CASE WHEN p.authorized_at IS NOT NULL OR r.state='spent' THEN 'consumed' ELSE r.state END
                 FROM {$t['reservations']} r JOIN {$t['permits']} p ON p.id=r.permit_id WHERE r.quota_window_id IS NOT NULL");
-        $db->statement("CREATE FUNCTION pxm_quota_ledger_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        $db->statement("CREATE FUNCTION {$p}quota_ledger_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
             IF ROW(NEW.id,NEW.tenant_key,NEW.permit_id,NEW.budget_tenant_key,NEW.budget_id,NEW.window_id,NEW.cost)
                 IS DISTINCT FROM ROW(OLD.id,OLD.tenant_key,OLD.permit_id,OLD.budget_tenant_key,OLD.budget_id,OLD.window_id,OLD.cost)
                 OR (NEW.state<>OLD.state AND NOT (OLD.state='reserved' AND NEW.state IN ('consumed','released'))) THEN
                 RAISE EXCEPTION 'immutable quota ledger' USING ERRCODE='23514'; END IF; RETURN NEW; END $$");
-        $db->statement("CREATE TRIGGER pxm_quota_ledger BEFORE UPDATE ON {$t['quota_reservations']} FOR EACH ROW EXECUTE FUNCTION pxm_quota_ledger_guard()");
-        $db->statement("CREATE FUNCTION pxm_quota_window_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        $db->statement("CREATE TRIGGER {$p}quota_ledger BEFORE UPDATE ON {$t['quota_reservations']} FOR EACH ROW EXECUTE FUNCTION {$p}quota_ledger_guard()");
+        $db->statement("CREATE FUNCTION {$p}quota_window_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
                 IF TG_OP='INSERT' THEN
                     IF NEW.reserved+NEW.spent>NEW.quota_limit THEN RAISE EXCEPTION 'invalid initial quota usage' USING ERRCODE='23514'; END IF;
                 ELSIF ROW(NEW.id,NEW.tenant_key,NEW.budget_id,NEW.starts_at,NEW.ends_at,NEW.window_kind,NEW.policy_key)
                     IS DISTINCT FROM ROW(OLD.id,OLD.tenant_key,OLD.budget_id,OLD.starts_at,OLD.ends_at,OLD.window_kind,OLD.policy_key) THEN
                     RAISE EXCEPTION 'immutable quota window' USING ERRCODE='23514'; END IF; RETURN NEW; END $$");
-        $db->statement("CREATE TRIGGER pxm_quota_window BEFORE INSERT OR UPDATE ON {$t['quota_windows']} FOR EACH ROW EXECUTE FUNCTION pxm_quota_window_guard()");
-        $db->statement("CREATE FUNCTION pxm_quota_policy_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        $db->statement("CREATE TRIGGER {$p}quota_window BEFORE INSERT OR UPDATE ON {$t['quota_windows']} FOR EACH ROW EXECUTE FUNCTION {$p}quota_window_guard()");
+        $db->statement("CREATE FUNCTION {$p}quota_policy_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
                 IF NEW.quota_policy_key<>OLD.quota_policy_key THEN RAISE EXCEPTION 'immutable quota policy identity' USING ERRCODE='23514'; END IF;
                 RETURN NEW; END $$");
-        $db->statement("CREATE TRIGGER pxm_quota_policy BEFORE UPDATE ON {$t['budgets']} FOR EACH ROW EXECUTE FUNCTION pxm_quota_policy_guard()");
+        $db->statement("CREATE TRIGGER {$p}quota_policy BEFORE UPDATE ON {$t['budgets']} FOR EACH ROW EXECUTE FUNCTION {$p}quota_policy_guard()");
         $db->statement("ALTER TABLE {$t['demands']} ADD COLUMN traffic_class text NOT NULL DEFAULT 'default' CHECK (traffic_class ~ '^[a-z][a-z0-9_.:-]{0,63}$')");
-        $db->statement("CREATE FUNCTION pxm_demand_traffic_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        $db->statement("CREATE FUNCTION {$p}demand_traffic_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
                 IF NEW.traffic_class<>OLD.traffic_class THEN RAISE EXCEPTION 'immutable traffic class' USING ERRCODE='23514'; END IF; RETURN NEW; END $$");
-        $db->statement("CREATE TRIGGER pxm_demand_traffic BEFORE UPDATE ON {$t['demands']} FOR EACH ROW EXECUTE FUNCTION pxm_demand_traffic_guard()");
+        $db->statement("CREATE TRIGGER {$p}demand_traffic BEFORE UPDATE ON {$t['demands']} FOR EACH ROW EXECUTE FUNCTION {$p}demand_traffic_guard()");
         foreach ($db->table($t['budgets'])->where(fn (Builder $q): Builder => $q->whereNotNull('hour_limit')->orWhereNotNull('day_limit'))
             ->orderByRaw('scope_key COLLATE "C", tenant_key COLLATE "C"')->lockForUpdate()->get() as $budget) {
             QuotaRepository::provisionWindows($db, $budget, DatabaseClock::now($db), reconcileHistory: true);
@@ -87,6 +88,7 @@ final class QuotaSchema
 
     public static function down(Connection $db): void
     {
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
         if ($db->table($t['quota_windows'])->exists() || $db->table($t['quota_reservations'])->exists()
             || $db->table($t['budgets'])->whereNotNull('hour_limit')->orWhereNotNull('day_limit')->orWhereNotNull('traffic_class')->exists()
@@ -94,16 +96,16 @@ final class QuotaSchema
             || $db->table($t['demands'])->where('traffic_class', '<>', 'default')->exists()) {
             throw new LogicException('Quota history or configuration prevents rollback.');
         }
-        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT pxm_audit_events_entity_type_check,
-            ADD CONSTRAINT pxm_audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','bindings'))");
+        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT {$p}audit_events_entity_type_check,
+            ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','bindings'))");
         $db->statement("DROP TABLE {$t['quota_reservations']}");
-        $db->statement('DROP FUNCTION pxm_quota_ledger_guard()');
-        $db->statement("DROP TRIGGER pxm_quota_window ON {$t['quota_windows']}");
-        $db->statement('DROP FUNCTION pxm_quota_window_guard()');
-        $db->statement("DROP TRIGGER pxm_quota_policy ON {$t['budgets']}");
-        $db->statement('DROP FUNCTION pxm_quota_policy_guard()');
-        $db->statement("DROP TRIGGER pxm_demand_traffic ON {$t['demands']}");
-        $db->statement('DROP FUNCTION pxm_demand_traffic_guard()');
+        $db->statement("DROP FUNCTION {$p}quota_ledger_guard()");
+        $db->statement("DROP TRIGGER {$p}quota_window ON {$t['quota_windows']}");
+        $db->statement("DROP FUNCTION {$p}quota_window_guard()");
+        $db->statement("DROP TRIGGER {$p}quota_policy ON {$t['budgets']}");
+        $db->statement("DROP FUNCTION {$p}quota_policy_guard()");
+        $db->statement("DROP TRIGGER {$p}demand_traffic ON {$t['demands']}");
+        $db->statement("DROP FUNCTION {$p}demand_traffic_guard()");
         $db->statement("ALTER TABLE {$t['demands']} DROP COLUMN traffic_class");
         $db->statement("ALTER TABLE {$t['quota_windows']} DROP COLUMN window_kind, DROP COLUMN policy_key,
             ADD CHECK (quota_limit>0), ADD CHECK (reserved+spent<=quota_limit), ADD UNIQUE (tenant_key,budget_id,starts_at)");

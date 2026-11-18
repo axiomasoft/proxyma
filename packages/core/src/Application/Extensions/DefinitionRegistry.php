@@ -61,6 +61,11 @@ final class DefinitionRegistry
         $this->extensions[$definition->id] = $definition;
     }
 
+    public function hasExtension(string $id): bool
+    {
+        return isset($this->extensions[$id]);
+    }
+
     public function registerCapability(string $id, int $version = 1): void
     {
         PanelSlot::identifier($id);

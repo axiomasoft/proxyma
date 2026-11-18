@@ -5,4 +5,4 @@ Filament v5 administration integration for Proxyma, implementing `Packman\Filame
 ## Features
 
 - `ProxymaPlugin` implementing `FilamentPanelPlugin` with explicit panel access and ability defaults.
-- Catalog browser, policy inspector, settings section, and bindings editor pages backed by headless `axiomasoft/proxyma` services.
+- Catalog browser, policy inspector, settings section, and bindings editor pages backed by headless `axiomasoft/proxyma-core` services.

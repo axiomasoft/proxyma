@@ -61,6 +61,7 @@ use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Domain\Routing\SelectionResult;
+use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Http\DnsResolver;
 use Proxyma\Tests\Support\CatalogTestCase;
 use Proxyma\Tests\Support\ClaimFixtures;
@@ -354,7 +355,7 @@ it('observer видит committed completion, его ошибка сообщае
         {
             $this->calls++;
             $this->committed = $this->db->transactionLevel() === 0
-                && $this->db->table('pxm_attempts')->where('physical_attempt_id', $observation->physicalAttemptId->value)->value('status') === 'completed';
+                && $this->db->table(PackageSchema::tables()['attempts'])->where('physical_attempt_id', $observation->physicalAttemptId->value)->value('status') === 'completed';
             throw new RuntimeException('sensitive observer failure');
         }
     };

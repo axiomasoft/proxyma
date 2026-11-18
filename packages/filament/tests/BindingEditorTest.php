@@ -2,12 +2,17 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Connection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Proxyma\Application\Authorization\AuthorizationDenied;
+use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Panels\PanelFormProjection;
 use Proxyma\Contracts\Bindings\BindingCommands;
 use Proxyma\Contracts\Bindings\BindingQueries;
+use Proxyma\Contracts\Catalog\CatalogMutationFence;
+use Proxyma\Domain\Catalog\CatalogMutationActor;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\BindSubjectPolicyCommand;
 use Proxyma\Domain\Policy\PolicyConflict;
@@ -19,7 +24,7 @@ use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Domain\Policy\UnbindSubjectPolicyCommand;
 use Proxyma\Filament\BindingEditor;
-use Proxyma\Filament\Pages\PolicyInspector;
+use Proxyma\Filament\Pages\Policy\PolicyInspector;
 use Proxyma\Filament\Tests\Support\WithBindingEditor;
 use Proxyma\Filament\Tests\Support\WithFilament;
 use Proxyma\Tests\Support\CatalogTestCase;
@@ -222,4 +227,63 @@ it('защищает контекст, server editing и tenant при прям�
     expect(fn () => app(BindingEditor::class)->save($data))->toThrow(AuthorizationDenied::class);
     expect(fn () => app(BindingEditor::class)->open(new SubjectRef(new TenantKey('other'), 'document', '42'), $this->catalog['target'], 'files', 'read'))->toThrow(AuthorizationDenied::class);
     expect($this->table('bindings')->count())->toBe(0);
+});
+
+it('сохраняет opaque CatalogMutationFence token из open в save и отклоняет устаревший authority и подделку envelope', function (): void {
+    $fence = new class implements CatalogMutationFence
+    {
+        public string $current = 'authority-v1';
+
+        public ?string $capturedAuthority = null;
+
+        public function version(): string
+        {
+            return $this->current;
+        }
+
+        public function lock(Connection $db, CatalogMutationActor $actor): void
+        {
+            $this->capturedAuthority = $actor->authorityVersion;
+
+            if ($actor->authorityVersion !== $this->current) {
+                throw new CatalogConflict('stale_authority');
+            }
+        }
+    };
+
+    $this->app->instance(CatalogMutationFence::class, $fence);
+    $editor = app(BindingEditor::class);
+    $opened = $editor->open($this->document, $this->catalog['target'], 'files', 'read');
+    $opened['reason'] = 'Попытка после смены authority fence';
+
+    $fence->current = 'authority-v2';
+
+    expect(fn () => $editor->save($opened))->toThrow(ValidationException::class);
+    expect($fence->capturedAuthority)->toBe('authority-v1')
+        ->and($this->table('bindings')->count())->toBe(0);
+
+    $missingAuthorityEnvelope = $opened;
+    $missingAuthorityEnvelope['context'] = Crypt::encryptString(json_encode([
+        'target' => $this->catalog['target']->value,
+        'panel' => 'files',
+        'inner' => 'fake-inner',
+    ], JSON_THROW_ON_ERROR));
+    expect(fn () => $editor->save($missingAuthorityEnvelope))->toThrow(AuthorizationDenied::class);
+
+    $corruptedInner = $opened;
+    $corruptedInner['context'] = Crypt::encryptString(json_encode([
+        'target' => $this->catalog['target']->value,
+        'panel' => 'files',
+        'has_authority' => true,
+        'authority_token' => 'authority-v1',
+        'inner' => 'not-valid-packman-context',
+    ], JSON_THROW_ON_ERROR));
+    expect(fn () => $editor->save($corruptedInner))->toThrow(AuthorizationDenied::class);
+
+    $fresh = $editor->open($this->document, $this->catalog['target'], 'files', 'read');
+    $fresh['reason'] = 'Сохранение с текущим opaque token';
+    $fresh['fields'][BindingEditor::fieldId('destinations.allowed')]['mode'] = 'null';
+    $editor->save($fresh);
+    expect($fence->capturedAuthority)->toBe('authority-v2')
+        ->and($this->table('bindings')->count())->toBe(1);
 });

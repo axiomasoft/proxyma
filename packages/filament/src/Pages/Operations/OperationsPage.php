@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Proxyma\Filament\Pages;
+namespace Proxyma\Filament\Pages\Operations;
 
 use Closure;
 use Filament\Forms\Components\Textarea;
@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Livewire\Attributes\Locked;
 use Packman\Attributes\Api;
+use Packman\Attributes\Internal;
+use Packman\Filament\Concerns\Authorization\AuthorizesPage;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\CatalogConflict;
@@ -30,6 +32,8 @@ use UnitEnum;
 #[Api(since: '1.0')]
 abstract class OperationsPage extends Page
 {
+    use AuthorizesPage;
+
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
 
     protected static string $kind;
@@ -44,8 +48,8 @@ abstract class OperationsPage extends Page
     /** @var array<string, mixed> */
     public array $data = [];
 
-    #[Unexposed]
-    public static function canAccess(): bool
+    #[Internal]
+    public static function allowsDomainAccess(): bool
     {
         try {
             app(OperationsQuery::class)->authorize(static::$kind);

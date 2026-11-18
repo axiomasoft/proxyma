@@ -42,6 +42,7 @@ use Proxyma\Contracts\Authorization\Authorizer;
 use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Contracts\Bindings\BindingCommands;
 use Proxyma\Contracts\Bindings\BindingQueries;
+use Proxyma\Contracts\Bindings\SubjectResolver;
 use Proxyma\Contracts\Catalog\CandidateSnapshots;
 use Proxyma\Contracts\Catalog\CatalogCommands;
 use Proxyma\Contracts\Catalog\CatalogMutationFence;
@@ -55,8 +56,10 @@ use Proxyma\Contracts\Execution\OutboundClient;
 use Proxyma\Contracts\Execution\OutboundObserver;
 use Proxyma\Contracts\Execution\OutcomePolicy;
 use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Extensions\ExtensionProvider;
 use Proxyma\Contracts\Health\DiagnosticsQueries;
 use Proxyma\Contracts\Policy\PolicyCommands;
+use Proxyma\Contracts\Policy\PolicyDefinitionProvider;
 use Proxyma\Contracts\Policy\PolicyResolver as PolicyResolverContract;
 use Proxyma\Contracts\Routing\RandomIndex;
 use Proxyma\Contracts\Routing\RouteFilter;
@@ -126,7 +129,7 @@ final class ProxymaCorePlugin implements ExtensionPlugin, WithCapabilities, With
     #[Override]
     public function tablePrefix(): string
     {
-        return 'pxm_';
+        return PackageSchema::prefix();
     }
 
     /** @return list<string> */
@@ -235,6 +238,18 @@ final class ProxymaCorePlugin implements ExtensionPlugin, WithCapabilities, With
             ],
             OutboundObserver::class => [
                 'kind' => SlotKind::EventSink->value,
+                'cardinality' => Cardinality::Many->value,
+            ],
+            PolicyDefinitionProvider::class => [
+                'kind' => SlotKind::Handler->value,
+                'cardinality' => Cardinality::Many->value,
+            ],
+            SubjectResolver::class => [
+                'kind' => SlotKind::Handler->value,
+                'cardinality' => Cardinality::Many->value,
+            ],
+            ExtensionProvider::class => [
+                'kind' => SlotKind::Contributor->value,
                 'cardinality' => Cardinality::Many->value,
             ],
         ];

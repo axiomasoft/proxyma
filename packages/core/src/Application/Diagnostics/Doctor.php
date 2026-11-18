@@ -6,12 +6,12 @@ namespace Proxyma\Application\Diagnostics;
 
 use Closure;
 use Packman\Attributes\Api;
+use Packman\Doctor\Data\DoctorFinding;
+use Packman\Doctor\Enums\CheckStatus;
 use Proxyma\Configuration\ProxymaOptions;
 use Proxyma\Contracts\Health\DiagnosticsQueries;
-use Proxyma\Domain\Catalog\ProxyProtocol;
+use Proxyma\Diagnostics\ProxymaDoctorCheck;
 use Proxyma\Domain\Execution\SchemaDiagnosticReport;
-use Proxyma\Infrastructure\Http\TransportDoctor;
-use Throwable;
 
 /**
  * Inspects schema capabilities, compiled configuration invariants, and local cURL transport support.
@@ -24,6 +24,7 @@ final readonly class Doctor
         private DiagnosticsQueries $queries,
         private ?ProxymaOptions $options = null,
         private ?Closure $optionsResolver = null,
+        private ?ProxymaDoctorCheck $check = null,
     ) {}
 
     /**
@@ -39,38 +40,26 @@ final readonly class Doctor
      */
     public function inspect(): array
     {
-        $schema = $this->queries->verifySchemaCapabilities();
-        $configuration = true;
-        $schedulerEnabled = false;
+        $check = $this->check ?? new ProxymaDoctorCheck(
+            config: null,
+            queries: $this->queries,
+            options: $this->optionsResolver === null ? ($this->options ?? new ProxymaOptions) : null,
+            optionsResolver: $this->optionsResolver,
+        );
 
-        try {
-            $options = $this->optionsResolver !== null
-                ? ($this->optionsResolver)()
-                : ($this->options ?? new ProxymaOptions);
-
-            $configuration = strlen($options->wireDigestKey->reveal()) >= 32;
-            $schedulerEnabled = $options->schedulerEnabled;
-        } catch (Throwable) {
-            $configuration = false;
-        }
-
-        $protocols = [];
-
-        foreach ([ProxyProtocol::Http, ProxyProtocol::Https, ProxyProtocol::Socks5] as $protocol) {
-            try {
-                TransportDoctor::assertProtocol($protocol);
-                $protocols[$protocol->value] = true;
-            } catch (Throwable) {
-                $protocols[$protocol->value] = false;
-            }
-        }
+        $diagnosis = $check->diagnose();
+        $schema = $diagnosis['schema'] ?? new SchemaDiagnosticReport(false, 'unknown');
+        $hasErrors = array_any(
+            $diagnosis['findings'],
+            static fn (DoctorFinding $finding): bool => $finding->status === CheckStatus::Error,
+        );
 
         return [
-            'healthy' => $schema->healthy && $configuration && ! in_array(false, $protocols, true),
+            'healthy' => ! $hasErrors && $schema->healthy,
             'schema' => $schema,
-            'configuration_valid' => $configuration,
-            'protocols' => $protocols,
-            'scheduler_enabled' => $schedulerEnabled,
+            'configuration_valid' => $diagnosis['configuration_valid'],
+            'protocols' => $diagnosis['protocols'],
+            'scheduler_enabled' => $diagnosis['scheduler_enabled'],
             'network_io' => false,
             'lease_inflight_is_physical_sockets' => false,
         ];

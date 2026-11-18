@@ -39,7 +39,7 @@ interface TransactionCoordinator
      * @param  Closure(LockedTransactionContext): T  $operation
      * @return T
      */
-    public function run(Closure $operation, int $maxAttempts = 3): mixed;
+    public function run(Closure $operation, ?int $maxAttempts = null): mixed;
 
     /** @internal Issuing an inert candidate never substitutes for durable ClaimSend authorization. */
     public function issueCandidate(

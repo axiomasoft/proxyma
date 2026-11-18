@@ -8,7 +8,7 @@
         "axiomasoft/packman": "^0.1",
         "axiomasoft/packman-filament": "^0.1",
         "axiomasoft/packman-panels": "^0.1",
-        "axiomasoft/proxyma": "self.version",
+        "axiomasoft/proxyma-core": "self.version",
         "filament/filament": "^5.0"
     },
     "autoload": {
@@ -23,6 +23,9 @@
             ]
         },
         "packman": {
+            "schema-version": 1,
+            "package-type": "integration",
+            "stability": "alpha",
             "error-prefix": "proxyma",
             "owns": [
                 "Actions",

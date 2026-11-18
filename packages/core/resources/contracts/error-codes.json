@@ -1,9 +1,9 @@
 {
     "schema": "packman-error-codes/1",
-    "package": "axiomasoft/proxyma",
+    "package": "axiomasoft/proxyma-core",
     "codes": [
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "AdmissionRejected",
             "code": "proxyma.admission_rejected",
@@ -14,7 +14,7 @@
             "category": "conflict"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "AuthorizationDenied",
             "code": "proxyma.authorization_denied",
@@ -25,7 +25,7 @@
             "category": "authorization"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "CatalogConflict",
             "code": "proxyma.catalog_conflict",
@@ -36,7 +36,7 @@
             "category": "conflict"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "CatalogInvalidMutation",
             "code": "proxyma.catalog_invalid_mutation",
@@ -47,7 +47,7 @@
             "category": "validation"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "CatalogNotFound",
             "code": "proxyma.catalog_not_found",
@@ -58,7 +58,7 @@
             "category": "not_found"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "CatalogStorageFailure",
             "code": "proxyma.catalog_storage_failure",
@@ -69,7 +69,7 @@
             "category": "internal"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "DefinitionError",
             "code": "proxyma.definition_error",
@@ -80,7 +80,7 @@
             "category": "validation"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "InvalidSettingPatch",
             "code": "proxyma.invalid_setting_patch",
@@ -91,7 +91,7 @@
             "category": "validation"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "NeedsReplan",
             "code": "proxyma.needs_replan",
@@ -102,7 +102,7 @@
             "category": "conflict"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "PolicyConflict",
             "code": "proxyma.policy_conflict",
@@ -113,7 +113,7 @@
             "category": "conflict"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "PolicyStorageFailure",
             "code": "proxyma.policy_storage_failure",
@@ -124,7 +124,7 @@
             "category": "internal"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "ReservationDeferred",
             "code": "proxyma.reservation_deferred",
@@ -135,7 +135,7 @@
             "category": "rate_limit"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "SecretStorageFailure",
             "code": "proxyma.secret_storage_failure",
@@ -146,7 +146,7 @@
             "category": "internal"
         },
         {
-            "package": "axiomasoft/proxyma",
+            "package": "axiomasoft/proxyma-core",
             "enum": "Proxyma\\Errors\\ProxymaErrorCode",
             "case": "SubjectResolutionFailed",
             "code": "proxyma.subject_resolution_failed",

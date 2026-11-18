@@ -17,6 +17,7 @@ final class TenantSecuritySchema
 {
     public static function up(Connection $db): void
     {
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
         $db->statement("CREATE TABLE {$t['shared_route_grants']} (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_key text COLLATE \"C\" NOT NULL,
@@ -35,7 +36,7 @@ final class TenantSecuritySchema
             FOREIGN KEY (tenant_key, audit_event_id) REFERENCES {$t['audit_events']} (tenant_key, id))");
 
         // Старые audit snapshots остаются только в закрытом command receipt; журнал содержит имена полей.
-        $db->statement("DROP TRIGGER pxm_audit_events_immutable ON {$t['audit_events']}");
+        $db->statement("DROP TRIGGER {$p}audit_events_immutable ON {$t['audit_events']}");
         foreach ($db->table($t['audit_events'])->orderBy('id')->cursor() as $event) {
             $eventId = RowValues::colStr($event, 'id');
             $key = hash('sha256', RowValues::colStr($event, 'idempotency_key'));
@@ -60,14 +61,14 @@ final class TenantSecuritySchema
             throw new RuntimeException('Expected the P1.3 audit revision constraint.');
         }
         $revisionCheck = RowValues::colStr(RowValues::object($revisionChecks[0]), 'conname');
-        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT pxm_audit_events_entity_type_check,
+        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT {$p}audit_events_entity_type_check,
             DROP CONSTRAINT \"{$revisionCheck}\",
             ADD COLUMN event_kind text NOT NULL DEFAULT 'mutation' CHECK (event_kind IN ('mutation','read')),
-            ADD CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants')),
+            ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants')),
             ADD CHECK ((event_kind = 'mutation' AND revision = previous_revision + 1)
                 OR (event_kind = 'read' AND revision = previous_revision AND revision >= 0))");
-        $db->statement("CREATE TRIGGER pxm_audit_events_immutable BEFORE UPDATE OR DELETE ON {$t['audit_events']} FOR EACH ROW EXECUTE FUNCTION pxm_append_only_guard()");
-        $db->statement("CREATE TRIGGER pxm_receipts_immutable BEFORE UPDATE OR DELETE ON {$t['catalog_command_receipts']} FOR EACH ROW EXECUTE FUNCTION pxm_append_only_guard()");
+        $db->statement("CREATE TRIGGER {$p}audit_events_immutable BEFORE UPDATE OR DELETE ON {$t['audit_events']} FOR EACH ROW EXECUTE FUNCTION {$p}append_only_guard()");
+        $db->statement("CREATE TRIGGER {$p}receipts_immutable BEFORE UPDATE OR DELETE ON {$t['catalog_command_receipts']} FOR EACH ROW EXECUTE FUNCTION {$p}append_only_guard()");
 
         $foreign = $db->select("SELECT conname FROM pg_constraint WHERE conrelid = ?::regclass AND confrelid = ?::regclass AND contype = 'f'", [$t['route_profile_members'], $t['routes']]);
         foreach ($foreign as $constraint) {
@@ -84,7 +85,7 @@ final class TenantSecuritySchema
             ADD FOREIGN KEY (route_owner_tenant_key, tenant_key, route_id, shared_grant_id)
                 REFERENCES {$t['shared_route_grants']} (tenant_key, consumer_tenant_key, route_id, id)");
         $db->statement(<<<SQL
-            CREATE FUNCTION pxm_member_grant_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE FUNCTION {$p}member_grant_guard() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 NEW.route_owner_tenant_key := COALESCE(NEW.route_owner_tenant_key, NEW.tenant_key);
                 IF NEW.shared_grant_id IS NOT NULL AND NOT EXISTS (
@@ -98,7 +99,7 @@ final class TenantSecuritySchema
             END $$
             SQL);
         $db->statement(<<<SQL
-            CREATE FUNCTION pxm_grant_revision_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE FUNCTION {$p}grant_revision_guard() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 IF TG_OP = 'DELETE' THEN
                     RAISE EXCEPTION 'grant history requires revocation' USING ERRCODE = '23514';
@@ -115,32 +116,33 @@ final class TenantSecuritySchema
                 RETURN NEW;
             END $$
             SQL);
-        $db->statement("CREATE TRIGGER pxm_member_grant BEFORE INSERT OR UPDATE ON {$t['route_profile_members']} FOR EACH ROW EXECUTE FUNCTION pxm_member_grant_guard()");
-        $db->statement("CREATE TRIGGER pxm_grant_revision BEFORE UPDATE OR DELETE ON {$t['shared_route_grants']} FOR EACH ROW EXECUTE FUNCTION pxm_grant_revision_guard()");
-        $db->statement("CREATE INDEX pxm_grant_consumer_idx ON {$t['shared_route_grants']} (consumer_tenant_key, route_id) WHERE retired_at IS NULL");
-        $db->statement("CREATE UNIQUE INDEX pxm_grant_active_idx ON {$t['shared_route_grants']} (tenant_key, route_id, consumer_tenant_key) WHERE retired_at IS NULL");
+        $db->statement("CREATE TRIGGER {$p}member_grant BEFORE INSERT OR UPDATE ON {$t['route_profile_members']} FOR EACH ROW EXECUTE FUNCTION {$p}member_grant_guard()");
+        $db->statement("CREATE TRIGGER {$p}grant_revision BEFORE UPDATE OR DELETE ON {$t['shared_route_grants']} FOR EACH ROW EXECUTE FUNCTION {$p}grant_revision_guard()");
+        $db->statement("CREATE INDEX {$p}grant_consumer_idx ON {$t['shared_route_grants']} (consumer_tenant_key, route_id) WHERE retired_at IS NULL");
+        $db->statement("CREATE UNIQUE INDEX {$p}grant_active_idx ON {$t['shared_route_grants']} (tenant_key, route_id, consumer_tenant_key) WHERE retired_at IS NULL");
     }
 
     public static function down(Connection $db): void
     {
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
         // Rollback предназначен для isolated reinstall: shared memberships отсутствуют в старой схеме.
-        $db->statement("DROP TRIGGER pxm_member_grant ON {$t['route_profile_members']}");
+        $db->statement("DROP TRIGGER {$p}member_grant ON {$t['route_profile_members']}");
         $db->statement("DELETE FROM {$t['route_profile_members']} WHERE shared_grant_id IS NOT NULL");
         $db->statement("ALTER TABLE {$t['route_profile_members']} DROP COLUMN shared_grant_id, DROP COLUMN route_owner_tenant_key CASCADE,
             ADD FOREIGN KEY (tenant_key, route_id) REFERENCES {$t['routes']} (tenant_key, id)");
-        $db->statement("DROP TRIGGER pxm_audit_events_immutable ON {$t['audit_events']}");
+        $db->statement("DROP TRIGGER {$p}audit_events_immutable ON {$t['audit_events']}");
         $db->statement("DELETE FROM {$t['audit_events']} WHERE event_kind = 'read'");
         // Receipts ссылаются на mutation events, поэтому удаляются раньше shared audit.
         $db->statement("DROP TABLE {$t['catalog_command_receipts']}");
         $db->statement("DELETE FROM {$t['audit_events']} WHERE entity_type = 'shared_route_grants'");
         $db->statement("ALTER TABLE {$t['audit_events']} DROP COLUMN event_kind CASCADE");
-        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT pxm_audit_events_entity_type_check,
-            ADD CHECK (entity_type IN ('endpoints','routes','route_profiles','targets')),
+        $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT {$p}audit_events_entity_type_check,
+            ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets')),
             ADD CHECK (revision = previous_revision + 1)");
-        $db->statement("CREATE TRIGGER pxm_audit_events_immutable BEFORE UPDATE OR DELETE ON {$t['audit_events']} FOR EACH ROW EXECUTE FUNCTION pxm_append_only_guard()");
+        $db->statement("CREATE TRIGGER {$p}audit_events_immutable BEFORE UPDATE OR DELETE ON {$t['audit_events']} FOR EACH ROW EXECUTE FUNCTION {$p}append_only_guard()");
         $db->statement("DROP TABLE {$t['shared_route_grants']}");
-        $db->statement('DROP FUNCTION pxm_member_grant_guard()');
-        $db->statement('DROP FUNCTION pxm_grant_revision_guard()');
+        $db->statement("DROP FUNCTION {$p}member_grant_guard()");
+        $db->statement("DROP FUNCTION {$p}grant_revision_guard()");
     }
 }

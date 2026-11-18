@@ -714,7 +714,7 @@
             "enum_backing": null,
             "enum_cases": []
         },
-        "Proxyma\\Filament\\Pages\\AttemptsPage": {
+        "Proxyma\\Filament\\Pages\\Budgets\\BudgetsPage": {
             "kind": "class",
             "layer": "api",
             "since": "1.0",
@@ -722,288 +722,7 @@
             "readonly": false,
             "abstract": false,
             "extends": [
-                "Proxyma\\Filament\\Pages\\OperationsPage"
-            ],
-            "implements": [],
-            "uses": [],
-            "doc": [],
-            "methods": {},
-            "properties": {
-                "kind": {
-                    "flags": 10,
-                    "type": "string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "'attempts'",
-                    "doc": [],
-                    "hooks": []
-                },
-                "navigationLabel": {
-                    "flags": 10,
-                    "type": "?string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "'\u041f\u043e\u043f\u044b\u0442\u043a\u0438'",
-                    "doc": [],
-                    "hooks": []
-                },
-                "view": {
-                    "flags": 2,
-                    "type": "string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": false,
-                    "default": "'proxyma-filament::filament.pages.attempts-page'",
-                    "doc": [],
-                    "hooks": []
-                }
-            },
-            "constants": [],
-            "enum_backing": null,
-            "enum_cases": []
-        },
-        "Proxyma\\Filament\\Pages\\AuditPage": {
-            "kind": "class",
-            "layer": "api",
-            "since": "1.0",
-            "final": false,
-            "readonly": false,
-            "abstract": false,
-            "extends": [
-                "Proxyma\\Filament\\Pages\\OperationsPage"
-            ],
-            "implements": [],
-            "uses": [],
-            "doc": [],
-            "methods": {},
-            "properties": {
-                "kind": {
-                    "flags": 10,
-                    "type": "string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "'audit'",
-                    "doc": [],
-                    "hooks": []
-                },
-                "navigationLabel": {
-                    "flags": 10,
-                    "type": "?string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "'\u0410\u0443\u0434\u0438\u0442'",
-                    "doc": [],
-                    "hooks": []
-                },
-                "view": {
-                    "flags": 2,
-                    "type": "string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": false,
-                    "default": "'proxyma-filament::filament.pages.audit-page'",
-                    "doc": [],
-                    "hooks": []
-                }
-            },
-            "constants": [],
-            "enum_backing": null,
-            "enum_cases": []
-        },
-        "Proxyma\\Filament\\Pages\\BindingsPage": {
-            "kind": "class",
-            "layer": "api",
-            "since": "1.0",
-            "final": false,
-            "readonly": false,
-            "abstract": false,
-            "extends": [
-                "Filament\\Pages\\Page"
-            ],
-            "implements": [],
-            "uses": [],
-            "doc": [],
-            "methods": {
-                "canAccess": {
-                    "visibility": "public",
-                    "static": true,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "bool",
-                    "doc": []
-                },
-                "form": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [
-                        {
-                            "name": "schema",
-                            "type": "Filament\\Schemas\\Schema",
-                            "by_reference": false,
-                            "variadic": false,
-                            "optional": false,
-                            "default": null,
-                            "flags": 0
-                        }
-                    ],
-                    "return": "Filament\\Schemas\\Schema",
-                    "doc": []
-                },
-                "isReadOnly": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "bool",
-                    "doc": []
-                },
-                "loadBinding": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "void",
-                    "doc": []
-                },
-                "mount": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "void",
-                    "doc": []
-                },
-                "save": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "void",
-                    "doc": []
-                },
-                "selector": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [
-                        {
-                            "name": "schema",
-                            "type": "Filament\\Schemas\\Schema",
-                            "by_reference": false,
-                            "variadic": false,
-                            "optional": false,
-                            "default": null,
-                            "flags": 0
-                        }
-                    ],
-                    "return": "Filament\\Schemas\\Schema",
-                    "doc": []
-                }
-            },
-            "properties": {
-                "data": {
-                    "flags": 1,
-                    "type": "array",
-                    "readonly": false,
-                    "visibility": "public",
-                    "static": false,
-                    "default": "[]",
-                    "doc": [],
-                    "hooks": []
-                },
-                "editing": {
-                    "flags": 1,
-                    "type": "array",
-                    "readonly": false,
-                    "visibility": "public",
-                    "static": false,
-                    "default": "[]",
-                    "doc": [],
-                    "hooks": []
-                },
-                "navigationGroup": {
-                    "flags": 10,
-                    "type": "string|UnitEnum|null",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "'Proxyma'",
-                    "doc": [],
-                    "hooks": []
-                },
-                "navigationLabel": {
-                    "flags": 10,
-                    "type": "?string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "'\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u043f\u0430\u043d\u0435\u043b\u0435\u0439'",
-                    "doc": [],
-                    "hooks": []
-                },
-                "readOnly": {
-                    "flags": 10,
-                    "type": "bool",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": true,
-                    "default": "false",
-                    "doc": [],
-                    "hooks": []
-                },
-                "selection": {
-                    "flags": 1,
-                    "type": "array",
-                    "readonly": false,
-                    "visibility": "public",
-                    "static": false,
-                    "default": "[]",
-                    "doc": [],
-                    "hooks": []
-                },
-                "view": {
-                    "flags": 2,
-                    "type": "string",
-                    "readonly": false,
-                    "visibility": "protected",
-                    "static": false,
-                    "default": "'proxyma-filament::bindings'",
-                    "doc": [],
-                    "hooks": []
-                }
-            },
-            "constants": [],
-            "enum_backing": null,
-            "enum_cases": []
-        },
-        "Proxyma\\Filament\\Pages\\BudgetsPage": {
-            "kind": "class",
-            "layer": "api",
-            "since": "1.0",
-            "final": false,
-            "readonly": false,
-            "abstract": false,
-            "extends": [
-                "Proxyma\\Filament\\Pages\\OperationsPage"
+                "Proxyma\\Filament\\Pages\\Operations\\OperationsPage"
             ],
             "implements": [],
             "uses": [],
@@ -1096,7 +815,7 @@
             "enum_backing": null,
             "enum_cases": []
         },
-        "Proxyma\\Filament\\Pages\\HealthPage": {
+        "Proxyma\\Filament\\Pages\\Health\\HealthPage": {
             "kind": "class",
             "layer": "api",
             "since": "1.0",
@@ -1104,7 +823,7 @@
             "readonly": false,
             "abstract": false,
             "extends": [
-                "Proxyma\\Filament\\Pages\\OperationsPage"
+                "Proxyma\\Filament\\Pages\\Operations\\OperationsPage"
             ],
             "implements": [],
             "uses": [],
@@ -1317,7 +1036,107 @@
             "enum_backing": null,
             "enum_cases": []
         },
-        "Proxyma\\Filament\\Pages\\OperationsPage": {
+        "Proxyma\\Filament\\Pages\\Operations\\AttemptsPage": {
+            "kind": "class",
+            "layer": "api",
+            "since": "1.0",
+            "final": false,
+            "readonly": false,
+            "abstract": false,
+            "extends": [
+                "Proxyma\\Filament\\Pages\\Operations\\OperationsPage"
+            ],
+            "implements": [],
+            "uses": [],
+            "doc": [],
+            "methods": {},
+            "properties": {
+                "kind": {
+                    "flags": 10,
+                    "type": "string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "'attempts'",
+                    "doc": [],
+                    "hooks": []
+                },
+                "navigationLabel": {
+                    "flags": 10,
+                    "type": "?string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "'\u041f\u043e\u043f\u044b\u0442\u043a\u0438'",
+                    "doc": [],
+                    "hooks": []
+                },
+                "view": {
+                    "flags": 2,
+                    "type": "string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": false,
+                    "default": "'proxyma-filament::filament.pages.attempts-page'",
+                    "doc": [],
+                    "hooks": []
+                }
+            },
+            "constants": [],
+            "enum_backing": null,
+            "enum_cases": []
+        },
+        "Proxyma\\Filament\\Pages\\Operations\\AuditPage": {
+            "kind": "class",
+            "layer": "api",
+            "since": "1.0",
+            "final": false,
+            "readonly": false,
+            "abstract": false,
+            "extends": [
+                "Proxyma\\Filament\\Pages\\Operations\\OperationsPage"
+            ],
+            "implements": [],
+            "uses": [],
+            "doc": [],
+            "methods": {},
+            "properties": {
+                "kind": {
+                    "flags": 10,
+                    "type": "string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "'audit'",
+                    "doc": [],
+                    "hooks": []
+                },
+                "navigationLabel": {
+                    "flags": 10,
+                    "type": "?string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "'\u0410\u0443\u0434\u0438\u0442'",
+                    "doc": [],
+                    "hooks": []
+                },
+                "view": {
+                    "flags": 2,
+                    "type": "string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": false,
+                    "default": "'proxyma-filament::filament.pages.audit-page'",
+                    "doc": [],
+                    "hooks": []
+                }
+            },
+            "constants": [],
+            "enum_backing": null,
+            "enum_cases": []
+        },
+        "Proxyma\\Filament\\Pages\\Operations\\OperationsPage": {
             "kind": "class",
             "layer": "api",
             "since": "1.0",
@@ -1328,7 +1147,9 @@
                 "Filament\\Pages\\Page"
             ],
             "implements": [],
-            "uses": [],
+            "uses": [
+                "Packman\\Filament\\Concerns\\Authorization\\AuthorizesPage"
+            ],
             "doc": [],
             "methods": {
                 "actor": {
@@ -1351,6 +1172,16 @@
                     "return": "Proxyma\\Domain\\Catalog\\CatalogMutationActor",
                     "doc": []
                 },
+                "allowsDomainAccess": {
+                    "visibility": "public",
+                    "static": true,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "bool",
+                    "doc": []
+                },
                 "assertEditing": {
                     "visibility": "protected",
                     "static": false,
@@ -1359,16 +1190,6 @@
                     "by_reference": false,
                     "parameters": [],
                     "return": "void",
-                    "doc": []
-                },
-                "canAccess": {
-                    "visibility": "public",
-                    "static": true,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "bool",
                     "doc": []
                 },
                 "canCommand": {
@@ -1578,7 +1399,7 @@
             "enum_backing": null,
             "enum_cases": []
         },
-        "Proxyma\\Filament\\Pages\\PolicyInspector": {
+        "Proxyma\\Filament\\Pages\\Policy\\BindingsPage": {
             "kind": "class",
             "layer": "api",
             "since": "1.0",
@@ -1586,7 +1407,190 @@
             "readonly": false,
             "abstract": false,
             "extends": [
-                "Proxyma\\Filament\\Pages\\BindingsPage"
+                "Filament\\Pages\\Page"
+            ],
+            "implements": [],
+            "uses": [
+                "Packman\\Filament\\Concerns\\Authorization\\AuthorizesPage"
+            ],
+            "doc": [],
+            "methods": {
+                "allowsDomainAccess": {
+                    "visibility": "public",
+                    "static": true,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "bool",
+                    "doc": []
+                },
+                "form": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "schema",
+                            "type": "Filament\\Schemas\\Schema",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "Filament\\Schemas\\Schema",
+                    "doc": []
+                },
+                "isReadOnly": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "bool",
+                    "doc": []
+                },
+                "loadBinding": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "void",
+                    "doc": []
+                },
+                "mount": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "void",
+                    "doc": []
+                },
+                "save": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "void",
+                    "doc": []
+                },
+                "selector": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "schema",
+                            "type": "Filament\\Schemas\\Schema",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "Filament\\Schemas\\Schema",
+                    "doc": []
+                }
+            },
+            "properties": {
+                "data": {
+                    "flags": 1,
+                    "type": "array",
+                    "readonly": false,
+                    "visibility": "public",
+                    "static": false,
+                    "default": "[]",
+                    "doc": [],
+                    "hooks": []
+                },
+                "editing": {
+                    "flags": 1,
+                    "type": "array",
+                    "readonly": false,
+                    "visibility": "public",
+                    "static": false,
+                    "default": "[]",
+                    "doc": [],
+                    "hooks": []
+                },
+                "navigationGroup": {
+                    "flags": 10,
+                    "type": "string|UnitEnum|null",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "'Proxyma'",
+                    "doc": [],
+                    "hooks": []
+                },
+                "navigationLabel": {
+                    "flags": 10,
+                    "type": "?string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "'\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u043f\u0430\u043d\u0435\u043b\u0435\u0439'",
+                    "doc": [],
+                    "hooks": []
+                },
+                "readOnly": {
+                    "flags": 10,
+                    "type": "bool",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": true,
+                    "default": "false",
+                    "doc": [],
+                    "hooks": []
+                },
+                "selection": {
+                    "flags": 1,
+                    "type": "array",
+                    "readonly": false,
+                    "visibility": "public",
+                    "static": false,
+                    "default": "[]",
+                    "doc": [],
+                    "hooks": []
+                },
+                "view": {
+                    "flags": 2,
+                    "type": "string",
+                    "readonly": false,
+                    "visibility": "protected",
+                    "static": false,
+                    "default": "'proxyma-filament::bindings'",
+                    "doc": [],
+                    "hooks": []
+                }
+            },
+            "constants": [],
+            "enum_backing": null,
+            "enum_cases": []
+        },
+        "Proxyma\\Filament\\Pages\\Policy\\PolicyInspector": {
+            "kind": "class",
+            "layer": "api",
+            "since": "1.0",
+            "final": false,
+            "readonly": false,
+            "abstract": false,
+            "extends": [
+                "Proxyma\\Filament\\Pages\\Policy\\BindingsPage"
             ],
             "implements": [],
             "uses": [],
@@ -2100,10 +2104,12 @@
                 "Filament\\Pages\\Page"
             ],
             "implements": [],
-            "uses": [],
+            "uses": [
+                "Packman\\Filament\\Concerns\\Authorization\\AuthorizesPage"
+            ],
             "doc": [],
             "methods": {
-                "canAccess": {
+                "allowsDomainAccess": {
                     "visibility": "public",
                     "static": true,
                     "final": false,

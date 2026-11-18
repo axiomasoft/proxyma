@@ -6,8 +6,12 @@ DTO доступны consumer; Eloquent records, SQL repositories, activation/la
 `PhysicalTransport::sendOnce` принимает только однократный `AuthorizedWireRequest`,
 который выдаёт core после outer commit. Стратегия выбирает кандидата и не получает permit.
 
-`ExtensionProvider::register(DefinitionRegistry)` регистрирует PHP definitions без SQL,
-DNS, secret-store, object I/O и без чтения consumer state. Провайдеры регистрации и
+Потребительские расширения подключаются через Packman `ExtensionPlugin` / `WithSlots`
+(`packman.plugins` или `ExtensionRegistrar::builtIn`) и объявляют зависимость от `axiomasoft.proxyma`.
+При необходимости структурированных определений (panels, capabilities, subject resolvers,
+`BudgetScopeSchema`) плагин может дополнительно реализовать `ExtensionProvider::register(DefinitionRegistry)`
+и внести себя в slot `ExtensionProvider::class`. Регистрация не должна выполнять SQL,
+DNS, secret-store, object I/O и не должна читать consumer state. Провайдеры регистрации и
 сохранённые в definitions обработчики должны быть stateless: tenant/subject/request
 передаются в typed arguments. Зависимости с состоянием запроса регистрируются как
 Laravel `scoped`, а не сохраняются в singleton definitions. Конструкторы провайдеров
@@ -15,9 +19,13 @@ Laravel `scoped`, а не сохраняются в singleton definitions. Ко�
 и не запускает probes.
 
 ```php
+// config/packman.php
+'plugins' => [
+    ConsumerExtensions::class, // implements ExtensionProvider, WithSlots (requires: ['axiomasoft.proxyma'])
+],
+
+// config/proxyma.php -> 'extensions'
 'extensions' => [
-    'approved_providers' => ['consumer' => ConsumerExtensions::class],
-    'providers' => ['consumer'],
     'route_strategies' => ['consumer.first'],
     'outcome_policies' => ['consumer.accept'],
     'route_filters' => [],

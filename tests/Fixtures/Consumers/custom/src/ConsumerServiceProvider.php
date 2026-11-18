@@ -10,9 +10,13 @@ class ConsumerServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $existing = $this->app['config']->get('packman.plugins', []);
+        $plugins = is_array($existing) ? $existing : [];
+        $this->app['config']->set('packman.plugins', array_values(array_unique([...$plugins, ConsumerExtensions::class])));
+
         $this->app['config']->set('proxyma.extensions', [
-            'approved_providers' => ['consumer' => ConsumerExtensions::class], 'providers' => ['consumer'],
-            'route_strategies' => ['consumer.first'], 'outcome_policies' => ['consumer.accept'],
+            'route_strategies' => ['consumer.first'],
+            'outcome_policies' => ['consumer.accept'],
         ]);
     }
 }

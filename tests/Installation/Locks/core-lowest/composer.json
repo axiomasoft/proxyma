@@ -10,14 +10,28 @@
                 "symlink": false,
                 "reference": "config",
                 "versions": {
-                    "axiomasoft/proxyma": "dev-main"
+                    "axiomasoft/proxyma-core": "dev-main"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "sources/packman/*",
+            "options": {
+                "symlink": false,
+                "reference": "config",
+                "versions": {
+                    "axiomasoft/packman": "0.1.0",
+                    "axiomasoft/packman-panels": "0.1.0",
+                    "axiomasoft/packman-plugins": "0.1.0",
+                    "axiomasoft/packman-schema": "0.1.0"
                 }
             }
         }
     ],
     "require": {
         "php": "^8.4",
-        "axiomasoft/proxyma": "dev-main",
+        "axiomasoft/proxyma-core": "dev-main",
         "laravel/framework": "^13.0"
     },
     "config": {

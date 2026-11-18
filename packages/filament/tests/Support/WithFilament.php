@@ -20,6 +20,10 @@ use Filament\Widgets\WidgetsServiceProvider;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Auth\User;
 use Livewire\LivewireServiceProvider;
+use Packman\Filament\PackmanFilamentServiceProvider;
+use Packman\PackmanServiceProvider;
+use Packman\Panels\Laravel\PanelsServiceProvider;
+use Packman\Plugins\Laravel\PluginsServiceProvider;
 use Proxyma\Domain\Catalog\Endpoint;
 use Proxyma\Domain\Catalog\ProxyProtocol;
 use Proxyma\Domain\Catalog\UpsertEndpointCommand;
@@ -47,13 +51,14 @@ trait WithFilament
 
     protected function getPackageProviders($app): array
     {
-        return [...parent::getPackageProviders($app),
+        return array_values(array_unique([...parent::getPackageProviders($app),
+            PackmanServiceProvider::class, PluginsServiceProvider::class, PanelsServiceProvider::class,
             BladeIconsServiceProvider::class, BladeHeroiconsServiceProvider::class, LivewireServiceProvider::class,
             SupportServiceProvider::class, ActionsServiceProvider::class, FormsServiceProvider::class,
             InfolistsServiceProvider::class, NotificationsServiceProvider::class, SchemasServiceProvider::class,
             TablesServiceProvider::class, WidgetsServiceProvider::class, FilamentServiceProvider::class,
-            ProxymaFilamentServiceProvider::class, TestPanelProvider::class,
-        ];
+            PackmanFilamentServiceProvider::class, ProxymaFilamentServiceProvider::class, TestPanelProvider::class,
+        ]));
     }
 
     protected function prepareFilament(): void

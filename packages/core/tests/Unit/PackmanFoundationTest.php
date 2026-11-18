@@ -12,7 +12,12 @@ use Packman\Doctor\Laravel\DoctorChecks;
 use Packman\Errors\Contracts\DescribesError;
 use Packman\Errors\Contracts\ProblemRegistry;
 use Packman\Errors\Exceptions\CodedException;
-use Packman\Extensions\Contracts\Persistence\WithDatabaseRegistration;
+use Packman\Extensions\Contracts\Composition\WithCapabilities;
+use Packman\Extensions\Contracts\Composition\WithPanels;
+use Packman\Extensions\Contracts\Composition\WithSlots;
+use Packman\Extensions\Contracts\Configuration\WithConfiguration;
+use Packman\Extensions\Contracts\Persistence\WithSchema;
+use Packman\Extensions\Contracts\Runtime\WithDiagnostics;
 use Packman\Extensions\ExtensionInspector;
 use Packman\Filament\Contracts\FilamentPanelPlugin;
 use Packman\Filament\Forms\BindingEditor as PackmanBindingEditor;
@@ -21,6 +26,7 @@ use Packman\Panels\Contracts\Registry\PanelProvider;
 use Packman\Panels\Data\Panel\PanelContext;
 use Packman\Panels\Data\Panel\PanelReference;
 use Packman\Panels\Laravel\PanelsServiceProvider;
+use Packman\Plugins\Contracts\Registry\ExtensionPlugin;
 use Packman\Plugins\Laravel\PluginsServiceProvider;
 use Packman\Schema\Contracts\Migration\SchemaSetProvider;
 use Packman\Schema\Enums\SchemaScope;
@@ -31,8 +37,11 @@ use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogInvalidMutation;
 use Proxyma\Application\Catalog\CatalogNotFound;
 use Proxyma\Application\Catalog\CatalogStorageFailure;
+use Proxyma\Application\Diagnostics\Doctor;
 use Proxyma\Configuration\ProxymaOptions;
+use Proxyma\Configuration\TransactionsOptions;
 use Proxyma\Contracts\Authorization\Authorizer;
+use Proxyma\Contracts\Health\DiagnosticsQueries;
 use Proxyma\Database\ProxymaSchemaSets;
 use Proxyma\Diagnostics\ProxymaDoctorCheck;
 use Proxyma\Domain\Admission\AdmissionRejected;
@@ -41,7 +50,9 @@ use Proxyma\Domain\Admission\NeedsReplan;
 use Proxyma\Domain\Admission\ReservationDeferred;
 use Proxyma\Domain\Catalog\ActorRef;
 use Proxyma\Domain\Execution\RetryAt;
+use Proxyma\Domain\Execution\SchemaDiagnosticReport;
 use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Health\HealthSnapshot;
 use Proxyma\Domain\Panels\DefinitionError;
 use Proxyma\Domain\Panels\PanelFormData;
 use Proxyma\Domain\Panels\PanelSlot;
@@ -59,6 +70,8 @@ use Proxyma\Errors\ProxymaErrorCode;
 use Proxyma\Filament\BindingEditor;
 use Proxyma\Filament\ProxymaFilamentServiceProvider;
 use Proxyma\Filament\ProxymaPlugin;
+use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Eloquent\EndpointRecord;
 use Proxyma\Infrastructure\Secrets\SecretStorageFailure;
 use Proxyma\Laravel\ProxymaServiceProvider;
 use Proxyma\Panels\ProxymaPanelProvider;
@@ -106,6 +119,29 @@ it('compiles default ProxymaOptions and enforces closed schema with SecretRef ma
 
     expect(fn (): ProxymaOptions => ProxymaOptions::fromArray($unsafe, 'proxyma'))
         ->toThrow(InvalidConfiguration::class, 'mandatory');
+
+    foreach (['2s; DROP TABLE x', '500 ms', '-1ms', '01s', ''] as $badDuration) {
+        $badTx = $raw;
+        $badTx['transactions'] = ['lock_timeout' => $badDuration];
+        expect(fn (): ProxymaOptions => ProxymaOptions::fromArray($badTx, 'proxyma'))
+            ->toThrow(InvalidConfiguration::class, 'lock_timeout');
+        expect(fn (): TransactionsOptions => new TransactionsOptions(lockTimeout: $badDuration))
+            ->toThrow(InvalidArgumentException::class);
+
+        $badStmt = $raw;
+        $badStmt['transactions'] = ['statement_timeout' => $badDuration];
+        expect(fn (): ProxymaOptions => ProxymaOptions::fromArray($badStmt, 'proxyma'))
+            ->toThrow(InvalidConfiguration::class, 'statement_timeout');
+    }
+
+    foreach ([0, 21] as $badAttempts) {
+        $badTx = $raw;
+        $badTx['transactions'] = ['max_attempts' => $badAttempts];
+        expect(fn (): ProxymaOptions => ProxymaOptions::fromArray($badTx, 'proxyma'))
+            ->toThrow(InvalidConfiguration::class, 'max_attempts');
+        expect(fn (): TransactionsOptions => new TransactionsOptions(maxAttempts: $badAttempts))
+            ->toThrow(InvalidArgumentException::class);
+    }
 });
 
 it('registers all ProxymaErrorCode entries and DescribesError exceptions in ProblemRegistry', function (): void {
@@ -143,8 +179,21 @@ it('registers all ProxymaErrorCode entries and DescribesError exceptions in Prob
 it('declares stateless ProxymaCorePlugin facets, schema set, panels, and thin providers', function (): void {
     $plugin = new ProxymaCorePlugin;
     $profile = ExtensionInspector::inspect($plugin);
+    $interfaces = array_values(class_implements($plugin));
+    sort($interfaces);
 
-    expect($plugin)->not->toBeInstanceOf(WithDatabaseRegistration::class)
+    $expectedInterfaces = [
+        WithCapabilities::class,
+        WithPanels::class,
+        WithSlots::class,
+        WithConfiguration::class,
+        WithSchema::class,
+        WithDiagnostics::class,
+        ExtensionPlugin::class,
+    ];
+    sort($expectedInterfaces);
+
+    expect($interfaces)->toBe($expectedInterfaces)
         ->and($profile->hasConfiguration)->toBeTrue()
         ->and($profile->hasSchema)->toBeTrue()
         ->and($profile->tablePrefix)->toBe('pxm_')
@@ -157,7 +206,7 @@ it('declares stateless ProxymaCorePlugin facets, schema set, panels, and thin pr
     $schemaSets = $this->app->make(ProxymaSchemaSets::class);
     $sets = $schemaSets->sets();
     expect($sets)->toHaveCount(1)
-        ->and($sets[0]->id())->toBe('axiomasoft/proxyma:proxyma')
+        ->and($sets[0]->id())->toBe('axiomasoft/proxyma-core:proxyma')
         ->and($sets[0]->scope)->toBe(SchemaScope::Central)
         ->and($sets[0]->drivers)->toBe(['pgsql']);
 
@@ -229,4 +278,104 @@ it('registers ProxymaDoctorCheck under packman doctor tags and flags weak wire d
     }
 
     expect($found)->toBeTrue();
+});
+
+it('masks raw exception messages and delegates Doctor inspection through ProxymaDoctorCheck', function (): void {
+    $secret = 'P@ssw0rdSecret123';
+    $failingQueries = new class($secret) implements DiagnosticsQueries
+    {
+        public function __construct(private readonly string $secret) {}
+
+        public function verifySchemaCapabilities(): SchemaDiagnosticReport
+        {
+            throw new RuntimeException('PG connection error postgres://proxyma:'.$this->secret.'@127.0.0.1:5432/db');
+        }
+
+        public function inspectRouteHealth(TenantKey $tenant, Uuid $routeId, ?Uuid $targetId = null): ?HealthSnapshot
+        {
+            return null;
+        }
+
+        public function inspectTargetHealth(TenantKey $tenant, Uuid $targetId): ?HealthSnapshot
+        {
+            return null;
+        }
+    };
+
+    $check = new ProxymaDoctorCheck(
+        config: null,
+        queries: $failingQueries,
+        optionsResolver: static function () use ($secret): ProxymaOptions {
+            throw new RuntimeException('Invalid key '.$secret.' in configuration');
+        },
+    );
+
+    $findings = $check->run(new DoctorContext);
+    $codes = array_map(static fn (DoctorFinding $f): string => $f->code, $findings);
+
+    expect($codes)->toContain('proxyma.doctor.schema_unreachable', 'proxyma.doctor.invalid_configuration')
+        ->and(json_encode($findings, JSON_THROW_ON_ERROR))->not->toContain($secret);
+
+    $doctor = new Doctor($failingQueries, check: $check);
+    $report = $doctor->inspect();
+
+    expect($report['healthy'])->toBeFalse()
+        ->and($report['configuration_valid'])->toBeFalse()
+        ->and($report['schema']->healthy)->toBeFalse()
+        ->and($report['network_io'])->toBeFalse()
+        ->and(json_encode($report, JSON_THROW_ON_ERROR))->not->toContain($secret);
+
+    $healthyQueries = new class implements DiagnosticsQueries
+    {
+        public function verifySchemaCapabilities(): SchemaDiagnosticReport
+        {
+            return new SchemaDiagnosticReport(true, 'pgsql');
+        }
+
+        public function inspectRouteHealth(TenantKey $tenant, Uuid $routeId, ?Uuid $targetId = null): ?HealthSnapshot
+        {
+            return null;
+        }
+
+        public function inspectTargetHealth(TenantKey $tenant, Uuid $targetId): ?HealthSnapshot
+        {
+            return null;
+        }
+    };
+
+    $healthyDoctor = new Doctor($healthyQueries, new ProxymaOptions(wireDigestKey: new SecretRef(str_repeat('b', 32))));
+    $healthyReport = $healthyDoctor->inspect();
+    expect($healthyReport['healthy'])->toBeTrue()
+        ->and($healthyReport['configuration_valid'])->toBeTrue();
+
+    $weakDoctor = new Doctor($healthyQueries, new ProxymaOptions(wireDigestKey: new SecretRef('weak')));
+    expect($weakDoctor->inspect()['healthy'])->toBeFalse()
+        ->and($weakDoctor->inspect()['configuration_valid'])->toBeFalse();
+});
+
+it('honors configured proxyma.table_prefix dynamically across PackageSchema, Eloquent models, and ProxymaCorePlugin', function (): void {
+    expect(PackageSchema::prefix())->toBe('pxm_')
+        ->and((new EndpointRecord)->getTable())->toBe('pxm_endpoints');
+
+    $this->app['config']->set('proxyma.table_prefix', 'audit_');
+    $this->app->forgetInstance(ProxymaOptions::class);
+
+    $plugin = new ProxymaCorePlugin;
+    $profile = ExtensionInspector::inspect($plugin);
+
+    expect(PackageSchema::prefix())->toBe('audit_')
+        ->and((new EndpointRecord)->getTable())->toBe('audit_endpoints')
+        ->and(PackageSchema::tables()['attempts'])->toBe('audit_attempts')
+        ->and($plugin->tablePrefix())->toBe('audit_')
+        ->and($profile->tablePrefix)->toBe('audit_');
+
+    $this->app->instance(ProxymaOptions::class, new ProxymaOptions(tablePrefix: new TablePrefix('bound_')));
+    expect(PackageSchema::prefix())->toBe('bound_')
+        ->and((new EndpointRecord)->getTable())->toBe('bound_endpoints')
+        ->and($plugin->tablePrefix())->toBe('bound_');
+
+    $this->app->forgetInstance(ProxymaOptions::class);
+    $this->app['config']->set('proxyma.maintenance.batch_size', 65);
+    expect(fn () => $this->app->make(ProxymaOptions::class))->toThrow(InvalidConfiguration::class);
+    expect(PackageSchema::tables()['operations'])->toBe('audit_operations');
 });

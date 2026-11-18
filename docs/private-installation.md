@@ -142,10 +142,10 @@ vendor source paths; dependency stages копируют оба подпакет�
 ```json
 {
   "repositories": [
-    {"type": "path", "url": "local/vendors/proxyma/packages/core", "options": {"symlink": false, "reference": "config", "versions": {"axiomasoft/proxyma": "0.1.0"}}},
+    {"type": "path", "url": "local/vendors/proxyma/packages/core", "options": {"symlink": false, "reference": "config", "versions": {"axiomasoft/proxyma-core": "0.1.0"}}},
     {"type": "path", "url": "local/vendors/proxyma/packages/filament", "options": {"symlink": false, "reference": "config", "versions": {"axiomasoft/proxyma-filament": "0.1.0"}}}
   ],
-  "require": {"axiomasoft/proxyma": "0.1.0", "axiomasoft/proxyma-filament": "0.1.0"}
+  "require": {"axiomasoft/proxyma-core": "0.1.0", "axiomasoft/proxyma-filament": "0.1.0"}
 }
 ```
 
@@ -154,7 +154,7 @@ Filament `self.version` становится точно 0.1.0. Не устана
 Workspace dev-main/symlinks предназначены только для разработки.
 
 ```bash
-composer update axiomasoft/proxyma axiomasoft/proxyma-filament --with-all-dependencies --no-dev
+composer update axiomasoft/proxyma-core axiomasoft/proxyma-filament --with-all-dependencies --no-dev
 composer validate --strict
 composer check-platform-reqs --no-dev
 ```
@@ -207,7 +207,7 @@ versions/epochs при ротации. См. [security](security.md), [extension
 и populated upgrade требуют отдельного согласованного cutover:
 
 ```bash
-php artisan migrate --force
+php artisan packman:schema:migrate --scope=central --database=pgsql --force
 php artisan proxyma:doctor
 php artisan proxyma:transport-doctor
 ```

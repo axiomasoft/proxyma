@@ -24,7 +24,7 @@ it('мигрирует независимый core дважды и откаты�
         expect($tables)->toContain($name);
     }
     expect(PackageSchema::tables())->toHaveKey('imported_health_samples');
-    $this->migrateSchemaSets(['axiomasoft/proxyma:proxyma'], 'pgsql');
+    $this->migrateSchemaSets(['axiomasoft/proxyma-core:proxyma'], 'pgsql');
     expect($this->db->table('migrations')->count())->toBe(15);
     $migration = require dirname(__DIR__, 2).'/database/migrations/2026_11_09_000001_create_pxm_authority_tables.php';
     $this->reconfigureProxyma(['connection' => 'configured-authority']);
@@ -40,7 +40,7 @@ it('мигрирует независимый core дважды и откаты�
     $this->artisan('migrate:rollback', ['--path' => dirname(__DIR__, 2).'/database/migrations', '--realpath' => true, '--force' => true])->assertExitCode(0);
     expect($this->db->select('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'))->toHaveCount(1);
     expect($this->db->getSchemaBuilder()->hasTable(PackageSchema::tables()['imported_health_samples']))->toBeFalse();
-    $this->migrateSchemaSets(['axiomasoft/proxyma:proxyma'], 'pgsql');
+    $this->migrateSchemaSets(['axiomasoft/proxyma-core:proxyma'], 'pgsql');
     expect($this->table('endpoints')->count())->toBe(0)
         ->and($this->table('imported_health_samples')->count())->toBe(0);
 });

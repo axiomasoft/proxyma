@@ -1,8 +1,11 @@
 {
-    "name": "axiomasoft/proxyma",
+    "name": "axiomasoft/proxyma-core",
     "description": "Proxyma core — governed egress routing, quota admission, health, and policy runtime for Laravel.",
     "type": "library",
     "license": "proprietary",
+    "replace": {
+        "axiomasoft/proxyma": "self.version"
+    },
     "require": {
         "php": "^8.4",
         "ext-curl": "*",
@@ -39,6 +42,9 @@
             ]
         },
         "packman": {
+            "schema-version": 1,
+            "package-type": "core",
+            "stability": "alpha",
             "error-prefix": "proxyma",
             "owns": [
                 "Application",

@@ -15,4 +15,4 @@ if (getenv('PROXYMA_EXPLICIT_PROVIDERS') === '1') {
 }
 
 return Application::configure(basePath: dirname(__DIR__))
-    ->withProviders($providers)->create();
+    ->withProviders($providers)->withExceptions()->create();

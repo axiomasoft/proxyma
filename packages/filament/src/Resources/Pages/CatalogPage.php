@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Livewire\Attributes\Locked;
 use Packman\Attributes\Api;
+use Packman\Attributes\Internal;
+use Packman\Filament\Concerns\Authorization\AuthorizesPage;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Catalog\CatalogConflict;
 use Proxyma\Application\Catalog\CatalogNotFound;
@@ -30,6 +32,8 @@ use UnitEnum;
 #[Api(since: '1.0')]
 abstract class CatalogPage extends Page
 {
+    use AuthorizesPage;
+
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
 
     protected string $view = 'proxyma-filament::catalog';
@@ -51,8 +55,8 @@ abstract class CatalogPage extends Page
     #[Locked]
     public int $catalogPage = 1;
 
-    #[Unexposed]
-    public static function canAccess(): bool
+    #[Internal]
+    public static function allowsDomainAccess(): bool
     {
         try {
             app(CatalogBrowser::class)->authorize(static::$kind);
@@ -65,6 +69,7 @@ abstract class CatalogPage extends Page
 
     public function mount(): void
     {
+        abort_unless(static::canAccess(), 403);
         $this->newRecord();
     }
 

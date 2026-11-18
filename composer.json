@@ -10,7 +10,7 @@
             "options": {
                 "symlink": true,
                 "versions": {
-                    "axiomasoft/proxyma": "1.0.x-dev",
+                    "axiomasoft/proxyma-core": "1.0.x-dev",
                     "axiomasoft/proxyma-filament": "1.0.x-dev"
                 }
             }
@@ -24,7 +24,6 @@
                     "axiomasoft/packman": "0.1.x-dev",
                     "axiomasoft/packman-schema": "0.1.x-dev",
                     "axiomasoft/packman-plugins": "0.1.x-dev",
-                    "axiomasoft/packman-modules": "0.1.x-dev",
                     "axiomasoft/packman-panels": "0.1.x-dev",
                     "axiomasoft/packman-filament": "0.1.x-dev",
                     "axiomasoft/packman-testkit": "0.1.x-dev",
@@ -40,7 +39,7 @@
         "axiomasoft/packman-panels": "^0.1",
         "axiomasoft/packman-plugins": "^0.1",
         "axiomasoft/packman-schema": "^0.1",
-        "axiomasoft/proxyma": "^1.0",
+        "axiomasoft/proxyma-core": "^1.0",
         "axiomasoft/proxyma-filament": "^1.0"
     },
     "require-dev": {
@@ -80,6 +79,7 @@
         "refactor": "vendor/bin/rector process",
         "refactor:check": "vendor/bin/rector process --dry-run",
         "test": "vendor/bin/pest --exclude-group=pg --exclude-group=docker-rig",
+        "test:coverage": "vendor/bin/pest --coverage --min=90 --exclude-group=docker-rig",
         "test:pg": "vendor/bin/pest --group=pg",
         "gate": "@php vendor/bin/packman gate",
         "php-api": "@php vendor/bin/packman php-api --check",

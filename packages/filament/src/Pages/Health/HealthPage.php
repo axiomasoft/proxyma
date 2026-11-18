@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Proxyma\Filament\Pages;
+namespace Proxyma\Filament\Pages\Health;
 
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -22,6 +22,7 @@ use Proxyma\Domain\Health\HealthScope;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Filament\Internal\FilamentValue;
+use Proxyma\Filament\Pages\Operations\OperationsPage;
 
 /**
  * @property-read Schema $probeSelector

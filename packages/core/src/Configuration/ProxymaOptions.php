@@ -15,7 +15,7 @@ use Proxyma\Application\Admission\TrafficSharePolicy;
 use Proxyma\Domain\Policy\TenantKey;
 
 /**
- * Immutable compiled root configuration snapshot for `axiomasoft/proxyma`.
+ * Immutable compiled root configuration snapshot for `axiomasoft/proxyma-core`.
  */
 #[Api(since: '1.0')]
 final readonly class ProxymaOptions implements OptionsFactory

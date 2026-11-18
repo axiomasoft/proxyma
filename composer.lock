@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "73c5734a7810448067f9039d7f239d66",
+    "content-hash": "1bd076c82e0c01b92023d1e1aefd341b",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -77,7 +77,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/core",
-                "reference": "8d61c9303a474f7c469035a0882fa11ad08b4429"
+                "reference": "f5ef3ecc5eb2e057724b6c72b0c5192d25d997bd"
             },
             "require": {
                 "php": "^8.4",
@@ -159,7 +159,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/filament",
-                "reference": "5c7ad405917b6bd91ebcd49c54ac21e4e0273e51"
+                "reference": "30f74faf9c8d8e92c4549507b64c63efa7d0e889"
             },
             "require": {
                 "axiomasoft/packman": "^0.1|^1.0@dev",
@@ -210,7 +210,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/panels",
-                "reference": "eba117caa649e2c7a52bb6062bd6569612752605"
+                "reference": "62fa9ae4cdd83a2694bcc798856a7e1c837f332e"
             },
             "require": {
                 "axiomasoft/packman": "^0.1|^1.0@dev",
@@ -264,7 +264,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/plugins",
-                "reference": "1413808d28f1506dff75ff711907db6ac2556142"
+                "reference": "5182ae3652710d6a773860bd8747bf5ec59649b6"
             },
             "require": {
                 "axiomasoft/packman": "^0.1|^1.0@dev",
@@ -316,7 +316,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/schema",
-                "reference": "6f8e27c2672f9b07951588127ee773225e2ae0e4"
+                "reference": "59f0b117fa61a22c0cb1b709b6339130479195d6"
             },
             "require": {
                 "axiomasoft/packman": "^0.1|^1.0@dev",
@@ -361,12 +361,12 @@
             }
         },
         {
-            "name": "axiomasoft/proxyma",
+            "name": "axiomasoft/proxyma-core",
             "version": "1.0.x-dev",
             "dist": {
                 "type": "path",
                 "url": "packages/core",
-                "reference": "7f5704cec40aaad33e238afdbdf791796ff35509"
+                "reference": "44cec62109a7b8ad2bde20c12afa316d5a853046"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -389,6 +389,9 @@
                 "symfony/http-foundation": "^7.4 || ^8.0",
                 "symfony/process": "^7.4 || ^8.0"
             },
+            "replace": {
+                "axiomasoft/proxyma": "self.version"
+            },
             "type": "library",
             "extra": {
                 "laravel": {
@@ -397,6 +400,9 @@
                     ]
                 },
                 "packman": {
+                    "schema-version": 1,
+                    "package-type": "core",
+                    "stability": "alpha",
                     "error-prefix": "proxyma",
                     "owns": [
                         "Application",
@@ -436,13 +442,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/filament",
-                "reference": "93aa4426e97e1e63ee188aeddf539ec3848bbad8"
+                "reference": "93da2b9f5673f3655c48855fd1e6188e68e77401"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
                 "axiomasoft/packman-filament": "^0.1",
                 "axiomasoft/packman-panels": "^0.1",
-                "axiomasoft/proxyma": "self.version",
+                "axiomasoft/proxyma-core": "self.version",
                 "filament/filament": "^5.0",
                 "php": "^8.4"
             },
@@ -454,6 +460,9 @@
                     ]
                 },
                 "packman": {
+                    "schema-version": 1,
+                    "package-type": "integration",
+                    "stability": "alpha",
                     "error-prefix": "proxyma",
                     "owns": [
                         "Actions",
@@ -8634,7 +8643,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/devtools",
-                "reference": "06571a6bbeae1a3f9f8db1666fdc9b65ca50d933"
+                "reference": "1756e2919c1b29ec01da7fa3eb6dec7b0618ac09"
             },
             "require": {
                 "axiomasoft/packman": "^0.1|^1.0@dev",
@@ -8689,7 +8698,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/testkit",
-                "reference": "f22e99b8d63dddf0aa58fb148100715c18c118d2"
+                "reference": "b8e21b76bd65c5bbfb590802cad860dc984dc775"
             },
             "require": {
                 "axiomasoft/packman": "^0.1|^1.0@dev",

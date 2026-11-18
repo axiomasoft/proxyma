@@ -84,12 +84,13 @@ final class InMemoryTransactionCoordinator implements ClaimActivationAuthority, 
         return $this->transactionLevel() > 0;
     }
 
-    public function run(Closure $operation, int $maxAttempts = 3): mixed
+    public function run(Closure $operation, ?int $maxAttempts = null): mixed
     {
         if ($this->customTransactionDriver === null) {
             return $this->database()->run($operation, $maxAttempts);
         }
-        if ($maxAttempts < 1) {
+        $attemptsLimit = $maxAttempts ?? 3;
+        if ($attemptsLimit < 1) {
             throw new InvalidArgumentException('TransactionCoordinator requires at least one attempt.');
         }
 
@@ -163,7 +164,7 @@ final class InMemoryTransactionCoordinator implements ClaimActivationAuthority, 
 
                 if ($exception instanceof QueryException) {
                     $sqlState = $exception->errorInfo[0] ?? null;
-                    if ($attempt < $maxAttempts && is_string($sqlState) && in_array($sqlState, self::RETRYABLE_SQL_STATES, true)) {
+                    if ($attempt < $attemptsLimit && is_string($sqlState) && in_array($sqlState, self::RETRYABLE_SQL_STATES, true)) {
                         usleep(random_int(20_000, 200_000));
 
                         continue;

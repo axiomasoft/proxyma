@@ -4,22 +4,39 @@ declare(strict_types=1);
 
 namespace Consumer;
 
-use Proxyma\Application\Extensions\DefinitionRegistry;
+use Packman\Extensions\Concerns\Composition\ContributesToSlots;
+use Packman\Extensions\Contracts\Composition\WithSlots;
+use Packman\Plugins\Contracts\Registry\ExtensionPlugin;
+use Packman\Plugins\Data\Plugin\PluginManifest;
+use Packman\Plugins\Laravel\PluginRegistrar;
+use Proxyma\Contracts\Bindings\SubjectResolver;
+use Proxyma\Contracts\Execution\OutcomePolicy;
 use Proxyma\Contracts\Extensions\ExtensionProvider;
-use Proxyma\Domain\Panels\ExtensionDefinition;
-use Proxyma\Domain\Panels\ExtensionKind;
-use Proxyma\Domain\Panels\PanelSlot;
-use Proxyma\Domain\Panels\SubjectResolverDefinition;
-use Proxyma\Domain\Policy\PanelDefinition;
+use Proxyma\Contracts\Routing\RouteSelectionStrategy;
 
-final class ConsumerExtensions implements ExtensionProvider
+final class ConsumerExtensions implements ExtensionPlugin, WithSlots
 {
-    public function register(DefinitionRegistry $registry): void
+    use ContributesToSlots;
+
+    public function manifest(): PluginManifest
     {
-        $registry->registerCapability('consumer.network');
-        $registry->registerSubjectResolver(new SubjectResolverDefinition('consumer.subjects', new ConsumerSubjects, ['document']));
-        $registry->registerPanel(new PanelDefinition('consumer.files', 'consumer.subjects', [new PanelSlot('read', ['timeout.connect_ms'])], ['consumer.network']));
-        $registry->registerExtension(new ExtensionDefinition('consumer.first', ExtensionKind::Strategy, new FirstRoute, version: 1));
-        $registry->registerExtension(new ExtensionDefinition('consumer.accept', ExtensionKind::OutcomePolicy, new AcceptResponse, version: 1));
+        return new PluginManifest(
+            id: 'consumer.proxyma',
+            version: '1.0.0',
+            requires: ['axiomasoft.proxyma'],
+        );
+    }
+
+    public function register(PluginRegistrar $registrar): void {}
+
+    /** @return list<array{slot: class-string, id: string, implementation: class-string, priority?: int, key?: string|null}> */
+    public function slotContributions(): array
+    {
+        return [
+            ['slot' => RouteSelectionStrategy::class, 'id' => 'consumer.first', 'implementation' => FirstRoute::class, 'key' => 'consumer.first'],
+            ['slot' => OutcomePolicy::class, 'id' => 'consumer.accept', 'implementation' => AcceptResponse::class, 'key' => 'consumer.accept'],
+            ['slot' => SubjectResolver::class, 'id' => 'consumer.subjects', 'implementation' => ConsumerSubjects::class, 'key' => 'consumer.subjects'],
+            ['slot' => ExtensionProvider::class, 'id' => 'consumer.definitions', 'implementation' => ConsumerDefinitions::class],
+        ];
     }
 }

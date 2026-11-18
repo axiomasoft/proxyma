@@ -1,6 +1,6 @@
 {
     "schema": "php-api/1",
-    "package": "axiomasoft/proxyma",
+    "package": "axiomasoft/proxyma-core",
     "symbols": {
         "Proxyma\\Application\\Admission\\AuthorityLocker": {
             "kind": "class",
@@ -2036,6 +2036,15 @@
                             "optional": true,
                             "default": "null",
                             "flags": 0
+                        },
+                        {
+                            "name": "options",
+                            "type": "?Proxyma\\Configuration\\TransactionsOptions",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "null",
+                            "flags": 0
                         }
                     ],
                     "return": null,
@@ -2413,11 +2422,11 @@
                         },
                         {
                             "name": "maxAttempts",
-                            "type": "int",
+                            "type": "?int",
                             "by_reference": false,
                             "variadic": false,
                             "optional": true,
-                            "default": "3",
+                            "default": "null",
                             "flags": 0
                         }
                     ],
@@ -3589,6 +3598,15 @@
                         {
                             "name": "optionsResolver",
                             "type": "?Closure",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "null",
+                            "flags": 4
+                        },
+                        {
+                            "name": "check",
+                            "type": "?Proxyma\\Diagnostics\\ProxymaDoctorCheck",
                             "by_reference": false,
                             "variadic": false,
                             "optional": true,
@@ -4987,6 +5005,26 @@
                     "return": "string",
                     "doc": []
                 },
+                "hasExtension": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "bool",
+                    "doc": []
+                },
                 "hasPanel": {
                     "visibility": "public",
                     "static": false,
@@ -5227,6 +5265,15 @@
                             "variadic": false,
                             "optional": false,
                             "default": null,
+                            "flags": 4
+                        },
+                        {
+                            "name": "extensions",
+                            "type": "?Packman\\Plugins\\Contracts\\Contributions\\Extensions",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "null",
                             "flags": 4
                         }
                     ],
@@ -10180,11 +10227,11 @@
                         },
                         {
                             "name": "maxAttempts",
-                            "type": "int",
+                            "type": "?int",
                             "by_reference": false,
                             "variadic": false,
                             "optional": true,
-                            "default": "3",
+                            "default": "null",
                             "flags": 0
                         }
                     ],
@@ -12235,7 +12282,7 @@
                     "parameters": [
                         {
                             "name": "config",
-                            "type": "Illuminate\\Contracts\\Config\\Repository",
+                            "type": "?Illuminate\\Contracts\\Config\\Repository",
                             "by_reference": false,
                             "variadic": false,
                             "optional": false,
@@ -12271,6 +12318,16 @@
                         }
                     ],
                     "return": null,
+                    "doc": []
+                },
+                "diagnose": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [],
+                    "return": "array",
                     "doc": []
                 },
                 "key": {
@@ -24787,6 +24844,120 @@
             "enum_backing": null,
             "enum_cases": []
         },
+        "Proxyma\\Domain\\Panels\\BudgetScopeSchema": {
+            "kind": "class",
+            "layer": "api",
+            "since": "1.0",
+            "final": true,
+            "readonly": true,
+            "abstract": false,
+            "extends": [],
+            "implements": [],
+            "uses": [],
+            "doc": [],
+            "methods": {
+                "__construct": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "namespace",
+                            "type": "string",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 1
+                        },
+                        {
+                            "name": "version",
+                            "type": "int",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "1",
+                            "flags": 1
+                        },
+                        {
+                            "name": "keys",
+                            "type": "array",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "[]",
+                            "flags": 1
+                        },
+                        {
+                            "name": "sharedTenants",
+                            "type": "array",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "[]",
+                            "flags": 1
+                        }
+                    ],
+                    "return": null,
+                    "doc": []
+                },
+                "allows": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "type": "string",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        },
+                        {
+                            "name": "tenant",
+                            "type": "Proxyma\\Domain\\Policy\\TenantKey",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "bool",
+                    "doc": []
+                },
+                "prefix": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "tenant",
+                            "type": "Proxyma\\Domain\\Policy\\TenantKey",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "string",
+                    "doc": []
+                }
+            },
+            "properties": {},
+            "constants": [],
+            "enum_backing": null,
+            "enum_cases": []
+        },
         "Proxyma\\Domain\\Panels\\DefinitionError": {
             "kind": "class",
             "layer": "api",
@@ -26953,7 +27124,7 @@
                             "by_reference": false,
                             "variadic": false,
                             "optional": true,
-                            "default": "'axiomasoft/proxyma'",
+                            "default": "'axiomasoft/proxyma-core'",
                             "flags": 0
                         },
                         {
@@ -34177,11 +34348,11 @@
                         },
                         {
                             "name": "maxAttempts",
-                            "type": "int",
+                            "type": "?int",
                             "by_reference": false,
                             "variadic": false,
                             "optional": true,
-                            "default": "3",
+                            "default": "null",
                             "flags": 0
                         }
                     ],

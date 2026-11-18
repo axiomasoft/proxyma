@@ -12,6 +12,26 @@ transaction. PHP 8.4/Laravel 13/Filament 5 — заявленная первая
 
 ## Выполнение и доказательства
 
+Для проверки Packman-интеграции на локальном PostgreSQL из `phpunit.xml`
+(`127.0.0.1:54329`, строго `proxyma_test`) доступен отдельный native-прогон.
+Он не заменяет Docker-квалификацию транспорта выше. Временные файлы можно
+оставить внутри checkout:
+
+```bash
+mkdir -p build/tmp
+export TMPDIR="$PWD/build/tmp" COMPOSER_PROCESS_TIMEOUT=1800
+./bin/php84 python3 scripts/install-fixture.py prepare --native
+PROXYMA_INSTALL_NATIVE=1 ./bin/php84 vendor/bin/pest tests/Installation
+./bin/php84 composer test
+./bin/php84 composer test:pg
+./bin/php84 composer test:coverage
+```
+
+Installation suite проверяет четыре copied-install lanes (`core`, `filament`,
+`core-lowest`, `filament-lowest`) и два consumer lanes (`minimal`, `custom`).
+Миграции запускаются через `packman:schema:migrate --scope=central --database=pgsql`;
+обычный `artisan migrate` не выбирает зарегистрированные schema sets.
+
 ```bash
 make test-up                       # build/setup, отдельно от qualification
 make test-env
@@ -130,8 +150,9 @@ checkpoint не подменяет tests и отдельное cross-provider re
 
 ## Границы квалификации и передача P8.3
 
-Нет coverage-percent gate, live crawling/load, paid API и утверждения exactly-once
-HTTP delivery. P8.2 не доказывает Agelto integration/cutover, заполненный consumer
+Coverage gate обеспечивается через `composer test:coverage` (`min_coverage: 90` в
+`packman.json`). Вне объёма остаются live crawling/load, paid API и утверждения
+exactly-once HTTP delivery. P8.2 не доказывает Agelto integration/cutover, заполненный consumer
 upgrade, private source lock agreement либо удаление старого runtime: это P9–P10.
 Audit proposals об optional safety-off, arbitrary model/hooks, generic durable
 outbox и внешнем event delivery отклонены D1/D10 для 0.1; обязательный adopted

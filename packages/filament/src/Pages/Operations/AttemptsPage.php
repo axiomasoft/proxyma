@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Proxyma\Filament\Pages;
+namespace Proxyma\Filament\Pages\Operations;
 
 use Packman\Attributes\Api;
 

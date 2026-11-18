@@ -109,7 +109,7 @@ class InstalledAcceptanceTest(unittest.TestCase):
             self.check()
 
     def test_отклоняет_старый_payload_и_чужие_файлы_в_runtime(self):
-        self.runtime['installed_packages']['axiomasoft/proxyma']['src/Fixture.php'] = '0' * 64
+        self.runtime['installed_packages']['axiomasoft/proxyma-core']['src/Fixture.php'] = '0' * 64
         for gate in REPORT.GATES:
             self.f.mutate_result(gate, lambda r: r.update(runtime=self.runtime))
         self.collect()

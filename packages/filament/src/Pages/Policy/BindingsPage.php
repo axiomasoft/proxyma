@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Proxyma\Filament\Pages;
+namespace Proxyma\Filament\Pages\Policy;
 
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -12,6 +12,8 @@ use Filament\Schemas\Schema;
 use Filament\Support\Components\Attributes\Unexposed;
 use Livewire\Attributes\Locked;
 use Packman\Attributes\Api;
+use Packman\Attributes\Internal;
+use Packman\Filament\Concerns\Authorization\AuthorizesPage;
 use Proxyma\Application\Authorization\AuthorizationDenied;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Extensions\DefinitionRegistry;
@@ -32,6 +34,8 @@ use UnitEnum;
 #[Api(since: '1.0')]
 class BindingsPage extends Page
 {
+    use AuthorizesPage;
+
     protected string $view = 'proxyma-filament::bindings';
 
     protected static string|UnitEnum|null $navigationGroup = 'Proxyma';
@@ -50,8 +54,8 @@ class BindingsPage extends Page
     #[Locked]
     public array $editing = [];
 
-    #[Unexposed]
-    public static function canAccess(): bool
+    #[Internal]
+    public static function allowsDomainAccess(): bool
     {
         try {
             $tenant = app(TenantContextResolver::class)->resolve()->tenant;

@@ -55,7 +55,11 @@ final class ProxymaAdmissionRegistrar implements PackageRegistrar
     #[Override]
     public function register(Application $app): void
     {
-        $app->scoped(TransactionCoordinator::class);
+        $app->scoped(TransactionCoordinator::class, static fn (Application $app): TransactionCoordinator => new TransactionCoordinator(
+            $app->make(ConnectionScope::class),
+            null,
+            $app->make(ProxymaOptions::class)->transactions,
+        ));
         $app->alias(TransactionCoordinator::class, TransactionCoordinatorContract::class);
         $app->scoped(AuthorityLocker::class);
 

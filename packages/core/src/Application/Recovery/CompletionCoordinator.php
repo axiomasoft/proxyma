@@ -191,7 +191,7 @@ final readonly class CompletionCoordinator implements Completion
                 return new LateReceiptResult(LateReceiptOutcome::TransitionedToCompleted, $next, true, $allowed);
             });
         } catch (QueryException $error) {
-            if ($error->getCode() === '23505' && str_contains($error->getMessage(), 'pxm_receipt_key_unique')) {
+            if ($error->getCode() === '23505' && str_contains($error->getMessage(), PackageSchema::identifier('receipt_key_unique'))) {
                 throw new AdmissionRejected('receipt_conflict');
             }
             throw $error;

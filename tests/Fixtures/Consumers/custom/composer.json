@@ -2,9 +2,50 @@
     "name": "proxyma-fixture/custom",
     "type": "project",
     "license": "proprietary",
-    "repositories": [{"type": "path", "url": "../../../../packages/core", "options": {"symlink": true, "versions": {"axiomasoft/proxyma": "dev-main"}}}],
-    "require": {"php": "^8.4", "axiomasoft/proxyma": "dev-main", "laravel/framework": "^13.0"},
-    "autoload": {"psr-4": {"Consumer\\": "src/"}},
-    "config": {"sort-packages": true, "platform": {"php": "8.4.27"}},
-    "scripts": {"post-autoload-dump": ["@php artisan package:discover --ansi"]}
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../../../packages/core",
+            "options": {
+                "symlink": true,
+                "versions": {
+                    "axiomasoft/proxyma-core": "dev-main"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "../../../../../packman/packages/*",
+            "options": {
+                "symlink": true,
+                "versions": {
+                    "axiomasoft/packman": "0.1.0",
+                    "axiomasoft/packman-panels": "0.1.0",
+                    "axiomasoft/packman-plugins": "0.1.0",
+                    "axiomasoft/packman-schema": "0.1.0"
+                }
+            }
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "axiomasoft/proxyma-core": "dev-main",
+        "laravel/framework": "^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Consumer\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.4.27"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "@php artisan package:discover --ansi"
+        ]
+    }
 }

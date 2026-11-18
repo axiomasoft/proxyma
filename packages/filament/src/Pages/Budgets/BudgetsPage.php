@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Proxyma\Filament\Pages;
+namespace Proxyma\Filament\Pages\Budgets;
 
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -12,6 +12,7 @@ use Proxyma\Application\Admission\QuotaService;
 use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Filament\Internal\FilamentValue;
+use Proxyma\Filament\Pages\Operations\OperationsPage;
 
 #[Api(since: '1.0')]
 class BudgetsPage extends OperationsPage

@@ -56,7 +56,7 @@ final readonly class PanelDefinition
         return $this->slots[$id] ?? throw new DefinitionError('Unknown panel slot.');
     }
 
-    public function toPackmanDescriptor(string $owningModule = 'axiomasoft/proxyma', ?string $label = null): PanelDescriptor
+    public function toPackmanDescriptor(string $owningModule = 'axiomasoft/proxyma-core', ?string $label = null): PanelDescriptor
     {
         return new PanelDescriptor(
             version: 'panel/1',

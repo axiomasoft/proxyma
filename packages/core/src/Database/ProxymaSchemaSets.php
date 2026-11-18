@@ -13,7 +13,7 @@ use Packman\Schema\Enums\SchemaLifecycle;
 use Packman\Schema\Enums\SchemaScope;
 
 /**
- * Declares the central PostgreSQL schema set owned by `axiomasoft/proxyma`.
+ * Declares the central PostgreSQL schema set owned by `axiomasoft/proxyma-core`.
  */
 #[Spi(kind: SpiKind::Call, since: '1.0')]
 final readonly class ProxymaSchemaSets implements SchemaSetProvider
@@ -24,7 +24,7 @@ final readonly class ProxymaSchemaSets implements SchemaSetProvider
     {
         return [
             new SchemaSet(
-                package: 'axiomasoft/proxyma',
+                package: 'axiomasoft/proxyma-core',
                 name: 'proxyma',
                 scope: SchemaScope::Central,
                 path: dirname(__DIR__, 2).'/database/migrations',

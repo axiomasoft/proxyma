@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Proxyma\Filament\Registrars;
 
+use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Foundation\Application;
 use Override;
 use Packman\Attributes\Spi;
 use Packman\Attributes\SpiKind;
+use Packman\Filament\Contracts\FilamentSurfaceGate;
 use Packman\Foundation\Contracts\PackageRegistrar;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Configuration\ProxymaOptions;
@@ -15,6 +17,7 @@ use Proxyma\Contracts\Authorization\TenantContextResolver;
 use Proxyma\Contracts\Catalog\CatalogQueries;
 use Proxyma\Filament\BindingEditor;
 use Proxyma\Filament\CatalogBrowser;
+use Proxyma\Filament\Internal\ProxymaSurfaceGate;
 use Proxyma\Filament\ProxymaPlugin;
 use Proxyma\Filament\Queries\OperationsQuery;
 use Proxyma\Infrastructure\Database\ConnectionScope;
@@ -54,5 +57,13 @@ final class ProxymaFilamentRegistrar implements PackageRegistrar
     public function boot(Application $app): void
     {
         $app->make('view')->addNamespace('proxyma-filament', dirname(__DIR__, 2).'/resources/views');
+
+        if ($app->bound(FilamentSurfaceGate::class)) {
+            $app->extend(FilamentSurfaceGate::class, static fn (FilamentSurfaceGate $inner, Application $app): FilamentSurfaceGate => new ProxymaSurfaceGate(
+                inner: $inner,
+                gate: $app->make(Gate::class),
+                container: $app,
+            ));
+        }
     }
 }

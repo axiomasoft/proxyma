@@ -206,7 +206,7 @@ it('bootstrap не делает SQL, миграция имеет один autolo
     $paths = $this->app['migrator']->paths();
     $expected = dirname(__DIR__, 2).'/database/migrations';
     $normalized = array_map(realpath(...), $paths);
-    $central = $this->app->make(SchemaSets::class)->get('axiomasoft/proxyma:proxyma');
+    $central = $this->app->make(SchemaSets::class)->get('axiomasoft/proxyma-core:proxyma');
     expect($normalized)->not->toContain(realpath($expected))
         ->and($central->path !== null ? realpath($central->path) : false)->toBe(realpath($expected));
     $published = ProxymaServiceProvider::pathsToPublish(ProxymaServiceProvider::class);

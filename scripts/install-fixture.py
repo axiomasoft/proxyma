@@ -16,14 +16,27 @@ LANES = ('core', 'filament', 'core-lowest', 'filament-lowest')
 
 def run(arguments, cwd=ROOT, offline=False):
     environment = {**os.environ, 'COMPOSER_HOME': str(BUILD / 'home'),
-                   'COMPOSER_CACHE_DIR': str(BUILD / 'cache'), 'COMPOSER_ALLOW_SUPERUSER': '1'}
+                   'COMPOSER_CACHE_DIR': str(BUILD / 'cache'), 'COMPOSER_ALLOW_SUPERUSER': '1',
+                   'COMPOSER_NO_AUDIT': '1'}
     if offline:
         environment['COMPOSER_DISABLE_NETWORK'] = '1'
     subprocess.run(arguments, cwd=cwd, env=environment, check=True, timeout=900)
 
 
+def php_command():
+    php84 = ROOT / 'bin/php84'
+    return [str(php84), 'php'] if php84.exists() else ['php']
+
+
 def composer(*arguments, cwd=ROOT, offline=False):
-    run(['php', str(BUILD / 'composer.phar'), *arguments, '--no-interaction', '--no-plugins', '--no-scripts'], cwd, offline)
+    composer_bin = BUILD / 'composer.phar'
+    if not composer_bin.exists():
+        host_composer = shutil.which('composer')
+        if not host_composer:
+            raise ValueError('Composer 2.8.2 PHAR is required on host or in build/installation/composer.phar')
+        BUILD.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(host_composer, composer_bin)
+    run([*php_command(), str(composer_bin), *arguments, '--no-interaction', '--no-plugins', '--no-scripts'], cwd, offline)
 
 
 def populate(lane, destination):
@@ -35,6 +48,11 @@ def populate(lane, destination):
     for package in ('core', 'filament') if lane.startswith('filament') else ('core',):
         shutil.copytree(ROOT / 'packages' / package, destination / 'sources' / package,
                         ignore=shutil.ignore_patterns('vendor', '.git'))
+    packman_root = ROOT.parent / 'packman/packages'
+    packman_packages = ('core', 'panels', 'plugins', 'schema', 'filament') if lane.startswith('filament') else ('core', 'panels', 'plugins', 'schema')
+    for package in packman_packages:
+        shutil.copytree(packman_root / package, destination / 'sources/packman' / package,
+                        ignore=shutil.ignore_patterns('vendor', '.git', 'tests'))
     for directory in ('bootstrap/cache', 'storage/framework/views', 'storage/framework/cache', 'storage/logs'):
         (destination / directory).mkdir(parents=True, exist_ok=True)
 
@@ -43,6 +61,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('prepare', 'prepare-runtime', 'install'))
     parser.add_argument('--refresh-locks', action='store_true')
+    parser.add_argument('--native', action='store_true')
     parser.add_argument('--lane', choices=LANES)
     parser.add_argument('--destination', type=Path)
     args = parser.parse_args()
@@ -52,6 +71,10 @@ def main():
         if not composer_path:
             raise ValueError('Composer 2.8.2 PHAR is required on host')
         shutil.copyfile(composer_path, BUILD / 'composer.phar')
+        if args.native:
+            run(['python3', 'scripts/install-fixture.py', 'prepare-runtime',
+                 *(['--refresh-locks'] if args.refresh_locks else [])])
+            return
         security = subprocess.check_output(['docker', 'info', '--format', '{{json .SecurityOptions}}'], text=True)
         user = '0:0' if 'rootless' in security else f'{os.getuid()}:{os.getgid()}'
         run(['docker', 'run', '--rm', '--user', user,
@@ -59,12 +82,14 @@ def main():
              'python3', 'scripts/install-fixture.py', 'prepare-runtime',
              *(['--refresh-locks'] if args.refresh_locks else [])])
         return
-    version = subprocess.check_output(['php', str(BUILD / 'composer.phar'), '--version'], text=True)
+    if not (BUILD / 'composer.phar').exists():
+        composer('--version')
+    version = subprocess.check_output([*php_command(), str(BUILD / 'composer.phar'), '--version'], text=True)
     if not version.startswith('Composer version 2.8.2 '):
         raise ValueError('Expected locked Composer 2.8.2')
     if args.action == 'prepare-runtime':
         if args.refresh_locks:
-            composer('update', 'axiomasoft/proxyma', 'axiomasoft/proxyma-filament', '--no-install')
+            composer('update', 'axiomasoft/proxyma-core', 'axiomasoft/proxyma-filament', '--no-install')
         for lane in LANES:
             # Каждый setup получает новый каталог; прежние артефакты не маскируют missing dependency.
             with tempfile.TemporaryDirectory(prefix='pxm_prepare_') as temp:
@@ -77,11 +102,12 @@ def main():
                 else:
                     composer('install', '--prefer-dist', '--no-dev', cwd=destination)
         for consumer in ('minimal', 'custom'):
-            composer('install', '--prefer-dist', '--no-dev', cwd=ROOT / 'tests/Fixtures/Consumers' / consumer)
+            action = 'update' if args.refresh_locks else 'install'
+            composer(action, '--prefer-dist', '--no-dev', cwd=ROOT / 'tests/Fixtures/Consumers' / consumer)
         return
     destination = args.destination
-    if not args.lane or destination is None or destination.parent != Path('/tmp') or not destination.name.startswith('pxm_install_'):
-        raise ValueError('install requires --lane and a new /tmp/pxm_install_* directory')
+    if not args.lane or destination is None or destination.parent.resolve() != Path(tempfile.gettempdir()).resolve() or not destination.name.startswith('pxm_install_'):
+        raise ValueError('install requires --lane and a new pxm_install_* directory under the system temporary directory')
     destination.mkdir()
     populate(args.lane, destination)
     composer('install', '--prefer-dist', '--no-dev', cwd=destination, offline=True)

@@ -47,7 +47,7 @@ final readonly class DatabaseTransactionCoordinator implements TransactionCoordi
         return $this->coordinator->inTransaction();
     }
 
-    public function run(Closure $operation, int $maxAttempts = 3): mixed
+    public function run(Closure $operation, ?int $maxAttempts = null): mixed
     {
         return $this->coordinator->run($operation, $maxAttempts);
     }

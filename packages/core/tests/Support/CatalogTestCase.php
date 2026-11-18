@@ -8,6 +8,8 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Orchestra\Testbench\TestCase;
+use Packman\PackmanServiceProvider;
+use Packman\Plugins\Laravel\PluginsServiceProvider;
 use Packman\Schema\Laravel\SchemaServiceProvider;
 use Packman\Schema\Testing\MigratesSchemaSets;
 use Packman\Testkit\Support\Database\SuiteDatabaseConnection;
@@ -16,6 +18,7 @@ use PDO;
 use Proxyma\Application\Admission\ClaimSend;
 use Proxyma\Application\Admission\ReservationService;
 use Proxyma\Application\Admission\TrafficSharePolicy;
+use Proxyma\Application\Admission\TransactionCoordinator;
 use Proxyma\Application\Bindings\BindingEditVersion;
 use Proxyma\Application\Bindings\DatabaseBindingCommands;
 use Proxyma\Application\Diagnostics\Doctor;
@@ -29,6 +32,7 @@ use Proxyma\Application\Routing\RouteSelector;
 use Proxyma\Application\Routing\StrategyRegistry;
 use Proxyma\Configuration\PolicyOptions;
 use Proxyma\Configuration\ProxymaOptions;
+use Proxyma\Contracts\Admission\TransactionCoordinator as TransactionCoordinatorContract;
 use Proxyma\Contracts\Authorization\Authorizer;
 use Proxyma\Contracts\Bindings\BindingCommands;
 use Proxyma\Contracts\Catalog\CandidateSnapshots;
@@ -69,7 +73,7 @@ abstract class CatalogTestCase extends TestCase
 
     protected function getPackageProviders($app): array
     {
-        return [SchemaServiceProvider::class, ProxymaServiceProvider::class];
+        return [PackmanServiceProvider::class, SchemaServiceProvider::class, PluginsServiceProvider::class, ProxymaServiceProvider::class];
     }
 
     protected function getEnvironmentSetUp($app): void
@@ -106,7 +110,7 @@ abstract class CatalogTestCase extends TestCase
         $this->fixtureSchema = 'pxm_t_'.bin2hex(random_bytes(8));
         $this->db->statement('CREATE SCHEMA '.$this->fixtureSchema);
         $this->db->statement('SET search_path TO '.$this->fixtureSchema);
-        $this->migrateSchemaSets(['axiomasoft/proxyma:proxyma'], 'pgsql');
+        $this->migrateSchemaSets(['axiomasoft/proxyma-core:proxyma'], 'pgsql');
     }
 
     protected function tearDown(): void
@@ -221,6 +225,8 @@ abstract class CatalogTestCase extends TestCase
             BindingEditVersion::class,
             DatabaseBindingCommands::class,
             BindingCommands::class,
+            TransactionCoordinator::class,
+            TransactionCoordinatorContract::class,
             ClaimSend::class,
             ReservationService::class,
             RouteSelector::class,

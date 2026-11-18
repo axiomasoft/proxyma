@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Proxyma\Infrastructure\Database;
 
+use Closure;
 use Illuminate\Database\Connection;
+use InvalidArgumentException;
 use Packman\Attributes\Internal;
+use Packman\Config\Data\TablePrefix;
 use Proxyma\Infrastructure\Audit\CatalogCommandReceiptRecord;
 use Proxyma\Infrastructure\Eloquent\AttemptRecord;
 use Proxyma\Infrastructure\Eloquent\AuditEventRecord;
@@ -44,6 +47,47 @@ use RuntimeException;
 #[Internal]
 final class PackageSchema
 {
+    /** @var (Closure(): string)|null */
+    private static ?Closure $prefixResolver = null;
+
+    private static string $defaultPrefix = 'pxm_';
+
+    public static function prefix(): string
+    {
+        $prefix = self::$prefixResolver !== null ? (self::$prefixResolver)() : self::$defaultPrefix;
+
+        return new TablePrefix($prefix)->value();
+    }
+
+    public static function usePrefix(TablePrefix|string|null $prefix): void
+    {
+        if ($prefix === null) {
+            self::$defaultPrefix = 'pxm_';
+
+            return;
+        }
+
+        self::$defaultPrefix = ($prefix instanceof TablePrefix ? $prefix : new TablePrefix($prefix))->value();
+    }
+
+    /** @param (Closure(): string)|null $resolver */
+    public static function resolvePrefixUsing(?Closure $resolver): void
+    {
+        self::$prefixResolver = $resolver;
+    }
+
+    public static function table(string $noun): string
+    {
+        $tables = self::tables();
+
+        return $tables[$noun] ?? throw new InvalidArgumentException("Unknown Proxyma table noun '{$noun}'.");
+    }
+
+    public static function identifier(string $suffix): string
+    {
+        return self::prefix().$suffix;
+    }
+
     /** @return array<string, string> */
     public static function tables(): array
     {
@@ -91,6 +135,7 @@ final class PackageSchema
             throw new RuntimeException('Proxyma authority requires PostgreSQL.');
         }
 
+        $p = self::prefix();
         $t = self::tables();
         $key = "text COLLATE \"C\" NOT NULL CHECK (%s ~ '^[a-z0-9][a-z0-9_.:-]{0,127}$')";
         $scope = "text COLLATE \"C\" NOT NULL CHECK (scope_key ~ '^[a-z0-9][a-z0-9_.:-]{0,254}$')";
@@ -133,7 +178,7 @@ final class PackageSchema
             UNIQUE (tenant_key, scope_key)");
         $create('policy_revisions', "head_id uuid NOT NULL, {$revision}, definition jsonb NOT NULL CHECK (jsonb_typeof(definition) = 'object'),
             UNIQUE (tenant_key, head_id, revision), UNIQUE (tenant_key, head_id, id), ".$fk('head_id', 'policy_heads'));
-        $db->statement("ALTER TABLE {$t['policy_heads']} ADD CONSTRAINT pxm_policy_current_fk FOREIGN KEY (tenant_key, id, current_revision_id)
+        $db->statement("ALTER TABLE {$t['policy_heads']} ADD CONSTRAINT {$p}policy_current_fk FOREIGN KEY (tenant_key, id, current_revision_id)
             REFERENCES {$t['policy_revisions']} (tenant_key, head_id, id) DEFERRABLE INITIALLY DEFERRED");
         $create('bindings', "subject_type text NOT NULL CHECK (subject_type ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
             subject_id text NOT NULL CHECK (octet_length(subject_id) BETWEEN 1 AND 255),
@@ -182,7 +227,7 @@ final class PackageSchema
             mandatory boolean NOT NULL DEFAULT false, {$revision},
             tat timestamptz NOT NULL DEFAULT '-infinity', send_tat timestamptz NOT NULL DEFAULT '-infinity',
             inflight bigint NOT NULL DEFAULT 0 CHECK (inflight >= 0),
-            CONSTRAINT pxm_budget_lock_idx UNIQUE (tenant_key, scope_key)");
+            CONSTRAINT {$p}budget_lock_idx UNIQUE (tenant_key, scope_key)");
         $create('quota_windows', 'budget_id uuid NOT NULL, starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL,
             CHECK (isfinite(starts_at) AND isfinite(ends_at) AND ends_at > starts_at),
             quota_limit bigint NOT NULL CHECK (quota_limit > 0), reserved bigint NOT NULL DEFAULT 0 CHECK (reserved >= 0),
@@ -214,34 +259,36 @@ final class PackageSchema
         $create('audit_events', "actor_type text NOT NULL CHECK (actor_type ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
             actor_id text NOT NULL CHECK (octet_length(actor_id) BETWEEN 1 AND 128),
             reason text NOT NULL CHECK (octet_length(reason) BETWEEN 1 AND 512), ability text NOT NULL,
-            entity_type text NOT NULL CHECK (entity_type IN ('endpoints','routes','route_profiles','targets')),
+            entity_type text NOT NULL,
             entity_id uuid NOT NULL, previous_revision bigint NOT NULL CHECK (previous_revision >= 0),
             revision bigint NOT NULL CHECK (revision = previous_revision + 1),
             idempotency_key text COLLATE \"C\" NOT NULL CHECK (idempotency_key ~ '^[!-~]{1,128}$'),
             command_hash text NOT NULL CHECK (command_hash ~ '^[0-9a-f]{64}$'),
-            result jsonb NOT NULL CHECK (jsonb_typeof(result) = 'object'), UNIQUE (tenant_key, idempotency_key)");
+            result jsonb NOT NULL CHECK (jsonb_typeof(result) = 'object'),
+            CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets')),
+            UNIQUE (tenant_key, idempotency_key)");
 
         foreach ([
-            'pxm_route_endpoint_idx' => ['routes', '(tenant_key, endpoint_id)'],
-            'pxm_member_route_idx' => ['route_profile_members', '(tenant_key, route_id)'],
-            'pxm_operation_deadline_idx' => ['operations', "(tenant_key, deadline, id) WHERE status = 'active'"],
-            'pxm_demand_fifo_idx' => ['demands', "(tenant_key, profile_id, target_id, sequence) WHERE state = 'active'"],
-            'pxm_demand_deadline_idx' => ['demands', "(tenant_key, deadline, id) WHERE state IN ('active','admitted')"],
-            'pxm_permit_due_idx' => ['permits', "(tenant_key, expires_at, id) WHERE state IN ('reserved','authorized')"],
-            'pxm_permit_operation_idx' => ['permits', '(tenant_key, operation_id, id)'],
-            'pxm_attempt_unknown_idx' => ['attempts', "(tenant_key, authorized_at, id) WHERE status = 'unknown_after_authorization'"],
-            'pxm_reservation_budget_idx' => ['reservations', '(tenant_key, budget_id, state)'],
-            'pxm_route_target_target_idx' => ['route_target_health', '(tenant_key, target_id, route_id)'],
-            'pxm_observation_attempt_idx' => ['observations', '(tenant_key, attempt_id)'],
-            'pxm_audit_entity_idx' => ['audit_events', '(tenant_key, entity_type, entity_id, revision)'],
+            "{$p}route_endpoint_idx" => ['routes', '(tenant_key, endpoint_id)'],
+            "{$p}member_route_idx" => ['route_profile_members', '(tenant_key, route_id)'],
+            "{$p}operation_deadline_idx" => ['operations', "(tenant_key, deadline, id) WHERE status = 'active'"],
+            "{$p}demand_fifo_idx" => ['demands', "(tenant_key, profile_id, target_id, sequence) WHERE state = 'active'"],
+            "{$p}demand_deadline_idx" => ['demands', "(tenant_key, deadline, id) WHERE state IN ('active','admitted')"],
+            "{$p}permit_due_idx" => ['permits', "(tenant_key, expires_at, id) WHERE state IN ('reserved','authorized')"],
+            "{$p}permit_operation_idx" => ['permits', '(tenant_key, operation_id, id)'],
+            "{$p}attempt_unknown_idx" => ['attempts', "(tenant_key, authorized_at, id) WHERE status = 'unknown_after_authorization'"],
+            "{$p}reservation_budget_idx" => ['reservations', '(tenant_key, budget_id, state)'],
+            "{$p}route_target_target_idx" => ['route_target_health', '(tenant_key, target_id, route_id)'],
+            "{$p}observation_attempt_idx" => ['observations', '(tenant_key, attempt_id)'],
+            "{$p}audit_entity_idx" => ['audit_events', '(tenant_key, entity_type, entity_id, revision)'],
         ] as $name => [$table, $columns]) {
             $db->statement("CREATE INDEX {$name} ON {$t[$table]} {$columns}");
         }
         foreach (['route_health', 'profile_health', 'target_health', 'route_target_health'] as $name) {
-            $db->statement("CREATE INDEX pxm_{$name}_probe_idx ON {$t[$name]} (tenant_key, open_until, id) WHERE state IN ('open','half_open')");
+            $db->statement("CREATE INDEX {$p}{$name}_probe_idx ON {$t[$name]} (tenant_key, open_until, id) WHERE state IN ('open','half_open')");
         }
-        $db->unprepared(<<<'SQL'
-            CREATE FUNCTION pxm_catalog_revision_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+        $db->statement(<<<SQL
+            CREATE FUNCTION {$p}catalog_revision_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF TG_OP = 'DELETE' THEN
                     RAISE EXCEPTION 'catalog history requires retirement' USING ERRCODE = '23514';
@@ -251,12 +298,16 @@ final class PackageSchema
                     RAISE EXCEPTION 'catalog identity, revision or retirement violation' USING ERRCODE = '23514';
                 END IF;
                 RETURN NEW;
-            END $$;
-            CREATE FUNCTION pxm_append_only_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+            END \$\$
+            SQL);
+        $db->statement(<<<SQL
+            CREATE FUNCTION {$p}append_only_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 RAISE EXCEPTION 'immutable authority history' USING ERRCODE = '23514';
-            END $$;
-            CREATE FUNCTION pxm_permit_transition_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+            END \$\$
+            SQL);
+        $db->statement(<<<SQL
+            CREATE FUNCTION {$p}permit_transition_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF ROW(NEW.id, NEW.tenant_key, NEW.operation_id, NEW.demand_id, NEW.route_id, NEW.target_id,
                        NEW.physical_attempt_id, NEW.wire_fingerprint, NEW.cost, NEW.not_before, NEW.expires_at)
@@ -277,27 +328,28 @@ final class PackageSchema
                     RAISE EXCEPTION 'invalid permit lifecycle transition' USING ERRCODE = '23514';
                 END IF;
                 RETURN NEW;
-            END $$;
+            END \$\$
             SQL);
-        $db->statement("CREATE TRIGGER pxm_permit_transition BEFORE UPDATE ON {$t['permits']} FOR EACH ROW EXECUTE FUNCTION pxm_permit_transition_guard()");
+        $db->statement("CREATE TRIGGER {$p}permit_transition BEFORE UPDATE ON {$t['permits']} FOR EACH ROW EXECUTE FUNCTION {$p}permit_transition_guard()");
         foreach (['endpoints', 'routes', 'route_profiles', 'targets'] as $name) {
-            $db->statement("CREATE TRIGGER pxm_{$name}_revision BEFORE UPDATE OR DELETE ON {$t[$name]} FOR EACH ROW EXECUTE FUNCTION pxm_catalog_revision_guard()");
+            $db->statement("CREATE TRIGGER {$p}{$name}_revision BEFORE UPDATE OR DELETE ON {$t[$name]} FOR EACH ROW EXECUTE FUNCTION {$p}catalog_revision_guard()");
         }
         foreach (['policy_revisions', 'audit_events'] as $name) {
-            $db->statement("CREATE TRIGGER pxm_{$name}_immutable BEFORE UPDATE OR DELETE ON {$t[$name]} FOR EACH ROW EXECUTE FUNCTION pxm_append_only_guard()");
+            $db->statement("CREATE TRIGGER {$p}{$name}_immutable BEFORE UPDATE OR DELETE ON {$t[$name]} FOR EACH ROW EXECUTE FUNCTION {$p}append_only_guard()");
         }
     }
 
     public static function down(Connection $db): void
     {
+        $p = self::prefix();
         $t = self::tables();
-        $db->statement("ALTER TABLE {$t['policy_heads']} DROP CONSTRAINT pxm_policy_current_fk");
+        $db->statement("ALTER TABLE {$t['policy_heads']} DROP CONSTRAINT {$p}policy_current_fk");
         // FK задают порядок удаления; зависимости health/budgets не совпадают с порядком словаря.
         foreach (['audit_events', 'observation_applications', 'observations', 'route_target_health', 'target_health', 'profile_health', 'route_health', 'reservations', 'quota_windows', 'budgets', 'attempts', 'permits', 'demands', 'operations', 'bindings', 'policy_revisions', 'policy_heads', 'targets', 'route_profile_members', 'route_profiles', 'routes', 'endpoints'] as $name) {
             $db->statement("DROP TABLE {$t[$name]}");
         }
-        $db->statement('DROP FUNCTION pxm_catalog_revision_guard()');
-        $db->statement('DROP FUNCTION pxm_append_only_guard()');
-        $db->statement('DROP FUNCTION pxm_permit_transition_guard()');
+        $db->statement("DROP FUNCTION {$p}catalog_revision_guard()");
+        $db->statement("DROP FUNCTION {$p}append_only_guard()");
+        $db->statement("DROP FUNCTION {$p}permit_transition_guard()");
     }
 }

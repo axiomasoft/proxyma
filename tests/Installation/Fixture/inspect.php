@@ -25,13 +25,17 @@ $app->make('events')->listen(QueryExecuted::class, function () use (&$queries): 
 $app->make(Kernel::class)->bootstrap();
 $bootQueries = $queries;
 $classes = 0;
-foreach (['axiomasoft/proxyma' => 'Proxyma\\', 'axiomasoft/proxyma-filament' => 'Proxyma\\Filament\\'] as $package => $namespace) {
+foreach (['axiomasoft/proxyma-core' => 'Proxyma\\', 'axiomasoft/proxyma-filament' => 'Proxyma\\Filament\\'] as $package => $namespace) {
     if (! InstalledVersions::isInstalled($package)) {
         continue;
     }
     $source = InstalledVersions::getInstallPath($package).'/src/';
+    $manifest = json_decode(file_get_contents(dirname($source).'/composer.json'), true, flags: JSON_THROW_ON_ERROR);
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source)) as $file) {
         if ($file->getExtension() !== 'php' || ! preg_match('/^[A-Za-z_]/', $file->getBasename())) {
+            continue;
+        }
+        if (in_array('src/'.substr($file->getPathname(), strlen($source)), $manifest['autoload']['files'] ?? [], true)) {
             continue;
         }
         $class = $namespace.str_replace('/', '\\', substr($file->getPathname(), strlen($source), -4));
@@ -96,9 +100,14 @@ $report = [
 ];
 if (($argv[1] ?? '') === 'schema') {
     $db = $app['db']->connection();
-    $identity = $db->selectOne('SELECT current_database() AS db, current_user AS usr, current_schema() AS schema, (SELECT value FROM proxyma_rig.marker) AS marker');
-    if ([$identity->db, $identity->usr, $identity->marker, $identity->schema] !== ['proxyma_test', 'proxyma_test', 'proxyma_test_v1', getenv('PROXYMA_INSTALL_SCHEMA')]) {
+    $native = getenv('PROXYMA_INSTALL_NATIVE') === '1';
+    $identity = $db->selectOne('SELECT current_database() AS db, current_user AS usr, current_schema() AS schema');
+    $expectedUser = $native ? getenv('PROXYMA_INSTALL_DB_USERNAME') : 'proxyma_test';
+    if ([$identity->db, $identity->usr, $identity->schema] !== ['proxyma_test', $expectedUser, getenv('PROXYMA_INSTALL_SCHEMA')]) {
         throw new RuntimeException('Unsafe installed fixture database');
+    }
+    if (! $native && $db->selectOne('SELECT value FROM proxyma_rig.marker')->value !== 'proxyma_test_v1') {
+        throw new RuntimeException('Unsafe installed fixture marker');
     }
     $report['postgres'] = $db->selectOne('SHOW server_version')->server_version;
     $report['doctor'] = $app->make(Doctor::class)->inspect();

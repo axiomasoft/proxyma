@@ -84,21 +84,32 @@ class BindingEditor
         $expectedTenant = $this->tenants->resolve()->tenant;
         $resolvedProjection = $projection ?? $this->project($subject, $target, $panel, $slot);
         $rawAuthority = ($this->fence ?? app(CatalogMutationFence::class))->version();
-        $authorityVersion = ($rawAuthority !== null && is_numeric($rawAuthority)) ? (int) $rawAuthority : 0;
 
         try {
-            return $this->packmanEditor($target, $panel, $resolvedProjection)->open(
+            $opened = $this->packmanEditor($target, $panel, $resolvedProjection)->open(
                 expectedTenantId: $expectedTenant->value,
                 panelId: $panel,
                 subject: self::toSubjectNode($subject),
                 slotKey: $slot,
                 targetId: $target->value,
-                authorityVersion: $authorityVersion,
+                authorityVersion: 0,
                 projection: $resolvedProjection->toPackmanFormData(),
             );
         } catch (BindingAuthorizationException) {
             throw new AuthorizationDenied;
         }
+
+        if ($opened['context'] !== '') {
+            $opened['context'] = Crypt::encryptString(json_encode([
+                'target' => $target->value,
+                'panel' => $panel,
+                'has_authority' => true,
+                'authority_token' => $rawAuthority,
+                'inner' => $opened['context'],
+            ], JSON_THROW_ON_ERROR));
+        }
+
+        return $opened;
     }
 
     /**
@@ -108,7 +119,7 @@ class BindingEditor
      */
     public function save(array $data): void
     {
-        [$target, $panel] = self::resolveContextHeader($data['context'] ?? null);
+        [$target, $panel, $authorityVersion, $innerContext] = self::resolveContextHeader($data['context'] ?? null);
         $expectedTenant = $this->tenants->resolve()->tenant;
         $actor = $this->tenants->resolve()->actor;
 
@@ -118,7 +129,7 @@ class BindingEditor
 
         try {
             $prepared = $this->packmanEditor($target, $panel, null, $projectedCache)->prepareSave(
-                data: $data,
+                data: [...$data, 'context' => $innerContext],
                 expectedTenantId: $expectedTenant->value,
                 descriptorRules: $descriptorRules,
             );
@@ -149,10 +160,6 @@ class BindingEditor
                     }
                 }
             }
-
-            $authorityVersion = $prepared['authority_version'] > 0
-                ? (string) $prepared['authority_version']
-                : ($this->fence ?? app(CatalogMutationFence::class))->version();
 
             $this->commands->bindPolicy(new BindSubjectPolicyCommand(
                 $subject,
@@ -331,7 +338,7 @@ class BindingEditor
         return new SubjectNode($subject->tenant->value, $subject->type, $subject->id);
     }
 
-    /** @return array{0: Uuid, 1: string} */
+    /** @return array{0: Uuid, 1: string, 2: ?string, 3: string} */
     private static function resolveContextHeader(mixed $ciphertext): array
     {
         if (! is_string($ciphertext) || $ciphertext === '') {
@@ -346,13 +353,22 @@ class BindingEditor
 
         $target = is_array($decoded) ? ($decoded['target'] ?? null) : null;
         $panel = is_array($decoded) ? ($decoded['panel'] ?? null) : null;
+        $hasAuthority = is_array($decoded) ? ($decoded['has_authority'] ?? null) : null;
+        $hasToken = is_array($decoded) && array_key_exists('authority_token', $decoded);
+        $authorityToken = $hasToken ? $decoded['authority_token'] : null;
+        $inner = is_array($decoded) ? ($decoded['inner'] ?? null) : null;
 
-        if (! is_string($target) || $target === '' || ! is_string($panel) || $panel === '') {
+        if (! is_string($target) || $target === ''
+            || ! is_string($panel) || $panel === ''
+            || $hasAuthority !== true
+            || ! $hasToken
+            || ($authorityToken !== null && ! is_string($authorityToken))
+            || ! is_string($inner) || $inner === '') {
             throw new AuthorizationDenied;
         }
 
         try {
-            return [new Uuid($target), $panel];
+            return [new Uuid($target), $panel, $authorityToken, $inner];
         } catch (Throwable) {
             throw new AuthorizationDenied;
         }

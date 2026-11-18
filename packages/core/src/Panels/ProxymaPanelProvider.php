@@ -42,7 +42,7 @@ final readonly class ProxymaPanelProvider implements PanelProvider
         return new PanelDescriptor(
             version: 'panel/1',
             key: 'proxyma',
-            owningModule: 'axiomasoft/proxyma',
+            owningModule: 'axiomasoft/proxyma-core',
             requiredCapability: null,
             supportedActions: array_keys(self::ACTION_PERMISSIONS),
             label: 'Proxyma Egress Policy',

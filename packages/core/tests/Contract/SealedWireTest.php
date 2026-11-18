@@ -16,9 +16,13 @@ use Proxyma\Domain\Catalog\RouteKind;
 use Proxyma\Domain\Execution\AuthorizedWireRequest;
 use Proxyma\Domain\Execution\ClaimCandidate;
 use Proxyma\Domain\Execution\CommitLatch;
+use Proxyma\Domain\Execution\DemandPurpose;
+use Proxyma\Domain\Execution\IdempotencyClass;
 use Proxyma\Domain\Execution\PreparedHeaders;
+use Proxyma\Domain\Execution\RequestTimeoutPolicy;
 use Proxyma\Domain\Execution\ResolvedSecret;
 use Proxyma\Domain\Execution\ResolvedUrl;
+use Proxyma\Domain\Execution\ResponseProfile;
 use Proxyma\Domain\Execution\RouteSelection;
 use Proxyma\Domain\Execution\SafeUrl;
 use Proxyma\Domain\Execution\SealedWire;
@@ -32,6 +36,8 @@ use Proxyma\Tests\Support\CatalogTestCase;
 use Proxyma\Tests\Support\ClaimFixtures;
 use Proxyma\Tests\Support\DemandFixtures;
 use Proxyma\Tests\Support\ReservationFixtures;
+
+use function Proxyma\Tests\Support\fixtureDestination;
 
 require_once __DIR__.'/../Support/CatalogTestCase.php';
 require_once __DIR__.'/../Support/SelectionFixtures.php';
@@ -202,6 +208,49 @@ it('полный fingerprint не допускает иной route, credential,
     expect(fn () => $this->claims->claim($permit, $input, $changed))->toThrow(AdmissionRejected::class);
     expect($this->accounting())->toBe($before)->and($this->emitted)->toBe(0)->and($this->table('attempts')->count())->toBe(0);
 })->with(['route', 'credential', 'address', 'tls']);
+
+it('не принимает подставленный sealDigest при изменении канонического request или target provenance до reservation/admission', function (string $tamper): void {
+    $intent = $this->demandOperation();
+    $sealedBase = $this->sealer->seal(
+        $this->modifiedWire($intent['request'], ['method' => 'PUT', 'body' => WireBody::fromString('{"amount":10}')]),
+        $this->reservationInput($intent)->route,
+        fixtureDestination($this->transactions->scope, $intent['request']),
+        new TlsTrustConfiguration,
+    );
+    $changes = match ($tamper) {
+        'operation' => ['operationId' => Uuid::random()],
+        'attempt' => ['physicalAttemptId' => Uuid::random()],
+        'target' => ['targetId' => Uuid::random()],
+        'method' => ['method' => 'POST'],
+        'url' => ['url' => new SafeUrl('https://different.example.test/path')],
+        'body' => ['body' => WireBody::fromString('{"amount":999}')],
+        'body_replayable' => ['body' => WireBody::fromStream('{"amount":10}', replayable: false)],
+        'policy_revision' => ['policyRevision' => $sealedBase->request->policyRevision + 1],
+        'traffic_class' => ['trafficClass' => 'bulk'],
+        'headers' => ['headers' => new PreparedHeaders(['X-Spoofed' => '1'])],
+        'timeouts' => ['timeouts' => new RequestTimeoutPolicy(123, 456, 789)],
+        'deadline' => ['deadlineAt' => $sealedBase->request->deadlineAt->modify('+1 second')],
+        'idempotency' => ['idempotency' => IdempotencyClass::AmbiguousWrite],
+        'purpose' => ['purpose' => DemandPurpose::Diagnostic],
+        'response_profile' => ['responseProfile' => new ResponseProfile(kind: 'binary', maxWireBytes: 2048)],
+    };
+    $forgedRequest = $this->modifiedWire($sealedBase->request, $changes);
+    $forgedWire = new SealedWire($forgedRequest, $sealedBase->route, $sealedBase->destination, $sealedBase->tls);
+    expect(fn () => $this->sealer->verify($forgedWire))->toThrow(AdmissionRejected::class, 'wire_seal_conflict');
+
+    $intent['request'] = $this->modifiedWire($intent['request'], ['method' => 'PUT', 'body' => WireBody::fromString('{"amount":10}')]);
+    [$permit, $input, $validWire] = $this->prepareClaim($intent);
+    $spoofedAttemptWire = new SealedWire(
+        $this->modifiedWire($validWire->request, $changes),
+        $validWire->route,
+        $validWire->destination,
+        $validWire->tls,
+    );
+    $before = $this->accounting();
+    expect(fn () => $this->claims->claim($permit, $input, $spoofedAttemptWire))->toThrow(AdmissionRejected::class, 'wire_seal_conflict');
+    expect($this->accounting())->toBe($before)->and($this->emitted)->toBe(0)->and($this->table('attempts')->count())->toBe(0);
+})->with(['operation', 'attempt', 'target', 'method', 'url', 'body', 'body_replayable', 'policy_revision', 'traffic_class', 'headers',
+    'timeouts', 'deadline', 'idempotency', 'purpose', 'response_profile']);
 
 it('denied CAS откатывает предшествующую finance mutation и не зависит от application wall clock', function (): void {
     [$permit, $input, $wire] = $this->prepareClaim();

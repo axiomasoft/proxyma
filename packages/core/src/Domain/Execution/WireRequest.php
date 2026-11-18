@@ -67,6 +67,7 @@ final readonly class WireRequest implements JsonSerializable
             'headers_digest' => $headers->digest->hex,
             'body_hash' => $body?->hash->hex,
             'body_length' => $body->length ?? 0,
+            'body_replayable' => $body?->replayable,
             'timeouts' => [
                 $timeouts->connectTimeoutMs,
                 $timeouts->readTimeoutMs,

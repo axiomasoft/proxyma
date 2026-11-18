@@ -14,6 +14,7 @@ use LogicException;
 use Packman\Attributes\Api;
 use PDOException;
 use Proxyma\Application\Execution\WireSealer;
+use Proxyma\Configuration\TransactionsOptions;
 use Proxyma\Contracts\Admission\ClaimActivationAuthority;
 use Proxyma\Contracts\Admission\TransactionCoordinator as CoordinatorContract;
 use Proxyma\Domain\Admission\AdmissionRejected;
@@ -59,9 +60,15 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
     /** @var Closure(): int */
     private readonly Closure $clock;
 
+    private readonly TransactionsOptions $options;
+
     /** @param (Closure(): int)|null $monotonicClock */
-    public function __construct(public readonly ConnectionScope $scope, ?Closure $monotonicClock = null)
-    {
+    public function __construct(
+        public readonly ConnectionScope $scope,
+        ?Closure $monotonicClock = null,
+        ?TransactionsOptions $options = null,
+    ) {
+        $this->options = $options ?? new TransactionsOptions;
         $this->latches = new WeakMap;
         $this->candidates = new WeakMap;
         $this->authorizations = new WeakMap;
@@ -91,9 +98,11 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
         return $this->transactionLevel() > 0;
     }
 
-    public function run(Closure $operation, int $maxAttempts = 3): mixed
+    public function run(Closure $operation, ?int $maxAttempts = null): mixed
     {
-        if ($maxAttempts < 1) {
+        $attemptsLimit = $maxAttempts ?? $this->options->maxAttempts;
+
+        if ($attemptsLimit < 1) {
             throw new InvalidArgumentException('TransactionCoordinator requires at least one attempt.');
         }
         $sample = ($this->clock)();
@@ -118,7 +127,7 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
                 }
                 $this->flushRollbackCleanup();
                 $state = $exception instanceof PDOException ? RowValues::str($exception->errorInfo[0] ?? $exception->getCode()) : '';
-                if ($committed || $attempt >= $maxAttempts || ! in_array($state, ['40P01', '40001'], true)) {
+                if ($committed || $attempt >= $attemptsLimit || ! in_array($state, ['40P01', '40001'], true)) {
                     throw $exception;
                 }
             }
@@ -161,6 +170,13 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
         $this->scope->assertSame($caller);
         $root = $this->scope->root();
         if (! isset($this->latches[$root])) {
+            if ($caller->getDriverName() === 'pgsql') {
+                $caller->select(
+                    "SELECT set_config('lock_timeout', ?, true), set_config('statement_timeout', ?, true)",
+                    [$this->options->lockTimeout, $this->options->statementTimeout],
+                );
+            }
+
             $sample = min($sampleBeforeJoinNs ?? PHP_INT_MAX, $this->scope->monotonicBeforeRootNs());
             $latch = new CommitLatch($this->connectionName(), Uuid::random()->value, $sample);
             $this->latches[$root] = $latch;

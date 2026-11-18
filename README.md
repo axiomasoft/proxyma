@@ -6,10 +6,10 @@ HTTP, DNS и разрешение секретов выполняются вне
 
 | Пакет | Subpath | Внутренняя версия |
 | --- | --- | --- |
-| `axiomasoft/proxyma` | `packages/core` | `0.1.0` |
+| `axiomasoft/proxyma-core` | `packages/core` | `0.1.0` |
 | `axiomasoft/proxyma-filament` (optional UI) | `packages/filament` | `0.1.0` |
 
-Workspace root `axiomasoft/proxyma-workspace` не устанавливается в consumer.
+Workspace root `axiomasoft/proxyma-monorepo` не устанавливается в consumer.
 Оба пакета поставляются из **одного полного commit SHA**, через отдельные Composer
 path repositories с `symlink:false` и явной картой versions. Filament требует
 `self.version` core. Теги, Packagist, push и публичный release не нужны.

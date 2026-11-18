@@ -64,11 +64,19 @@ if (str_ends_with($directory, '/custom')) {
     assert(in_array('consumer.first', $app->make(SettingRegistry::class)->descriptor('route.strategy')->allowedValues, true));
 }
 
-$app['config']->set('database.connections.pgsql.host', 'db');
-$app['config']->set('database.connections.pgsql.port', '5432');
+$native = getenv('PROXYMA_INSTALL_NATIVE') === '1';
+$app['config']->set('database.connections.pgsql.host', $native ? getenv('PGSQL_HOST') : 'db');
+$app['config']->set('database.connections.pgsql.port', $native ? getenv('PGSQL_PORT') : '5432');
+if ($native) {
+    $app['config']->set('database.connections.pgsql.username', getenv('PGSQL_USERNAME'));
+    $app['config']->set('database.connections.pgsql.password', getenv('PGSQL_PASSWORD'));
+}
 $db = $app['db']->connection('pgsql');
-$identity = $db->selectOne('SELECT current_database() AS db, current_user AS usr, (SELECT value FROM proxyma_rig.marker) AS marker');
-assert([$identity->db, $identity->usr, $identity->marker] === ['proxyma_test', 'proxyma_test', 'proxyma_test_v1']);
+$identity = $db->selectOne('SELECT current_database() AS db, current_user AS usr');
+assert([$identity->db, $identity->usr] === ['proxyma_test', $native ? getenv('PGSQL_USERNAME') : 'proxyma_test']);
+if (! $native) {
+    assert($db->selectOne('SELECT value FROM proxyma_rig.marker')->value === 'proxyma_test_v1');
+}
 $schema = 'pxm_consumer_'.bin2hex(random_bytes(8));
 $db->statement('CREATE SCHEMA '.$schema);
 $db->statement('SET search_path TO '.$schema);

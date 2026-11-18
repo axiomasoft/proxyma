@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "axiomasoft/proxyma configuration",
+    "title": "axiomasoft/proxyma-core configuration",
     "type": "object",
     "properties": {
         "proxyma": {

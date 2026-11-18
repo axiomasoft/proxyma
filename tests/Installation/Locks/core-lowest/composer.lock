@@ -4,17 +4,259 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "19bacbbef3207ecb42edbaa9538a7e76",
+    "content-hash": "05cbc9ab5e71df115462e89bcf6eab31",
     "packages": [
         {
-            "name": "axiomasoft/proxyma",
+            "name": "axiomasoft/packman",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "sources/packman/core",
+                "reference": "667d1b7863071e1c12a373e4fe010c4cf42f531a"
+            },
+            "require": {
+                "php": "^8.4",
+                "psr/clock": "^1.0"
+            },
+            "suggest": {
+                "illuminate/console": "Optional Laravel Artisan console commands (`packman:doctor`, `packman:config:validate`).",
+                "illuminate/contracts": "Optional Laravel container, event dispatcher, config, and validation bindings.",
+                "illuminate/database": "Optional schema status checks in Laravel applications.",
+                "illuminate/support": "Optional PackmanServiceProvider auto-discovery and Laravel adapters."
+            },
+            "type": "library",
+            "extra": {
+                "packman": {
+                    "schema-version": 1,
+                    "package-type": "kernel",
+                    "stability": "stable",
+                    "error-prefix": "packman",
+                    "owns": [
+                        "Attributes",
+                        "Config",
+                        "Context",
+                        "Data",
+                        "Doctor",
+                        "Errors",
+                        "Events",
+                        "Features",
+                        "Foundation",
+                        "Settings"
+                    ]
+                },
+                "laravel": {
+                    "providers": [
+                        "Packman\\PackmanServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Packman\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Packman\\Core\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Dmitry Vostrikov",
+                    "email": "dv.vostrikov@gmail.com"
+                }
+            ],
+            "description": "Packman unified ecosystem kernel — attributes, foundation registrars, context contracts, JsonDocument, configuration options/compiler/cache, RFC 9457 error registry, doctor diagnostics, domain events, features, and settings contracts.",
+            "keywords": [
+                "attributes",
+                "config",
+                "doctor",
+                "errors",
+                "kernel",
+                "laravel",
+                "packman",
+                "php"
+            ],
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "axiomasoft/packman-panels",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "sources/packman/panels",
+                "reference": "e27f4200831c1cd32288098297f2964610ab3f2a"
+            },
+            "require": {
+                "axiomasoft/packman": "^0.1|^1.0@dev",
+                "axiomasoft/packman-schema": "^0.1|^1.0@dev",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/database": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "php": "^8.4",
+                "psr/clock": "^1.0"
+            },
+            "suggest": {
+                "axiomasoft/packman-modules": "Optional module and entity registry integration for ModulePanelCatalogue and EntityViewSchemaProvider.",
+                "axiomasoft/packman-plugins": "Optional extension plugin integration for WithPanels providers."
+            },
+            "type": "library",
+            "extra": {
+                "packman": {
+                    "error-prefix": "panels"
+                },
+                "laravel": {
+                    "providers": [
+                        "Packman\\Panels\\Laravel\\PanelsServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Packman\\Panels\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Packman\\Panels\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Universal Packman headless panel descriptors, two-phase PanelRegistry/PanelRecipe builder, slot/form data projection, admission evaluation, and SQL saved views.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "axiomasoft/packman-plugins",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "sources/packman/plugins",
+                "reference": "401b1c82156e080d7a1b8e174e05f1f4b4470c7e"
+            },
+            "require": {
+                "axiomasoft/packman": "^0.1|^1.0@dev",
+                "illuminate/console": "^12.0|^13.0",
+                "illuminate/container": "^12.0|^13.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "php": "^8.4"
+            },
+            "suggest": {
+                "axiomasoft/packman-schema": "Optional schema ownership integration for plugins declaring owned schema nouns."
+            },
+            "type": "library",
+            "extra": {
+                "packman": {
+                    "error-prefix": "plugins"
+                },
+                "laravel": {
+                    "providers": [
+                        "Packman\\Plugins\\Laravel\\PluginsServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Packman\\Plugins\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Packman\\Plugins\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Universal Packman intra-package plugin graph compiler, capabilities, typed slots, and immutable contribution registry.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "axiomasoft/packman-schema",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "sources/packman/schema",
+                "reference": "ff5596a8482595f599ba3a84c0d8bdfb837b68bc"
+            },
+            "require": {
+                "axiomasoft/packman": "^0.1|^1.0@dev",
+                "illuminate/console": "^12.0|^13.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/database": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "php": "^8.4",
+                "psr/clock": "^1.0"
+            },
+            "type": "library",
+            "extra": {
+                "packman": {
+                    "error-prefix": "schema"
+                },
+                "laravel": {
+                    "providers": [
+                        "Packman\\Schema\\Laravel\\SchemaServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Packman\\Schema\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Packman\\Schema\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Universal Packman schema governance, schema sets, table ownership, prefix fingerprinting, PostgreSQL constraint naming, and step compiler.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "axiomasoft/proxyma-core",
             "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "sources/core",
-                "reference": "cf958ab135d39383cc8b522001faeaa1f7d67bab"
+                "reference": "f85bc8f94aef802f746c625d33cb30cb37e41645"
             },
             "require": {
+                "axiomasoft/packman": "^0.1",
+                "axiomasoft/packman-panels": "^0.1",
+                "axiomasoft/packman-plugins": "^0.1",
+                "axiomasoft/packman-schema": "^0.1",
                 "ext-curl": "*",
                 "ext-mbstring": "*",
                 "ext-openssl": "*",
@@ -31,23 +273,48 @@
                 "symfony/http-foundation": "^7.4 || ^8.0",
                 "symfony/process": "^7.4 || ^8.0"
             },
+            "replace": {
+                "axiomasoft/proxyma": "self.version"
+            },
             "type": "library",
             "extra": {
                 "laravel": {
                     "providers": [
                         "Proxyma\\Laravel\\ProxymaServiceProvider"
                     ]
+                },
+                "packman": {
+                    "schema-version": 1,
+                    "package-type": "core",
+                    "stability": "alpha",
+                    "error-prefix": "proxyma",
+                    "owns": [
+                        "Application",
+                        "Configuration",
+                        "Contracts",
+                        "Database",
+                        "Diagnostics",
+                        "Domain",
+                        "Errors",
+                        "Infrastructure",
+                        "Laravel",
+                        "Panels",
+                        "Plugins"
+                    ]
                 }
             },
             "autoload": {
                 "psr-4": {
                     "Proxyma\\": "src/"
-                }
+                },
+                "files": [
+                    "src/aliases.php"
+                ]
             },
             "license": [
                 "proprietary"
             ],
-            "description": "Proxyma core",
+            "description": "Proxyma core — governed egress routing, quota admission, health, and policy runtime for Laravel.",
             "transport-options": {
                 "symlink": false,
                 "relative": true
@@ -5930,7 +6197,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "axiomasoft/proxyma": 20
+        "axiomasoft/proxyma-core": 20
     },
     "prefer-stable": true,
     "prefer-lowest": true,

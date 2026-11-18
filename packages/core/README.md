@@ -1,4 +1,4 @@
-# Proxyma Core (`axiomasoft/proxyma`)
+# Proxyma Core (`axiomasoft/proxyma-core`)
 
 Governed egress routing, transactional quota admission, health tracking, headless panels, and runtime policy resolution for Laravel on PHP `^8.4`, powered by `axiomasoft/packman`.
 

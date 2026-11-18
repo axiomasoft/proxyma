@@ -20,22 +20,36 @@ QUALIFIED = json.loads((ROOT / 'integration/agelto/candidate.json').read_text())
 class PrivateSupplyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name)
         cls.files = SUPPLY.worktree(ROOT)
-        cls.base = SUPPLY.tree(ROOT, QUALIFIED)
-        cls.value = SUPPLY.candidate(ROOT, 'build/test-report.json', QUALIFIED)
+        cls.base = dict(cls.files)
+        # Unit fixture only: never treat a historical local build report as current qualification.
+        (cls.root / 'qualification.json').write_text(json.dumps({
+            'source_sha256': SUPPLY.fingerprint(cls.base), 'synthetic_unit_fixture': True,
+        }))
+        with patch.object(SUPPLY, 'qualification', return_value=cls.base), \
+                patch.object(SUPPLY, 'worktree', return_value=cls.files):
+            cls.value = SUPPLY.candidate(cls.root, 'qualification.json', QUALIFIED)
 
     def verify(self, value, files=None, source=None):
         with patch.object(SUPPLY, 'qualification', return_value=self.base), \
                 patch.object(SUPPLY, 'worktree', return_value=files or self.files), \
                 patch.object(SUPPLY, 'tree', return_value=source or self.files):
-            return SUPPLY.verify(ROOT, value)
+            return SUPPLY.verify(self.root, value)
 
-    def test_candidate_связан_с_реальным_qualification_и_двумя_пакетами(self):
+    def test_candidate_связан_с_qualification_reference_и_двумя_пакетами(self):
         self.assertEqual(self.value['qualification_source_commit'], QUALIFIED)
         self.assertEqual({p['name'] for p in self.value['packages']}, set(SUPPLY.PACKAGES))
         self.assertEqual({p['version'] for p in self.value['packages']}, {'0.1.0'})
         self.assertNotIn('source', self.value)
         self.assertEqual(self.verify(self.value)['status'], 'candidate')
+
+    def test_candidate_не_обходит_проверку_qualification(self):
+        with patch.object(SUPPLY, 'qualification', side_effect=ValueError('incomplete qualification')), \
+                self.assertRaisesRegex(ValueError, 'incomplete qualification'):
+            SUPPLY.candidate(self.root, 'qualification.json', QUALIFIED)
 
     def test_candidate_flag_выбирает_проверку_существующего_descriptor(self):
         args = SUPPLY.arguments(['--candidate', 'integration/agelto/candidate.json'])
@@ -85,7 +99,7 @@ class PrivateSupplyTest(unittest.TestCase):
             files = dict(self.files)
             path = 'packages/filament/composer.json'
             manifest = json.loads(files[path])
-            manifest['require']['axiomasoft/proxyma'] = constraint
+            manifest['require']['axiomasoft/proxyma-core'] = constraint
             files[path] = json.dumps(manifest).encode()
             with self.subTest(constraint=constraint), self.assertRaises(ValueError):
                 SUPPLY.manifests(files)
@@ -99,15 +113,15 @@ class PrivateSupplyTest(unittest.TestCase):
     def test_отказ_при_подмене_qualification_report(self):
         ref = {**self.value['qualification'], 'sha256': '0' * 64}
         with self.assertRaisesRegex(ValueError, 'stale or modified evidence'):
-            SUPPLY.read_reference(ROOT, ref)
+            SUPPLY.read_reference(self.root, ref)
 
     def test_отказ_для_qualification_с_другим_source_digest(self):
-        report = json.loads((ROOT / self.value['qualification']['path']).read_text())
+        report = json.loads((self.root / self.value['qualification']['path']).read_text())
         report['source_sha256'] = '0' * 64
         with patch.object(SUPPLY, 'read_reference', return_value=report), \
                 patch.object(SUPPLY, 'tree', return_value=self.base), \
                 self.assertRaisesRegex(ValueError, 'qualification source commit/digest mismatch'):
-            SUPPLY.qualification(ROOT, self.value['qualification'], QUALIFIED)
+            SUPPLY.qualification(self.root, self.value['qualification'], QUALIFIED)
 
     def test_resolve_проверяет_исходники_commit_и_не_сам_дескриптор(self):
         value = {**self.value, 'source': {'commit': QUALIFIED, 'sha256': SUPPLY.fingerprint(self.files)}}
@@ -115,7 +129,7 @@ class PrivateSupplyTest(unittest.TestCase):
         invalid_source = dict(self.files)
         path = 'packages/filament/composer.json'
         manifest = json.loads(invalid_source[path])
-        manifest['require']['axiomasoft/proxyma'] = '*'
+        manifest['require']['axiomasoft/proxyma-core'] = '*'
         invalid_source[path] = json.dumps(manifest).encode()
         with self.assertRaisesRegex(ValueError, 'same mapped version of core'):
             self.verify(value, source=invalid_source)
@@ -150,7 +164,7 @@ class PrivateSupplyTest(unittest.TestCase):
                 directory.mkdir(parents=True)
                 manifest = {'name': name, 'type': 'library'}
                 if name.endswith('-filament'):
-                    manifest['require'] = {'axiomasoft/proxyma': 'self.version'}
+                    manifest['require'] = {'axiomasoft/proxyma-core': 'self.version'}
                 (directory / 'composer.json').write_text(json.dumps(manifest))
                 repos.append({'type': 'path', 'url': path, 'options': {
                     'symlink': False, 'reference': 'config', 'versions': {name: '0.1.0'}}})
@@ -178,7 +192,7 @@ class ConsumerProofTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.refs = {key: {'sha256': 'a' * 64} for key in ('composer_lock', 'vendor_lock', 'installed')}
         self.proof = {'schema': 'proxyma-consumer-proof/v1', 'consumer_commit': 'b' * 40,
-                      'source_commit': QUALIFIED, 'packages': {'axiomasoft/proxyma': 'vendor/axiomasoft/proxyma'},
+                      'source_commit': QUALIFIED, 'packages': {'axiomasoft/proxyma-core': 'vendor/axiomasoft/proxyma-core'},
                       'composer_lock_sha256': 'a' * 64, 'vendor_lock_sha256': 'a' * 64,
                       'installed_sha256': 'a' * 64, 'inputs_sha256': 'c' * 64,
                       'runtime_sha256': 'd' * 64, 'gates': {}}
@@ -201,7 +215,7 @@ class ConsumerProofTest(unittest.TestCase):
 
     def check(self):
         SUPPLY.check_consumer_proof(self.root, self.proof, 'b' * 40, QUALIFIED, self.refs,
-                                    {'axiomasoft/proxyma': 'vendor/axiomasoft/proxyma'})
+                                    {'axiomasoft/proxyma-core': 'vendor/axiomasoft/proxyma-core'})
 
     def test_полный_локальный_fixture_принимается(self):
         self.check()
@@ -315,12 +329,12 @@ class ConsumerInstallTest(unittest.TestCase):
                 return self.fake_git(root, *args)
             with self.subTest(failure=failure), self.assertRaises(ValueError):
                 self.install(git)
-        (self.root / 'vendor/axiomasoft/proxyma/src/Fixture.php').unlink()
+        (self.root / 'vendor/axiomasoft/proxyma-core/src/Fixture.php').unlink()
         with self.assertRaises(OSError):
             self.install()
 
     def test_отказ_для_floating_consumer_requirement(self):
-        self.mutate('composer_json', lambda d: d['require'].update({'axiomasoft/proxyma': 'dev-main'}))
+        self.mutate('composer_json', lambda d: d['require'].update({'axiomasoft/proxyma-core': 'dev-main'}))
         with self.assertRaisesRegex(ValueError, 'exactly 0.1.0'):
             self.install()
 

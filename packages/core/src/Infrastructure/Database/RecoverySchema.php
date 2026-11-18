@@ -15,12 +15,13 @@ final class RecoverySchema
 {
     public static function up(Connection $db): void
     {
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
         $cursor = (new ReconcileCursorRecord)->getTable();
         $db->statement("CREATE TABLE {$cursor} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_key text NOT NULL UNIQUE, after_id uuid, lease_token uuid,
             lease_until timestamptz CHECK (isfinite(lease_until)), CHECK ((lease_token IS NULL) = (lease_until IS NULL)))");
         $artifact = (new TemporaryArtifactRecord)->getTable();
-        $db->statement("ALTER TABLE {$t['permits']} ADD CONSTRAINT pxm_permit_artifact_identity UNIQUE (tenant_key,id,operation_id)");
+        $db->statement("ALTER TABLE {$t['permits']} ADD CONSTRAINT {$p}permit_artifact_identity UNIQUE (tenant_key,id,operation_id)");
         $db->statement("CREATE TABLE {$artifact} (id uuid PRIMARY KEY,tenant_key text NOT NULL,operation_id uuid NOT NULL,permit_id uuid NOT NULL,
             ownership_token text NOT NULL CHECK (ownership_token ~ '^[0-9a-f]{64}$'),created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
             delete_pending boolean NOT NULL DEFAULT false,
@@ -29,10 +30,10 @@ final class RecoverySchema
         $db->statement("ALTER TABLE {$t['attempts']} ADD COLUMN receipt_key text CHECK (receipt_key ~ '^[0-9a-f]{64}$'),
             ADD COLUMN receipt_digest text CHECK (receipt_digest ~ '^[0-9a-f]{64}$'),
             ADD COLUMN result_digest text CHECK (result_digest ~ '^[0-9a-f]{64}$'), ADD COLUMN result_summary jsonb,
-            ADD CONSTRAINT pxm_receipt_pair CHECK ((receipt_key IS NULL AND receipt_digest IS NULL AND result_digest IS NULL)
+            ADD CONSTRAINT {$p}receipt_pair CHECK ((receipt_key IS NULL AND receipt_digest IS NULL AND result_digest IS NULL)
                 OR (receipt_key IS NOT NULL AND receipt_digest IS NOT NULL AND result_digest IS NOT NULL)),
-            ADD CONSTRAINT pxm_receipt_key_unique UNIQUE (tenant_key,receipt_key)");
-        $db->statement("CREATE FUNCTION pxm_receipt_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+            ADD CONSTRAINT {$p}receipt_key_unique UNIQUE (tenant_key,receipt_key)");
+        $db->statement("CREATE FUNCTION {$p}receipt_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF TG_OP='DELETE' THEN RAISE EXCEPTION 'authorization history cannot be deleted' USING ERRCODE='23514'; END IF;
                 IF ROW(NEW.tenant_key,NEW.operation_id,NEW.permit_id,NEW.physical_attempt_id,NEW.wire_fingerprint,NEW.authorized_at,NEW.snapshot)
@@ -47,17 +48,17 @@ final class RecoverySchema
                 END IF;
                 RETURN NEW;
             END; \$\$");
-        $db->statement("CREATE TRIGGER pxm_receipt_guard BEFORE UPDATE OR DELETE ON {$t['attempts']} FOR EACH ROW EXECUTE FUNCTION pxm_receipt_guard()");
-        $db->statement("CREATE FUNCTION pxm_lease_release_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+        $db->statement("CREATE TRIGGER {$p}receipt_guard BEFORE UPDATE OR DELETE ON {$t['attempts']} FOR EACH ROW EXECUTE FUNCTION {$p}receipt_guard()");
+        $db->statement("CREATE FUNCTION {$p}lease_release_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF OLD.lease_released_at IS NOT NULL AND NEW.lease_released_at IS DISTINCT FROM OLD.lease_released_at THEN
                     RAISE EXCEPTION 'lease release is irreversible' USING ERRCODE='23514';
                 END IF;
                 RETURN NEW;
             END; \$\$");
-        $db->statement("CREATE TRIGGER pxm_lease_release_guard BEFORE UPDATE ON {$t['permits']} FOR EACH ROW EXECUTE FUNCTION pxm_lease_release_guard()");
-        $db->statement("CREATE INDEX pxm_recovery_permit_idx ON {$t['permits']} (operation_id,expires_at) WHERE lease_released_at IS NULL");
-        $db->statement("CREATE OR REPLACE FUNCTION pxm_demand_scope_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+        $db->statement("CREATE TRIGGER {$p}lease_release_guard BEFORE UPDATE ON {$t['permits']} FOR EACH ROW EXECUTE FUNCTION {$p}lease_release_guard()");
+        $db->statement("CREATE INDEX {$p}recovery_permit_idx ON {$t['permits']} (operation_id,expires_at) WHERE lease_released_at IS NULL");
+        $db->statement("CREATE OR REPLACE FUNCTION {$p}demand_scope_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN
                 IF TG_OP='DELETE' AND EXISTS (SELECT 1 FROM {$t['demands']} d JOIN {$t['operations']} o ON o.id=d.operation_id
                     WHERE d.id=OLD.demand_id AND d.tenant_key=OLD.tenant_key AND d.state IN ('expired','cancelled','completed')
@@ -71,23 +72,24 @@ final class RecoverySchema
 
     public static function down(Connection $db): void
     {
+        $p = PackageSchema::prefix();
         $t = PackageSchema::tables();
         if ($db->table($t['attempts'])->whereNotNull('receipt_key')->exists() || $db->table($t['permits'])->whereNotNull('lease_released_at')->exists()
             || $db->table((new TemporaryArtifactRecord)->getTable())->exists()) {
             throw new LogicException('Cannot remove recovery history.');
         }
-        $db->statement("DROP TRIGGER pxm_receipt_guard ON {$t['attempts']}");
-        $db->statement('DROP FUNCTION pxm_receipt_guard()');
-        $db->statement('DROP INDEX pxm_recovery_permit_idx');
-        $db->statement("DROP TRIGGER pxm_lease_release_guard ON {$t['permits']}");
-        $db->statement('DROP FUNCTION pxm_lease_release_guard()');
-        $db->statement("CREATE OR REPLACE FUNCTION pxm_demand_scope_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
+        $db->statement("DROP TRIGGER {$p}receipt_guard ON {$t['attempts']}");
+        $db->statement("DROP FUNCTION {$p}receipt_guard()");
+        $db->statement("DROP INDEX {$p}recovery_permit_idx");
+        $db->statement("DROP TRIGGER {$p}lease_release_guard ON {$t['permits']}");
+        $db->statement("DROP FUNCTION {$p}lease_release_guard()");
+        $db->statement("CREATE OR REPLACE FUNCTION {$p}demand_scope_guard() RETURNS trigger LANGUAGE plpgsql AS \$\$
             BEGIN RAISE EXCEPTION 'Demand conflict set is immutable' USING ERRCODE='23514'; END; \$\$");
-        $db->statement("ALTER TABLE {$t['attempts']} DROP CONSTRAINT pxm_receipt_key_unique, DROP CONSTRAINT pxm_receipt_pair,
+        $db->statement("ALTER TABLE {$t['attempts']} DROP CONSTRAINT {$p}receipt_key_unique, DROP CONSTRAINT {$p}receipt_pair,
             DROP COLUMN receipt_key, DROP COLUMN receipt_digest, DROP COLUMN result_digest, DROP COLUMN result_summary");
         $db->statement("ALTER TABLE {$t['permits']} DROP COLUMN lease_released_at");
         $db->statement('DROP TABLE '.(new ReconcileCursorRecord)->getTable());
         $db->statement('DROP TABLE '.(new TemporaryArtifactRecord)->getTable());
-        $db->statement("ALTER TABLE {$t['permits']} DROP CONSTRAINT pxm_permit_artifact_identity");
+        $db->statement("ALTER TABLE {$t['permits']} DROP CONSTRAINT {$p}permit_artifact_identity");
     }
 }

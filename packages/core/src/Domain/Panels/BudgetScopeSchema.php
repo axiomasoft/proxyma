@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Proxyma\Domain\Panels;
 
-use Packman\Attributes\Internal;
+use Packman\Attributes\Api;
 use Proxyma\Domain\Policy\BudgetScopeKey;
 use Proxyma\Domain\Policy\TenantKey;
 
-#[Internal]
+#[Api(since: '1.0')]
 final readonly class BudgetScopeSchema
 {
     /** @param list<string> $keys Exact trusted legacy scope keys.

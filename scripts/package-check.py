@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = 'proxyma-private-supply/v1'
-PACKAGES = {'axiomasoft/proxyma': 'packages/core',
+PACKAGES = {'axiomasoft/proxyma-core': 'packages/core',
             'axiomasoft/proxyma-filament': 'packages/filament'}
 VERSION = '0.1.0'
 ROOT_INPUTS = ('composer.json', 'composer.lock', 'phpunit.xml', 'phpstan.neon', 'pint.json', 'Makefile')
@@ -121,7 +121,7 @@ def manifests(files):
         require('version' not in manifest, 'use the explicit path version map')
         require(manifest['require']['php'] == '^8.4', 'unqualified PHP constraint')
         if name.endswith('-filament'):
-            require(manifest['require']['axiomasoft/proxyma'] == 'self.version',
+            require(manifest['require']['axiomasoft/proxyma-core'] == 'self.version',
                     'UI must require the same mapped version of core')
             require(manifest['require']['filament/filament'] == '^5.0', 'unqualified Filament constraint')
         else:
