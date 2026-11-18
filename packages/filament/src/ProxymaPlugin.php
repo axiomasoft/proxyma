@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Proxyma\Filament;
 
+use Filament\Facades\Filament;
 use Filament\Panel;
 use LogicException;
 use Override;
@@ -25,6 +26,8 @@ use Proxyma\Filament\Resources\Pages\Routes;
 #[Api(since: '1.0')]
 class ProxymaPlugin implements FilamentPanelPlugin
 {
+    public const string ID = 'proxyma';
+
     private ?string $guardPanel = null;
 
     private bool $enforced = false;
@@ -50,10 +53,36 @@ class ProxymaPlugin implements FilamentPanelPlugin
         return $plugin;
     }
 
+    public static function current(Panel $panel): static
+    {
+        if (! $panel->hasPlugin(self::ID)) {
+            throw new LogicException('Filament panel "'.$panel->getId().'" does not have '.static::class.' registered.');
+        }
+
+        $plugin = $panel->getPlugin(self::ID);
+
+        if (! $plugin instanceof static) {
+            throw new LogicException('Expected instance of '.static::class.'.');
+        }
+
+        return $plugin;
+    }
+
+    public static function get(?string $filamentPanel = null): static
+    {
+        $panel = $filamentPanel === null ? Filament::getCurrentOrDefaultPanel() : Filament::getPanel($filamentPanel);
+
+        if (! $panel instanceof Panel) {
+            throw new LogicException('Filament panel "'.($filamentPanel ?? 'default').'" could not be resolved.');
+        }
+
+        return self::current($panel);
+    }
+
     #[Override]
     public function getId(): string
     {
-        return 'proxyma';
+        return self::ID;
     }
 
     public function guardPanel(?string $panel): static

@@ -1725,6 +1725,26 @@
                     "return": "void",
                     "doc": []
                 },
+                "current": {
+                    "visibility": "public",
+                    "static": true,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "panel",
+                            "type": "Filament\\Panel",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": false,
+                            "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "static",
+                    "doc": []
+                },
                 "enforce": {
                     "visibility": "public",
                     "static": false,
@@ -1759,6 +1779,26 @@
                             "variadic": false,
                             "optional": false,
                             "default": null,
+                            "flags": 0
+                        }
+                    ],
+                    "return": "static",
+                    "doc": []
+                },
+                "get": {
+                    "visibility": "public",
+                    "static": true,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "filamentPanel",
+                            "type": "?string",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "null",
                             "flags": 0
                         }
                     ],
@@ -1867,7 +1907,14 @@
                 }
             },
             "properties": {},
-            "constants": [],
+            "constants": [
+                {
+                    "name": "ID",
+                    "type": "string",
+                    "visibility": "public",
+                    "final": false
+                }
+            ],
             "enum_backing": null,
             "enum_cases": []
         },

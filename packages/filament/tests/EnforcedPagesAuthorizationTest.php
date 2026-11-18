@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Filament\Facades\Filament;
+use Filament\Panel;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Packman\Filament\Concerns\Authorization\AuthorizesPage;
@@ -56,7 +57,7 @@ it('all 9 Proxyma pages compose Packman AuthorizesPage without overriding canAcc
 });
 
 it('allows mount and Livewire hydration across all 9 pages when enforce() is enabled and authorized', function (): void {
-    ProxymaPlugin::make()->enforce();
+    ProxymaPlugin::get()->enforce();
 
     foreach (PROXYMA_ALL_PAGES as $pageClass) {
         expect($pageClass::canAccess())->toBeTrue();
@@ -72,7 +73,7 @@ it('allows mount and Livewire hydration across all 9 pages when enforce() is ena
 });
 
 it('denies guest mount and blocks all 9 pages on ->enforce()', function (): void {
-    ProxymaPlugin::make()->enforce();
+    ProxymaPlugin::get()->enforce();
     auth()->logout();
 
     foreach (PROXYMA_ALL_PAGES as $pageClass) {
@@ -82,7 +83,7 @@ it('denies guest mount and blocks all 9 pages on ->enforce()', function (): void
 });
 
 it('denies Authorizer-revoked actor on mount and during Livewire hydration under ->enforce()', function (): void {
-    ProxymaPlugin::make()->enforce();
+    ProxymaPlugin::get()->enforce();
 
     $mounted = [
         Livewire::test(Endpoints::class)->assertOk(),
@@ -103,7 +104,7 @@ it('denies Authorizer-revoked actor on mount and during Livewire hydration under
 });
 
 it('denies Livewire hydration under ->enforce() when user logs out mid-session or host Gate / guardPanel denies', function (): void {
-    ProxymaPlugin::make()->enforce();
+    ProxymaPlugin::get()->enforce();
     $component = Livewire::test(Endpoints::class)->assertOk();
 
     auth()->logout();
@@ -115,7 +116,28 @@ it('denies Livewire hydration under ->enforce() when user logs out mid-session o
     Livewire::test(Endpoints::class)->assertForbidden();
 
     Gate::define('pages.proxyma-endpoints', static fn (): bool => true);
-    ProxymaPlugin::make()->guardPanel('missing-guard-panel')->enforce();
+    ProxymaPlugin::get()->guardPanel('missing-guard-panel')->enforce();
     expect(Endpoints::canAccess())->toBeFalse();
     Livewire::test(Endpoints::class)->assertForbidden();
+});
+
+it('isolates ProxymaPlugin instances across multiple Filament panels', function (): void {
+    $adminPanel = Panel::make()
+        ->id('admin')
+        ->path('admin')
+        ->plugin(ProxymaPlugin::make()->guardPanel('admin')->enforce());
+
+    $operatorPanel = Panel::make()
+        ->id('operator')
+        ->path('operator')
+        ->plugin(ProxymaPlugin::make()->guardPanel('operator')->enforce(false));
+
+    $adminPlugin = ProxymaPlugin::current($adminPanel);
+    $operatorPlugin = ProxymaPlugin::current($operatorPanel);
+
+    expect($adminPlugin)->not->toBe($operatorPlugin)
+        ->and($adminPlugin->getGuardPanel())->toBe('admin')
+        ->and($adminPlugin->isEnforced())->toBeTrue()
+        ->and($operatorPlugin->getGuardPanel())->toBe('operator')
+        ->and($operatorPlugin->isEnforced())->toBeFalse();
 });

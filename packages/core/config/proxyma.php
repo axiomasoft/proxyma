@@ -119,5 +119,7 @@ return [
         'project_defaults' => [],
         'panel_defaults' => [],
         'hard_bounds' => [],
+        /** @var ?string */
+        'panel_key' => null,
     ],
 ];

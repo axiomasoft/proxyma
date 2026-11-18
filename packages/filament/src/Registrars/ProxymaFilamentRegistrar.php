@@ -50,7 +50,7 @@ final class ProxymaFilamentRegistrar implements PackageRegistrar
         });
 
         $app->bind(BindingEditor::class);
-        $app->singletonIf(ProxymaPlugin::class, static fn (): ProxymaPlugin => new ProxymaPlugin);
+        $app->bindIf(ProxymaPlugin::class, static fn (): ProxymaPlugin => new ProxymaPlugin);
     }
 
     #[Override]

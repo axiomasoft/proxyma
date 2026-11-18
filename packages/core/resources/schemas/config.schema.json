@@ -170,6 +170,13 @@
                                 "object"
                             ]
                         },
+                        "panel_key": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "default": null
+                        },
                         "project_defaults": {
                             "type": [
                                 "array",

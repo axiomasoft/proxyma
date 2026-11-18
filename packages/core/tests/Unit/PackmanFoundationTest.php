@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Filament\Panel;
+use Opis\JsonSchema\Validator;
 use Packman\Config\Data\SecretRef;
 use Packman\Config\Data\TablePrefix;
 use Packman\Config\Exceptions\InvalidConfiguration;
@@ -142,6 +144,23 @@ it('compiles default ProxymaOptions and enforces closed schema with SecretRef ma
         expect(fn (): TransactionsOptions => new TransactionsOptions(maxAttempts: $badAttempts))
             ->toThrow(InvalidArgumentException::class);
     }
+
+    expect($options->policy->panelKey)->toBeNull();
+    $withPanelKey = $raw;
+    $withPanelKey['policy']['panel_key'] = 'files';
+    expect(ProxymaOptions::fromArray($withPanelKey, 'proxyma')->policy->panelKey)->toBe('files');
+
+    $schema = json_decode(file_get_contents(dirname(__DIR__, 2).'/resources/schemas/config.schema.json') ?: '', false, 512, JSON_THROW_ON_ERROR);
+    $validator = new Validator;
+
+    $validPayload = json_decode(json_encode(['proxyma' => ['policy' => ['panel_key' => 'files']]], JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
+    expect($validator->validate($validPayload, $schema)->isValid())->toBeTrue();
+
+    $nullPayload = json_decode(json_encode(['proxyma' => ['policy' => ['panel_key' => null]]], JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
+    expect($validator->validate($nullPayload, $schema)->isValid())->toBeTrue();
+
+    $unknownPolicyKey = json_decode(json_encode(['proxyma' => ['policy' => ['unknown_key' => 'files']]], JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
+    expect($validator->validate($unknownPolicyKey, $schema)->isValid())->toBeFalse();
 });
 
 it('registers all ProxymaErrorCode entries and DescribesError exceptions in ProblemRegistry', function (): void {
@@ -262,6 +281,14 @@ it('bridges Proxyma panel definitions, slots, form projections, and Filament pan
         ->and($plugin->isEnforced())->toBeTrue()
         ->and($plugin->getAbilities())->toBe(['view', 'update'])
         ->and(BindingEditor::fieldId('timeout.connect_ms'))->toBe(PackmanBindingEditor::fieldId('timeout.connect_ms'));
+
+    $adminPanel = Panel::make()->id('admin')->path('admin')->plugin(ProxymaPlugin::make()->guardPanel('admin')->enforce());
+    $operatorPanel = Panel::make()->id('operator')->path('operator')->plugin(ProxymaPlugin::make()->guardPanel('operator')->enforce(false));
+    expect(ProxymaPlugin::current($adminPanel))->not->toBe(ProxymaPlugin::current($operatorPanel))
+        ->and(ProxymaPlugin::current($adminPanel)->getGuardPanel())->toBe('admin')
+        ->and(ProxymaPlugin::current($adminPanel)->isEnforced())->toBeTrue()
+        ->and(ProxymaPlugin::current($operatorPanel)->getGuardPanel())->toBe('operator')
+        ->and(ProxymaPlugin::current($operatorPanel)->isEnforced())->toBeFalse();
 });
 
 it('registers ProxymaDoctorCheck under packman doctor tags and flags weak wire digest key', function (): void {
