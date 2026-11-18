@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1bd076c82e0c01b92023d1e1aefd341b",
+    "content-hash": "37839022a7d9b618eba3df1889a8eb37",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -73,11 +73,11 @@
         },
         {
             "name": "axiomasoft/packman",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/core",
-                "reference": "f5ef3ecc5eb2e057724b6c72b0c5192d25d997bd"
+                "reference": "fe837667a8142f79fe7469a3c163c8070f56f699"
             },
             "require": {
                 "php": "^8.4",
@@ -155,15 +155,15 @@
         },
         {
             "name": "axiomasoft/packman-filament",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/filament",
-                "reference": "30f74faf9c8d8e92c4549507b64c63efa7d0e889"
+                "reference": "69d713f0c433444590deecf45ebe520217c559ad"
             },
             "require": {
-                "axiomasoft/packman": "^0.1|^1.0@dev",
-                "axiomasoft/packman-panels": "^0.1|^1.0@dev",
+                "axiomasoft/packman": "^0.1",
+                "axiomasoft/packman-panels": "^0.1",
                 "filament/filament": "^5.0",
                 "illuminate/contracts": "^12.0|^13.0",
                 "illuminate/database": "^12.0|^13.0",
@@ -206,15 +206,15 @@
         },
         {
             "name": "axiomasoft/packman-panels",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/panels",
-                "reference": "62fa9ae4cdd83a2694bcc798856a7e1c837f332e"
+                "reference": "e414f549ae08dffc1d64a2e77397c6f267e5da42"
             },
             "require": {
-                "axiomasoft/packman": "^0.1|^1.0@dev",
-                "axiomasoft/packman-schema": "^0.1|^1.0@dev",
+                "axiomasoft/packman": "^0.1",
+                "axiomasoft/packman-schema": "^0.1",
                 "illuminate/contracts": "^12.0|^13.0",
                 "illuminate/database": "^12.0|^13.0",
                 "illuminate/support": "^12.0|^13.0",
@@ -260,14 +260,14 @@
         },
         {
             "name": "axiomasoft/packman-plugins",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/plugins",
-                "reference": "5182ae3652710d6a773860bd8747bf5ec59649b6"
+                "reference": "46dd91fa5d292233c2ed09b0027b22d75ae24e1d"
             },
             "require": {
-                "axiomasoft/packman": "^0.1|^1.0@dev",
+                "axiomasoft/packman": "^0.1",
                 "illuminate/console": "^12.0|^13.0",
                 "illuminate/container": "^12.0|^13.0",
                 "illuminate/contracts": "^12.0|^13.0",
@@ -312,14 +312,14 @@
         },
         {
             "name": "axiomasoft/packman-schema",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/schema",
-                "reference": "59f0b117fa61a22c0cb1b709b6339130479195d6"
+                "reference": "ed82c3c0e22531482f8435bfe4c3e0239cfa32ad"
             },
             "require": {
-                "axiomasoft/packman": "^0.1|^1.0@dev",
+                "axiomasoft/packman": "^0.1",
                 "illuminate/console": "^12.0|^13.0",
                 "illuminate/contracts": "^12.0|^13.0",
                 "illuminate/database": "^12.0|^13.0",
@@ -8639,15 +8639,14 @@
     "packages-dev": [
         {
             "name": "axiomasoft/packman-devtools",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/devtools",
-                "reference": "1756e2919c1b29ec01da7fa3eb6dec7b0618ac09"
+                "reference": "6008f6a407a0a0f1b8be18b36b4aa971c6fdfa64"
             },
             "require": {
-                "axiomasoft/packman": "^0.1|^1.0@dev",
-                "driftingly/rector-laravel": "^2.0",
+                "axiomasoft/packman": "^0.1",
                 "illuminate/support": "^12.0|^13.0",
                 "nette/neon": "^3.4",
                 "nikic/php-parser": "^5.4",
@@ -8659,6 +8658,9 @@
                 "symfony/finder": "^7.2|^8.0",
                 "symfony/process": "^7.2|^8.0",
                 "symfony/yaml": "^7.2|^8.0"
+            },
+            "suggest": {
+                "driftingly/rector-laravel": "Optional Laravel Rector rule sets (^2.0) alongside PackmanRectorSet."
             },
             "bin": [
                 "bin/packman"
@@ -8694,15 +8696,15 @@
         },
         {
             "name": "axiomasoft/packman-testkit",
-            "version": "0.1.x-dev",
+            "version": "0.1.0",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/testkit",
-                "reference": "b8e21b76bd65c5bbfb590802cad860dc984dc775"
+                "reference": "101d4271df6ffd7b6878b7dfc2f400783030e8c9"
             },
             "require": {
-                "axiomasoft/packman": "^0.1|^1.0@dev",
-                "axiomasoft/packman-schema": "^0.1|^1.0@dev",
+                "axiomasoft/packman": "^0.1",
+                "axiomasoft/packman-schema": "^0.1",
                 "illuminate/contracts": "^12.0|^13.0",
                 "illuminate/database": "^12.0|^13.0",
                 "illuminate/http": "^12.0|^13.0",
