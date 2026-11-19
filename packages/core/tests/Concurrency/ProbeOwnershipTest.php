@@ -187,13 +187,18 @@ it('точный subset закрывает только claimed circuit и ра�
 
 it('expired lease reopens с bounded backoff, delayed old completion не закрывает нового владельца', function (int $status): void {
     $this->healthUnknown();
+    $start = new DateTimeImmutable('2030-06-01T10:10:00.654321Z');
+    $this->moveSqlClock($start->format('Y-m-d H:i:s.uP'));
     [$oldIntent, $oldClaim] = $this->healthProbe(5);
+    $createdAt = $this->table('probe_claims')->where('id', $oldClaim->token->value)->value('created_at');
+    expect(new DateTimeImmutable($createdAt))->toEqual($start);
     $old = $this->sendProbe($oldIntent);
-    $this->moveSqlClock('2030-06-01T10:10:06Z');
+    $this->moveSqlClock('2030-06-01T10:10:06.123456Z');
     $next = $this->quotaIntent(purpose: DemandPurpose::Probe);
     expect(fn () => $this->probes->claim($this->reservationInput($next)))->toThrow(AdmissionRejected::class, 'probe_expired_backoff');
     foreach (['route_health', 'route_target_health', 'target_health'] as $scope) {
-        expect($this->table($scope)->value('state'))->toBe('open')->and($this->table($scope)->value('open_until'))->toStartWith('2030-06-01 10:10:36');
+        $row = $this->table($scope)->first();
+        expect($row->state)->toBe('open')->and(new DateTimeImmutable($row->open_until))->toEqual(new DateTimeImmutable('2030-06-01T10:10:36.123456Z'));
     }
     $this->moveSqlClock('2030-06-01T10:10:37Z');
     $this->reconciler->run($this->tenant);

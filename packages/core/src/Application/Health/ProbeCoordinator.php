@@ -113,7 +113,7 @@ final readonly class ProbeCoordinator
                         'state_version' => RowValues::colInt($row, 'state_version') + 1,
                         'probe_token' => null,
                         'probe_until' => null,
-                        'open_until' => $now->modify('+'.$delay.' seconds'),
+                        'open_until' => $now->modify('+'.$delay.' seconds')->format('Y-m-d H:i:s.uP'),
                         'recent_openings' => $recentOpenings + 1,
                         'reason_code' => 'probe_expired',
                     ];
@@ -133,11 +133,12 @@ final readonly class ProbeCoordinator
                 throw new AdmissionRejected('probe_scope_empty');
             }
             $claim = new ProbeClaim($token, $epochs, $until);
+            $expiresAt = $until->format('Y-m-d H:i:s.uP');
             PackageSchema::query($scope->connection, 'probe_claims')->insert([
                 'id' => $token->value, 'tenant_key' => $input->operation->owner->tenantKey->value,
                 'operation_id' => $input->operation->operationId->value, 'route_id' => $input->route->id->value,
                 'target_id' => $input->target->id->value, 'epochs' => json_encode($claim->epochs->epochs, JSON_THROW_ON_ERROR),
-                'created_at' => $now, 'expires_at' => $until,
+                'created_at' => $now->format('Y-m-d H:i:s.uP'), 'expires_at' => $expiresAt,
             ]);
             foreach ($blocked as $key => $row) {
                 [$name] = explode(':', $key, 2);
@@ -151,7 +152,7 @@ final readonly class ProbeCoordinator
                         'health_epoch' => $claim->epochs->epochs[$key],
                         'state_version' => $stateVersion + 1,
                         'probe_token' => $token->value,
-                        'probe_until' => $until,
+                        'probe_until' => $expiresAt,
                         'open_until' => null,
                     ]);
                 if ($changed !== 1) {

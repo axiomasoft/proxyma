@@ -71,7 +71,7 @@ it('late 429 использует исходные origin и shared egress по�
     expect($this->table('observations')->count())->toBe(1);
     // Второй маршрут того же выхода видит тот же durable egress cooldown.
     expect($this->table('routes')->where('id', $other->value)->value('egress_key'))->toBe('nat:fixture')
-        ->and($this->table('budgets')->where('scope_key', $origin->egressScopeKey('nat:fixture'))->value('cooldown_until'))->toStartWith('2030-06-01 10:12:00');
+        ->and(new DateTimeImmutable($this->table('budgets')->where('scope_key', $origin->egressScopeKey('nat:fixture'))->value('cooldown_until')))->toEqual(new DateTimeImmutable('2030-06-01 10:12:00+00'));
 })->with([false, true]);
 
 it('Retry-After ограничен DB-time потолком и max никогда не сокращает существующий cooldown', function (?string $header, int $seconds): void {

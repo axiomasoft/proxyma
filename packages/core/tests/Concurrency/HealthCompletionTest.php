@@ -95,7 +95,7 @@ it('completion и reaper сериализуют late receipt, cooldown и releas
     expect($this->table('permits')->value('state'))->toBe('completed')->and($this->table('observations')->count())->toBe(1)
         ->and($this->table('observation_applications')->count())->toBe(4)
         ->and((int) $this->table('budgets')->sum('inflight'))->toBe(0)->and((int) $this->table('quota_windows')->sum('spent'))->toBe(2)
-        ->and($this->table('budgets')->where('scope_key', $this->scopeKey)->value('cooldown_until'))->toStartWith('2030-06-01 10:14:00');
+        ->and(new DateTimeImmutable($this->table('budgets')->where('scope_key', $this->scopeKey)->value('cooldown_until')))->toEqual(new DateTimeImmutable('2030-06-01 10:14:00+00'));
 })->with([true, false]);
 
 it('две completion connection дают одну observation и три независимые projection', function (): void {

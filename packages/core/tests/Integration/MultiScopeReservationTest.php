@@ -144,13 +144,17 @@ it('читает большой набор budget debts ограниченным
         ->and(array_keys($snapshots))->toBe(array_column($rows, 'id'));
 });
 
-it('резервирует origin route egress probe и system scopes одним immutable permit', function (): void {
+it('резервирует origin route egress probe и system scopes одним immutable permit', function (string $timezone): void {
+    $this->db->selectOne("SELECT set_config('TimeZone', ?, false)", [$timezone]);
     $intent = $this->demandOperation(purpose: DemandPurpose::Probe);
     $this->budget($intent['request']->url->origin->probeScopeKey());
     $this->budget($this->scopeKey, TenantKey::system());
     $input = $this->reservationInput($intent);
     $this->table('route_health')->update(['state' => 'unknown']);
-    $this->app->make(ProbeCoordinator::class)->claim($input);
+    $claim = $this->app->make(ProbeCoordinator::class)->claim($input);
+    $expires = $this->table('probe_claims')->where('id', $claim->token->value)->value('expires_at');
+    expect(new DateTimeImmutable($expires))->toEqual($claim->until)
+        ->and(new DateTimeImmutable($this->table('route_health')->value('probe_until')))->toEqual($claim->until);
     $ticket = $this->reservations->enqueue($input, $this->work);
     $permit = $this->reservations->reserve($ticket, $input);
     expect($permit)->toBeInstanceOf(ScheduledPermit::class)->and($this->table('reservations')->count())->toBe(5);
@@ -162,7 +166,7 @@ it('резервирует origin route egress probe и system scopes одним
     expect($again->permitId->value)->toBe($permit->permitId->value)->and($again->slotAt)->toEqual($permit->slotAt)
         ->and($again->expiresAt)->toEqual($permit->expiresAt)->and($this->accounting())->toBe($before)
         ->and($this->table('permits')->count())->toBe(1);
-});
+})->with(['UTC', 'Europe/Astrakhan']);
 
 it('при одном заполненном scope не меняет ни один budget demand или permit', function (): void {
     $intent = $this->demandOperation();

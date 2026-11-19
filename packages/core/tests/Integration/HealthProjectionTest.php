@@ -142,7 +142,7 @@ it('late 429 продлевает только pinned origin при stale epochs
     $late = new LateReceiptClaim($receipt->operationId, $receipt->physicalAttemptId, $receipt->wireFingerprint, $receipt->receiptId,
         $receipt->receiptDigest, $receipt->authorizationHealthEpochs, healthResponse(429)->response);
     $this->completion->recordLateReceipt($late);
-    expect($this->table('budgets')->where('scope_key', $this->scopeKey)->value('cooldown_until'))->toStartWith('2030-06-01 10:12:00')
+    expect(new DateTimeImmutable($this->table('budgets')->where('scope_key', $this->scopeKey)->value('cooldown_until')))->toEqual(new DateTimeImmutable('2030-06-01 10:12:00+00'))
         ->and($this->table('target_health')->value('reason_code'))->toBe('new_hold');
     $this->completion->recordLateReceipt($late);
     expect($this->table('observations')->count())->toBe(1);
@@ -187,7 +187,7 @@ it('SQL projection применяет configured pair threshold и сохран�
     $this->completion->record($input->operation->operationId, $input->request->physicalAttemptId, AttemptResult::failed(TransportFailure::Timeout));
     $opened = $this->table('route_target_health')->first();
     expect($opened->state)->toBe('open')->and((int) $opened->health_epoch)->toBe(2)
-        ->and($opened->open_until)->toStartWith('2030-06-01 10:15:00');
+        ->and(new DateTimeImmutable($opened->open_until))->toEqual(new DateTimeImmutable('2030-06-01 10:15:00+00'));
     $this->completion->recordLateReceipt($this->late($old));
     expect($this->table('route_target_health')->first())->toEqual($opened)
         ->and($this->table('route_health')->value('state'))->toBe('closed')
