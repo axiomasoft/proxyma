@@ -12320,16 +12320,6 @@
                     "return": null,
                     "doc": []
                 },
-                "diagnose": {
-                    "visibility": "public",
-                    "static": false,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "array",
-                    "doc": []
-                },
                 "key": {
                     "visibility": "public",
                     "static": false,
@@ -13636,7 +13626,38 @@
                     "doc": []
                 }
             },
-            "properties": {},
+            "properties": {
+                "host": {
+                    "flags": 1,
+                    "type": "string",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "port": {
+                    "flags": 1,
+                    "type": "int",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "scheme": {
+                    "flags": 1,
+                    "type": "string",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                }
+            },
             "constants": [],
             "enum_backing": null,
             "enum_cases": []
@@ -15710,7 +15731,48 @@
                     "doc": []
                 }
             },
-            "properties": {},
+            "properties": {
+                "latestStartMonotonicNs": {
+                    "flags": 65,
+                    "type": "int",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "prepared": {
+                    "flags": 65,
+                    "type": "?Proxyma\\Domain\\Execution\\SealedWire",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "snapshot": {
+                    "flags": 65,
+                    "type": "Proxyma\\Domain\\Execution\\AuthorizedWireSnapshot",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "wire": {
+                    "flags": 65,
+                    "type": "Proxyma\\Domain\\Execution\\WireRequest",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                }
+            },
             "constants": [],
             "enum_backing": null,
             "enum_cases": []
@@ -16372,9 +16434,49 @@
                     "doc": [],
                     "hooks": []
                 },
+                "operationId": {
+                    "flags": 65,
+                    "type": "Proxyma\\Domain\\Execution\\Uuid",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
                 "outerTransactionToken": {
                     "flags": 65,
                     "type": "string",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "permitId": {
+                    "flags": 65,
+                    "type": "Proxyma\\Domain\\Execution\\Uuid",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "physicalAttemptId": {
+                    "flags": 65,
+                    "type": "Proxyma\\Domain\\Execution\\Uuid",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "wireFingerprint": {
+                    "flags": 65,
+                    "type": "Proxyma\\Domain\\Execution\\ContentHash",
                     "readonly": true,
                     "visibility": "public",
                     "static": false,
@@ -19891,7 +19993,28 @@
                     "doc": []
                 }
             },
-            "properties": {},
+            "properties": {
+                "address": {
+                    "flags": 1,
+                    "type": "string",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "endpoint": {
+                    "flags": 1,
+                    "type": "Proxyma\\Domain\\Catalog\\Endpoint",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                }
+            },
             "constants": [],
             "enum_backing": null,
             "enum_cases": []
@@ -22246,7 +22369,38 @@
                     "doc": []
                 }
             },
-            "properties": {},
+            "properties": {
+                "hash": {
+                    "flags": 1,
+                    "type": "Proxyma\\Domain\\Execution\\ContentHash",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "length": {
+                    "flags": 1,
+                    "type": "int",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "replayable": {
+                    "flags": 1,
+                    "type": "bool",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                }
+            },
             "constants": [],
             "enum_backing": null,
             "enum_cases": []
@@ -25754,7 +25908,18 @@
                     "doc": []
                 }
             },
-            "properties": {},
+            "properties": {
+                "byScopeKey": {
+                    "flags": 1,
+                    "type": "array",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                }
+            },
             "constants": [],
             "enum_backing": null,
             "enum_cases": []
@@ -28563,7 +28728,28 @@
                     "doc": []
                 }
             },
-            "properties": {},
+            "properties": {
+                "operation": {
+                    "flags": 1,
+                    "type": "Proxyma\\Domain\\Policy\\PatchOperation",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                },
+                "value": {
+                    "flags": 1,
+                    "type": "mixed",
+                    "readonly": true,
+                    "visibility": "public",
+                    "static": false,
+                    "default": null,
+                    "doc": [],
+                    "hooks": []
+                }
+            },
             "constants": [],
             "enum_backing": null,
             "enum_cases": []

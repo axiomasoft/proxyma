@@ -1172,16 +1172,6 @@
                     "return": "Proxyma\\Domain\\Catalog\\CatalogMutationActor",
                     "doc": []
                 },
-                "allowsDomainAccess": {
-                    "visibility": "public",
-                    "static": true,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "bool",
-                    "doc": []
-                },
                 "assertEditing": {
                     "visibility": "protected",
                     "static": false,
@@ -1415,16 +1405,6 @@
             ],
             "doc": [],
             "methods": {
-                "allowsDomainAccess": {
-                    "visibility": "public",
-                    "static": true,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "bool",
-                    "doc": []
-                },
                 "form": {
                     "visibility": "public",
                     "static": false,
@@ -2156,16 +2136,6 @@
             ],
             "doc": [],
             "methods": {
-                "allowsDomainAccess": {
-                    "visibility": "public",
-                    "static": true,
-                    "final": false,
-                    "abstract": false,
-                    "by_reference": false,
-                    "parameters": [],
-                    "return": "bool",
-                    "doc": []
-                },
                 "canSave": {
                     "visibility": "public",
                     "static": false,
