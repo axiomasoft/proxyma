@@ -73,3 +73,19 @@
 3. `Admission::claimSendLocked(...)` возвращает инертный несериализуемый `ClaimCandidate`, а не транспортную capability.
 4. Только после успешного коммита внешней транзакции (`transactionLevel() === 0`) вызов `TransactionCoordinator::activate(...)` проверяет закоммиченный `CommitLatch`, консервативный монотонный дедлайн `latestStartMonotonicNs` и однократно выпускает `AuthorizedWireRequest` для `PhysicalTransport::sendOnce(...)`.
 5. Откат внешней транзакции или откат savepoint немедленно аннулирует выпущенный `ClaimCandidate`.
+
+## Product ownership of shared internals
+
+The explicit `gates.internal_ownership_groups` declaration in `packman.json` makes
+Proxyma's listed runtime subpackages one product owner for internal implementation
+sharing. It does not publish those implementations as an external SPI. Packman
+Internal types and other external dependencies cannot join the group. Development
+packages remain excluded; declared Composer edges, layer rules and runtime/dev
+separation still apply independently.
+
+The Proxyma owner is responsible for compatibility of the subpackages' declared
+Composer version constraints and verifies their installation together. Reviewed
+development snapshots use the same repository commit for grouped packages; the
+local ecosystem receipt records those exact sources. Applications and other
+products continue to use the public API/SPI. No consumer version tags are introduced
+by this ownership declaration.

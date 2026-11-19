@@ -50,6 +50,12 @@
         "disallow_internal_cross_imports": true,
         "require_api_manifest": true,
         "error_urn_prefix": "urn:packman:problem:",
-        "min_coverage": 90
+        "min_coverage": 90,
+        "internal_ownership_groups": {
+            "proxyma": [
+                "axiomasoft/proxyma-core",
+                "axiomasoft/proxyma-filament"
+            ]
+        }
     }
 }
