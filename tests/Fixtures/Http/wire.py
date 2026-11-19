@@ -20,10 +20,9 @@ ports = {}
 
 def evidence(kind, **fields):
     with lock:
+        # Closing the stream publishes evidence to the reader between socket operations.
         with open(root + '/events.jsonl', 'a') as stream:
             stream.write(json.dumps(dict(kind=kind, **fields)) + '\n')
-            stream.flush()
-            os.fsync(stream.fileno())
 
 
 def exact(sock, count):
