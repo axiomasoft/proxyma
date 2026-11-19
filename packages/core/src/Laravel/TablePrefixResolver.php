@@ -59,8 +59,9 @@ final class TablePrefixResolver
     public static function forApplication(ContainerContract $app): TablePrefix
     {
         if ($app->resolved(ProxymaOptions::class)) {
+            $options = $app->factory(ProxymaOptions::class);
             try {
-                return $app->make(ProxymaOptions::class)->tablePrefix;
+                return $options()->tablePrefix;
             } catch (InvalidConfiguration) {
                 // Diagnostics can still inspect the schema when another option is invalid.
             }

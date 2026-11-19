@@ -390,7 +390,8 @@ it('honors configured proxyma.table_prefix dynamically across PackageSchema, Elo
     $plugin = $this->app->make(ProxymaCorePlugin::class);
     $profile = ExtensionInspector::inspect($plugin);
 
-    expect(PackageSchema::prefix())->toBe('audit_')
+    expect($this->app->make(ProxymaOptions::class)->tablePrefix->value())->toBe('audit_')
+        ->and(PackageSchema::prefix())->toBe('audit_')
         ->and((new EndpointRecord)->getTable())->toBe('audit_endpoints')
         ->and(PackageSchema::tables()['attempts'])->toBe('audit_attempts')
         ->and($plugin->tablePrefix())->toBe('audit_')
