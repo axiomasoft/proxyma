@@ -24,8 +24,7 @@ def run(arguments, cwd=ROOT, offline=False):
 
 
 def php_command():
-    php84 = ROOT / 'bin/php84'
-    return [str(php84), 'php'] if php84.exists() else ['php']
+    return [os.environ.get('PHP84_BIN') or shutil.which('php8.4') or 'php']
 
 
 def composer(*arguments, cwd=ROOT, offline=False):
@@ -78,7 +77,8 @@ def main():
         security = subprocess.check_output(['docker', 'info', '--format', '{{json .SecurityOptions}}'], text=True)
         user = '0:0' if 'rootless' in security else f'{os.getuid()}:{os.getgid()}'
         run(['docker', 'run', '--rm', '--user', user,
-             '--volume', f'{ROOT}:/work', '--workdir', '/work', 'proxyma_test_php:local',
+             '--volume', f'{ROOT}:/work', '--volume', f'{ROOT.parent}/packman/packages:/packman/packages:ro',
+             '--workdir', '/work', 'proxyma_test_php:local',
              'python3', 'scripts/install-fixture.py', 'prepare-runtime',
              *(['--refresh-locks'] if args.refresh_locks else [])])
         return

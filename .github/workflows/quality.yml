@@ -1,10 +1,20 @@
 name: quality
 on: [push, pull_request]
+defaults:
+  run:
+    working-directory: proxyma
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: proxyma
+      - uses: actions/checkout@v4
+        with:
+          repository: axiomasoft/packman
+          ref: v0.1.1
+          path: packman
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -23,6 +33,6 @@ jobs:
         with:
           name: proxyma-php84-pg17
           path: |
-            build/junit/
-            build/test-report.json
-            build/installation-*.log
+            proxyma/build/junit/
+            proxyma/build/test-report.json
+            proxyma/build/installation-*.log

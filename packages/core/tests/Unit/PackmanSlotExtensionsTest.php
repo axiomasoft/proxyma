@@ -6,6 +6,7 @@ namespace Proxyma\Core\Tests\Unit;
 
 use DateTimeImmutable;
 use Illuminate\Config\Repository as ConfigRepository;
+use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Foundation\Application;
 use Packman\Config\Exceptions\InvalidConfiguration;
@@ -15,6 +16,7 @@ use Packman\PackmanServiceProvider;
 use Packman\Panels\Laravel\PanelsServiceProvider;
 use Packman\Plugins\Contracts\Contributions\Extensions;
 use Packman\Plugins\Contracts\Registry\ExtensionPlugin;
+use Packman\Plugins\Contracts\Registry\PluginInspector;
 use Packman\Plugins\Data\Plugin\PluginManifest;
 use Packman\Plugins\Laravel\PluginRegistrar;
 use Packman\Plugins\Laravel\PluginsServiceProvider;
@@ -48,6 +50,7 @@ use Proxyma\Domain\Policy\PanelDefinition;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Laravel\ProxymaServiceProvider;
+use Proxyma\Laravel\Registrars\ProxymaCatalogRegistrar;
 use Proxyma\Plugins\ProxymaCorePlugin;
 use stdClass;
 
@@ -197,6 +200,21 @@ it('wires consumer ExtensionPlugin WithSlots contributions through Packman Exten
     $attempt = AttemptResult::delivered(new ResponseDescriptor(200, [], new DecodedTextBody('ok'), 2, 2));
 
     expect($this->app->make(OutcomePolicyRegistry::class)->resolve('slot.outcome')->classify($wire, $attempt)->businessMeaning)->toBe('slot_ok');
+});
+
+it('registers the core plugin in the supplied application when another container is active', function (): void {
+    $isolated = new Application(dirname(__DIR__, 4));
+    Container::setInstance($this->app);
+    $config = new ConfigRepository;
+    $isolated->instance('config', $config);
+    $isolated->instance(Repository::class, $config);
+    new PluginsServiceProvider($isolated)->register();
+
+    new ProxymaCatalogRegistrar()->register($isolated);
+
+    expect(array_column($isolated->make(PluginInspector::class)->describe(), 'class'))->toBe([ProxymaCorePlugin::class]);
+    new ProxymaCatalogRegistrar()->register($isolated);
+    expect($isolated->make(PluginInspector::class)->describe())->toHaveCount(1);
 });
 
 it('rejects non-ExtensionPlugin classes and Packman plugins lacking axiomasoft.proxyma ancestor dependency', function (): void {

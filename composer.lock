@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "37839022a7d9b618eba3df1889a8eb37",
+    "content-hash": "5b2c6a30c4fdc8f519482b9e96bfe874",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -73,11 +73,11 @@
         },
         {
             "name": "axiomasoft/packman",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/core",
-                "reference": "fe837667a8142f79fe7469a3c163c8070f56f699"
+                "reference": "79bff0771c726a4ea79f424f64336b4a4f2aa816"
             },
             "require": {
                 "php": "^8.4",
@@ -155,11 +155,11 @@
         },
         {
             "name": "axiomasoft/packman-filament",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/filament",
-                "reference": "69d713f0c433444590deecf45ebe520217c559ad"
+                "reference": "2d8e785d1b0139fddaf6665c9170a77c9ef90190"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -206,11 +206,11 @@
         },
         {
             "name": "axiomasoft/packman-panels",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/panels",
-                "reference": "e414f549ae08dffc1d64a2e77397c6f267e5da42"
+                "reference": "05b569883b77b92e5d76d309cc74bfb69ef95ab4"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -260,11 +260,11 @@
         },
         {
             "name": "axiomasoft/packman-plugins",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/plugins",
-                "reference": "46dd91fa5d292233c2ed09b0027b22d75ae24e1d"
+                "reference": "8417d6fe9118a11b0eb2c156447338fbc845f6c8"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -312,11 +312,11 @@
         },
         {
             "name": "axiomasoft/packman-schema",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/schema",
-                "reference": "ed82c3c0e22531482f8435bfe4c3e0239cfa32ad"
+                "reference": "8d55f78ed40c97aeb06e0951890896ebf3d0636f"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -366,12 +366,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/core",
-                "reference": "44cec62109a7b8ad2bde20c12afa316d5a853046"
+                "reference": "3e63fd27b1e999d11d0676f6d37e811065d9a88f"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
                 "axiomasoft/packman-panels": "^0.1",
-                "axiomasoft/packman-plugins": "^0.1",
+                "axiomasoft/packman-plugins": "^0.1.1",
                 "axiomasoft/packman-schema": "^0.1",
                 "ext-curl": "*",
                 "ext-mbstring": "*",
@@ -8639,11 +8639,11 @@
     "packages-dev": [
         {
             "name": "axiomasoft/packman-devtools",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/devtools",
-                "reference": "6008f6a407a0a0f1b8be18b36b4aa971c6fdfa64"
+                "reference": "a0c8075afb9d830385a81b6f055670df0f81eab4"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -8696,11 +8696,11 @@
         },
         {
             "name": "axiomasoft/packman-testkit",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "dist": {
                 "type": "path",
                 "url": "../packman/packages/testkit",
-                "reference": "101d4271df6ffd7b6878b7dfc2f400783030e8c9"
+                "reference": "b343a07d768dd745ea4f3f162e9e8f1fecd1c743"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",

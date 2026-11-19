@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Proxyma\Laravel\Registrars;
 
-use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Contracts\Foundation\Application;
@@ -70,18 +69,16 @@ final class ProxymaCatalogRegistrar implements PackageRegistrar
     #[Override]
     public function register(Application $app): void
     {
-        if (class_exists(ExtensionRegistrar::class) && Container::getInstance() === $app) {
-            try {
-                ExtensionRegistrar::builtIn(ProxymaCorePlugin::class);
-            } catch (RegistryFrozenException $exception) {
-                if (! $app->bound(PluginInspector::class)
-                    || ! array_any(
-                        $app->make(PluginInspector::class)->describe(),
-                        static fn (PluginDescription $plugin): bool => $plugin->class === ProxymaCorePlugin::class,
-                    )
-                ) {
-                    throw $exception;
-                }
+        try {
+            ExtensionRegistrar::builtInFor($app, ProxymaCorePlugin::class);
+        } catch (RegistryFrozenException $exception) {
+            if (! $app->bound(PluginInspector::class)
+                || ! array_any(
+                    $app->make(PluginInspector::class)->describe(),
+                    static fn (PluginDescription $plugin): bool => $plugin->class === ProxymaCorePlugin::class,
+                )
+            ) {
+                throw $exception;
             }
         }
 

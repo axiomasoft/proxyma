@@ -37,15 +37,15 @@
         <env name="CACHE_STORE" value="array" force="true"/>
         <env name="CACHE_DRIVER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
-        <env name="DB_CONNECTION" value="sqlite" force="true"/>
-        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="PROXYMA_DB_CONNECTION" value="pgsql" force="true"/>
         <env name="PACKMAN_TEST_DESTRUCTIVE_OPT_IN" value="1" force="true"/>
-        <env name="PGSQL_HOST" value="127.0.0.1" force="true"/>
-        <env name="PGSQL_PORT" value="54329" force="true"/>
-        <env name="PGSQL_DATABASE" value="proxyma_test" force="true"/>
-        <env name="PGSQL_USERNAME" value="skm" force="true"/>
-        <env name="PGSQL_PASSWORD" value="skm_dev" force="true"/>
+        <env name="PGSQL_HOST" value="127.0.0.1"/>
+        <env name="PGSQL_PORT" value="54329"/>
+        <env name="PGSQL_DATABASE" value="proxyma_test"/>
+        <env name="PGSQL_USERNAME" value="skm"/>
+        <env name="PGSQL_PASSWORD" value="skm_dev"/>
     </php>
 </phpunit>

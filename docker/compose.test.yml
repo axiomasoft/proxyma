@@ -38,6 +38,12 @@ services:
     command: ["sleep", "infinity"]
     environment:
       APP_ENV: testing
+      PROXYMA_DOCKER_RIG: "1"
+      PGSQL_HOST: db
+      PGSQL_PORT: "5432"
+      PGSQL_DATABASE: proxyma_test
+      PGSQL_USERNAME: proxyma_test
+      PGSQL_PASSWORD: proxyma-test-only
       APP_PACKAGES_CACHE: /tmp/proxyma-packages.php
       APP_SERVICES_CACHE: /tmp/proxyma-services.php
       APP_CONFIG_CACHE: /tmp/proxyma-config.php
@@ -51,6 +57,7 @@ services:
       DB_PASSWORD: proxyma-test-only
       DB_URL: ""
     volumes:
+      - ../../packman/packages:/packman/packages:ro
       - ../packages:/work/packages:ro
       - ../tests:/work/tests:ro
       - ../vendor:/work/vendor:ro
