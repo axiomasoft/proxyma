@@ -29,6 +29,7 @@ use Proxyma\Contracts\Catalog\RouteAccessChecks;
 use Proxyma\Contracts\Catalog\SharedRouteCommands;
 use Proxyma\Contracts\Health\DiagnosticsQueries;
 use Proxyma\Contracts\Security\SecretResolver;
+use Proxyma\Diagnostics\LazyDiagnosticsQueries;
 use Proxyma\Diagnostics\ProxymaDoctorCheck;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
@@ -60,7 +61,7 @@ final class ProxymaCatalogRegistrar implements PackageRegistrar
     {
         $app->singleton(ProxymaDoctorCheck::class, static fn (Application $app): ProxymaDoctorCheck => new ProxymaDoctorCheck(
             config: $app->make(Repository::class),
-            queries: $app->make(DiagnosticsQueries::class),
+            queries: new LazyDiagnosticsQueries(static fn (): DiagnosticsQueries => $app->make(DiagnosticsQueries::class)),
             optionsResolver: static fn (): ProxymaOptions => $app->make(ProxymaOptions::class),
         ));
 
@@ -97,7 +98,7 @@ final class ProxymaCatalogRegistrar implements PackageRegistrar
 
         $app->bind(DiagnosticsQueries::class, DatabaseDiagnosticsQueries::class);
         $app->bind(Doctor::class, static fn (Application $app): Doctor => new Doctor(
-            queries: $app->make(DiagnosticsQueries::class),
+            queries: new LazyDiagnosticsQueries(static fn (): DiagnosticsQueries => $app->make(DiagnosticsQueries::class)),
             optionsResolver: static fn (): ProxymaOptions => $app->make(ProxymaOptions::class),
             check: $app->make(ProxymaDoctorCheck::class),
         ));

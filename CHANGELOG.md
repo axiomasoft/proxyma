@@ -17,6 +17,8 @@
 
 ### Changed
 
+- Shared diagnostic registration and public doctor construction defer PostgreSQL resources until a diagnostic operation runs; unavailable storage still produces the existing structured finding.
+
 - P10.4 завершён как integration checkpoint с отклонениями по решению владельца;
   оптимизация и незавершённая полная приёмка вынесены в PLAN2:P1.1.
 
