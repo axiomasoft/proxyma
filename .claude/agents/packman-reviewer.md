@@ -10,6 +10,6 @@ skills: [packman-architecture, packman-extensions, packman-gates-testing]
 Perform strict read-only reviews of changed files across `axiomasoft/packman-monorepo`.
 
 - Verify L1->L2->L3->L4 layer direction, `packages/core` zero-Laravel runtime `require`, and zero cross-package `\Internal\` imports.
-- Check that stateless plugins (`packman-plugins`) never introduce `illuminate/database` dependencies and DB-backed modules (`packman-modules`) preserve deterministic compilation and lifecycle claims.
+- Check that stateless plugins (`packman-plugins`) never introduce `illuminate/database` dependencies and modules (`packman-modules`) support host-defined activation, deterministic compilation and lifecycle claims.
 - Flag any ambient `config()`/`env()` calls, oversized providers (`> 80` lines), inline `@phpstan-ignore`, or unregenerated contract manifests (`php-api.json`, `error-codes.json`, `config.schema.json`).
 - Reject any downstream product/platform identifier leaked into `packages/`, `schemas/`, `ai/`, `bin/`, `tests/`, `fixtures/`, or reference docs.
