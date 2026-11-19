@@ -158,7 +158,7 @@ final readonly class PolicyDatabaseInspector
         }
 
         $db = $this->db;
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
         $tenantStr = $tenant->value;
 
         $targetRow = $db->table($tables['targets'])
@@ -697,7 +697,7 @@ final readonly class PolicyDatabaseInspector
         EffectivePolicy $intersectedPolicy,
     ): array {
         $db = ($this->requireConnection)();
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
         $profileId = new Uuid(RowValues::colStr($profileRow, 'id'));
 
         $memberRows = $db->table($tables['route_profile_members'])
@@ -804,7 +804,7 @@ final readonly class PolicyDatabaseInspector
         array $liveProfileState,
     ): NeedsReplan|ExecutionBlocked|null {
         $db = ($this->requireConnection)();
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
 
         $hasAlternateEligibleRoute = false;
 
@@ -982,7 +982,7 @@ final readonly class PolicyDatabaseInspector
 
     private function loadLiveRoute(Connection $db, TenantKey $tenant, Uuid $routeId): ?Route
     {
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
         $grant = null;
 
         $row = $db->table($tables['routes'])
@@ -1054,7 +1054,7 @@ final readonly class PolicyDatabaseInspector
             return null;
         }
 
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
         $exhaustedRow = $db->table($tables['quota_windows'].' as q')
             ->join($tables['budgets'].' as b', static function (JoinClause $join): void {
                 $join->on('b.tenant_key', '=', 'q.tenant_key')

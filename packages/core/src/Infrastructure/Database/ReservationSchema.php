@@ -14,8 +14,8 @@ final class ReservationSchema
 {
     public static function up(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         $db->statement("ALTER TABLE {$t['operations']} ADD COLUMN purpose text NOT NULL DEFAULT 'ordinary'
             CHECK (purpose IN ('ordinary','probe','diagnostic')), ADD COLUMN probe_token uuid,
             ADD CONSTRAINT {$p}operation_probe_token_check CHECK ((purpose = 'probe') = (probe_token IS NOT NULL))");
@@ -70,8 +70,8 @@ final class ReservationSchema
 
     public static function down(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         if ($db->table($t['permits'])->whereNotNull('reservation_intent')->exists()
             || $db->table($t['reservations'])->whereColumn('budget_tenant_key', '<>', 'tenant_key')->exists()
             || $db->table($t['operations'])->where('purpose', '<>', 'ordinary')->exists()) {

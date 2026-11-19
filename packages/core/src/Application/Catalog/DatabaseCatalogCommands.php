@@ -204,7 +204,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
         try {
             return $this->db->transaction(function () use ($ability, $table, $id, $tenant, $actor, $expectedRevision, $idempotencyKey, $hash, $changes, $budgets, $members): object {
                 (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $actor);
-                $t = PackageSchema::tables();
+                $t = PackageSchema::tables($this->db);
                 $provisioner = new CatalogProvisioner($this->db);
                 $provisioner->lockCatalog($tenant);
                 $receipt = $this->db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($idempotencyKey))->first();
@@ -288,7 +288,7 @@ final readonly class DatabaseCatalogCommands implements CatalogCommands, SharedR
 
     private function requireActive(string $table, TenantKey $tenant, Uuid $id): void
     {
-        if (! $this->db->table(PackageSchema::tables()[$table])->where('tenant_key', $tenant->value)->where('id', $id->value)->whereNull('retired_at')->exists()) {
+        if (! PackageSchema::query($this->db, $table)->where('tenant_key', $tenant->value)->where('id', $id->value)->whereNull('retired_at')->exists()) {
             throw new CatalogNotFound('Catalog reference not found in tenant scope.');
         }
     }

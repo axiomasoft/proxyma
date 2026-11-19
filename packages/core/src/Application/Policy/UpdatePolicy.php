@@ -51,7 +51,7 @@ final readonly class UpdatePolicy implements PolicyCommands
         try {
             $savedRevision = $this->db->transaction(function () use ($command, $patch, $hash): PolicyRevision {
                 (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $command->actor);
-                $t = PackageSchema::tables();
+                $t = PackageSchema::tables($this->db);
                 $tenant = $command->tenant->value;
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy-set:'.$tenant]);
                 $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:policy:'.$tenant.':'.$command->scopeKey()]);

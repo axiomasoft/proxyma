@@ -22,16 +22,16 @@ final readonly class BindingStorage
 
     public function query(SubjectRef $subject, string $panel, string $slot): Builder
     {
-        return $this->db->table(PackageSchema::tables()['bindings'])->where('tenant_key', $subject->tenant->value)
+        return PackageSchema::query($this->db, 'bindings')->where('tenant_key', $subject->tenant->value)
             ->where('panel_key', $panel)->where('slot_key', $slot)->where('subject_type', $subject->type)->where('subject_id', $subject->id);
     }
 
     public function map(object $row, SubjectRef $subject, ?string $revisionId = null): SubjectPolicyBinding
     {
         $headId = RowValues::colStr($row, 'head_id');
-        $head = $this->db->table(PackageSchema::tables()['policy_heads'])->where('tenant_key', $subject->tenant->value)->where('id', $headId)->first();
+        $head = PackageSchema::query($this->db, 'policy_heads')->where('tenant_key', $subject->tenant->value)->where('id', $headId)->first();
         $resolvedRevisionId = $revisionId ?? ($head === null ? null : RowValues::colNullableStr($head, 'current_revision_id'));
-        $revision = $this->db->table(PackageSchema::tables()['policy_revisions'])->where('tenant_key', $subject->tenant->value)
+        $revision = PackageSchema::query($this->db, 'policy_revisions')->where('tenant_key', $subject->tenant->value)
             ->where('head_id', $headId)->where('id', $resolvedRevisionId)->first();
         if ($revision === null) {
             throw new PolicyStorageFailure;

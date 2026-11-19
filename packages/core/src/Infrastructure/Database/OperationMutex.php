@@ -26,7 +26,7 @@ final readonly class OperationMutex
         $ids = array_values(array_unique(array_map(static fn (Uuid $id): string => $id->value, $operationIds)));
         sort($ids, SORT_STRING);
         foreach ($ids as $id) {
-            if ($this->db->table(PackageSchema::tables()['operations'])->where('tenant_key', $tenant->value)->where('id', $id)->lockForUpdate()->first() === null) {
+            if (PackageSchema::query($this->db, 'operations')->where('tenant_key', $tenant->value)->where('id', $id)->lockForUpdate()->first() === null) {
                 throw new CatalogNotFound('Operation not found in tenant scope.');
             }
         }

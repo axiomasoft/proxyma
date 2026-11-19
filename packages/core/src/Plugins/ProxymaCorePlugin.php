@@ -6,6 +6,7 @@ namespace Proxyma\Plugins;
 
 use Override;
 use Packman\Attributes\Api;
+use Packman\Config\Data\TablePrefix;
 use Packman\Extensions\Concerns\Composition\ContributesToSlots;
 use Packman\Extensions\Concerns\Composition\ProvidesCapabilities;
 use Packman\Extensions\Concerns\Composition\ProvidesPanels;
@@ -93,6 +94,8 @@ final class ProxymaCorePlugin implements ExtensionPlugin, WithCapabilities, With
     use ProvidesDiagnostics;
     use ProvidesPanels;
 
+    public function __construct(private readonly TablePrefix $prefix = new TablePrefix('pxm_')) {}
+
     #[Override]
     public function manifest(): PluginManifest
     {
@@ -129,14 +132,14 @@ final class ProxymaCorePlugin implements ExtensionPlugin, WithCapabilities, With
     #[Override]
     public function tablePrefix(): string
     {
-        return PackageSchema::prefix();
+        return $this->prefix->value();
     }
 
     /** @return list<string> */
     #[Override]
     public function tableNouns(): array
     {
-        return array_keys(PackageSchema::tables());
+        return PackageSchema::TABLE_NOUNS;
     }
 
     #[Override]

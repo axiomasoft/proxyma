@@ -27,7 +27,7 @@ final readonly class BudgetRepository
     public function read(array $rows, array $constraints = []): array
     {
         $result = [];
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $debts = [];
         $rowIds = array_values(array_unique(array_map(static fn (stdClass $row): string => RowValues::colStr($row, 'id'), $rows)));
         foreach (array_chunk($rowIds, 512) as $ids) {
@@ -111,7 +111,7 @@ final readonly class BudgetRepository
     {
         foreach ($plan as $id => $tat) {
             $row = $snapshots[$id]['row'];
-            $this->scope->connection->table(PackageSchema::tables()['budgets'])
+            PackageSchema::query($this->scope->connection, 'budgets')
                 ->where('tenant_key', RowValues::colStr($row, 'tenant_key'))
                 ->where('id', $id)
                 ->update([
@@ -147,7 +147,7 @@ final readonly class BudgetRepository
     public function applySend(array $plan): void
     {
         foreach ($plan as $id => $tat) {
-            $this->scope->connection->table(PackageSchema::tables()['budgets'])->where('id', $id)
+            PackageSchema::query($this->scope->connection, 'budgets')->where('id', $id)
                 ->update(['send_tat' => DatabaseClock::instant($tat)->format('Y-m-d H:i:s.uP')]);
         }
     }
@@ -176,11 +176,11 @@ final readonly class BudgetRepository
                 continue;
             }
             $budget = $byId[RowValues::colStr($reference, 'budget_id')];
-            $this->scope->connection->table(PackageSchema::tables()['budgets'])
+            PackageSchema::query($this->scope->connection, 'budgets')
                 ->where('tenant_key', RowValues::colStr($budget, 'tenant_key'))
                 ->where('id', RowValues::colStr($budget, 'id'))
                 ->decrement('inflight');
-            $this->scope->connection->table(PackageSchema::tables()['reservations'])
+            PackageSchema::query($this->scope->connection, 'reservations')
                 ->where('id', RowValues::colStr($reference, 'id'))
                 ->update(['state' => 'released']);
         }

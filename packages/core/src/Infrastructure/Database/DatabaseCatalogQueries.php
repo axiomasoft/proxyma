@@ -72,7 +72,7 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
             $profile = $this->row('route_profiles', $tenant, $profileId);
             $routes = [];
             if ($profile !== null && RowValues::col($profile, 'retired_at') === null) {
-                $members = $this->db->table(PackageSchema::tables()['route_profile_members'])
+                $members = PackageSchema::query($this->db, 'route_profile_members')
                     ->where('tenant_key', $tenant->value)->where('profile_id', $profileId->value)->orderBy('position')->get();
                 foreach ($members as $member) {
                     $id = new Uuid(RowValues::colStr($member, 'route_id'));
@@ -109,7 +109,7 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
         }
         $consumer = $prepared->accessGrant->consumer ?? $prepared->tenantKey;
         $this->access->authorize($consumer, 'catalog.route.select', $prepared->id);
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->db);
         if ($prepared->endpointId !== null) {
             $endpoint = $this->db->table($t['endpoints'])->where('tenant_key', $prepared->tenantKey->value)
                 ->where('id', $prepared->endpointId->value)->sharedLock()->first();
@@ -159,7 +159,7 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
     /** @return list<string> */
     private function members(TenantKey $tenant, Uuid $profileId): array
     {
-        return RowValues::strList($this->db->table(PackageSchema::tables()['route_profile_members'])
+        return RowValues::strList(PackageSchema::query($this->db, 'route_profile_members')
             ->where('tenant_key', $tenant->value)->where('profile_id', $profileId->value)->orderBy('position')->pluck('route_id')->all());
     }
 
@@ -184,6 +184,6 @@ final readonly class DatabaseCatalogQueries implements CatalogQueries, RouteAcce
 
     private function row(string $table, TenantKey $tenant, Uuid $id): ?object
     {
-        return $this->db->table(PackageSchema::tables()[$table])->where('tenant_key', $tenant->value)->where('id', $id->value)->first();
+        return PackageSchema::query($this->db, $table)->where('tenant_key', $tenant->value)->where('id', $id->value)->first();
     }
 }

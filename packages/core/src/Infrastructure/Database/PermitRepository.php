@@ -31,7 +31,7 @@ final readonly class PermitRepository
 
     public function existing(TenantKey $tenant, string $demandId, LockedTransactionContext $tx): ?stdClass
     {
-        $row = $this->scope->connection->table(PackageSchema::tables()['permits'])->where('tenant_key', $tenant->value)->where('demand_id', $demandId)->first();
+        $row = PackageSchema::query($this->scope->connection, 'permits')->where('tenant_key', $tenant->value)->where('demand_id', $demandId)->first();
 
         return $row === null ? null : $this->locks->rows(AuthorityLockTier::Permit, $tenant, [RowValues::colStr($row, 'id')], $tx)[0];
     }
@@ -42,7 +42,7 @@ final readonly class PermitRepository
      */
     public function insert(array $values, array $budgets): stdClass
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $id = Uuid::random()->value;
         $values['id'] = $id;
         $this->scope->connection->table($t['permits'])->insert($values);
@@ -57,7 +57,7 @@ final readonly class PermitRepository
     /** @return list<stdClass> */
     public function references(string $id): array
     {
-        return array_values($this->scope->connection->table(PackageSchema::tables()['reservations'])->where('permit_id', $id)->orderBy('budget_id')->get()->all());
+        return array_values(PackageSchema::query($this->scope->connection, 'reservations')->where('permit_id', $id)->orderBy('budget_id')->get()->all());
     }
 
     /**
@@ -70,7 +70,7 @@ final readonly class PermitRepository
     public function authorize(stdClass $permit, ReservationInput $input, LockedOwnerState $owner, array $snapshots,
         array $safeSnapshot, array $quotaPlan = []): stdClass
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $db = $this->scope->connection;
         $required = intdiv($input->request->timeouts->totalWithCleanupMarginNs(), 1000);
         $ownerRef = $input->operation->owner;

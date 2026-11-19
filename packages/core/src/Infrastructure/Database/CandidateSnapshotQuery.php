@@ -53,7 +53,7 @@ final readonly class CandidateSnapshotQuery implements CandidateSnapshots
         if (! $tenant->equals($policy->tenantKey) || ! $targetId->equals($policy->targetId)) {
             throw new AuthorizationDenied;
         }
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->db);
         $now = DatabaseClock::now($this->db);
         $profile = $this->db->table($t['route_profiles'].' as p')
             ->leftJoin($t['profile_health'].' as h', fn (JoinClause $j): JoinClause => $j->on('h.tenant_key', '=', 'p.tenant_key')->on('h.profile_id', '=', 'p.id'))

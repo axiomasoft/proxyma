@@ -41,7 +41,7 @@ final readonly class RotateCredentials
         }
         $idempotencyKey = $actor->idempotencyKey;
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $previous = $db->table($t['endpoints'])->where('tenant_key', $tenant->value)->where('id', $endpointId->value)->first();
         if ($previous === null) {
             throw new CatalogNotFound('Endpoint not found in tenant scope.');

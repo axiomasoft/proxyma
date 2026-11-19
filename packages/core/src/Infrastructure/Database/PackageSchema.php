@@ -4,129 +4,78 @@ declare(strict_types=1);
 
 namespace Proxyma\Infrastructure\Database;
 
-use Closure;
 use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder;
 use InvalidArgumentException;
 use Packman\Attributes\Internal;
-use Packman\Config\Data\TablePrefix;
-use Proxyma\Infrastructure\Audit\CatalogCommandReceiptRecord;
-use Proxyma\Infrastructure\Eloquent\AttemptRecord;
-use Proxyma\Infrastructure\Eloquent\AuditEventRecord;
-use Proxyma\Infrastructure\Eloquent\BindingRecord;
-use Proxyma\Infrastructure\Eloquent\BindingRevisionRecord;
-use Proxyma\Infrastructure\Eloquent\BudgetRecord;
-use Proxyma\Infrastructure\Eloquent\DemandRecord;
-use Proxyma\Infrastructure\Eloquent\DemandScopeRecord;
-use Proxyma\Infrastructure\Eloquent\EndpointRecord;
-use Proxyma\Infrastructure\Eloquent\ImportedHealthSampleRecord;
-use Proxyma\Infrastructure\Eloquent\ObservationApplicationRecord;
-use Proxyma\Infrastructure\Eloquent\ObservationRecord;
-use Proxyma\Infrastructure\Eloquent\OperationRecord;
-use Proxyma\Infrastructure\Eloquent\PermitRecord;
-use Proxyma\Infrastructure\Eloquent\PolicyHeadRecord;
-use Proxyma\Infrastructure\Eloquent\PolicyRevisionRecord;
-use Proxyma\Infrastructure\Eloquent\ProfileHealthRecord;
-use Proxyma\Infrastructure\Eloquent\QuotaReservationRecord;
-use Proxyma\Infrastructure\Eloquent\QuotaWindowRecord;
-use Proxyma\Infrastructure\Eloquent\ReconcileCursorRecord;
-use Proxyma\Infrastructure\Eloquent\ReservationRecord;
-use Proxyma\Infrastructure\Eloquent\RouteHealthRecord;
-use Proxyma\Infrastructure\Eloquent\RouteProfileMemberRecord;
-use Proxyma\Infrastructure\Eloquent\RouteProfileRecord;
-use Proxyma\Infrastructure\Eloquent\RouteRecord;
-use Proxyma\Infrastructure\Eloquent\RouteTargetHealthRecord;
-use Proxyma\Infrastructure\Eloquent\TargetHealthRecord;
-use Proxyma\Infrastructure\Eloquent\TargetRecord;
-use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
-use Proxyma\Infrastructure\Health\ProbeClaimRecord;
-use Proxyma\Infrastructure\Secrets\EncryptedSecretRecord;
-use Proxyma\Infrastructure\Security\SharedRouteGrantRecord;
+use Proxyma\Laravel\TablePrefixResolver;
 use RuntimeException;
 
-/** @internal PostgreSQL authority; имена берутся из внутренних моделей. */
+/** @internal Physical table and constraint names for the owning PostgreSQL connection. */
 #[Internal]
 final class PackageSchema
 {
-    /** @var (Closure(): string)|null */
-    private static ?Closure $prefixResolver = null;
+    /** @var list<string> */
+    public const array TABLE_NOUNS = [
+        'encrypted_secrets',
+        'endpoints',
+        'routes',
+        'route_profiles',
+        'route_profile_members',
+        'targets',
+        'policy_heads',
+        'policy_revisions',
+        'bindings',
+        'binding_revisions',
+        'operations',
+        'demands',
+        'demand_scopes',
+        'permits',
+        'attempts',
+        'budgets',
+        'quota_windows',
+        'quota_reservations',
+        'reconcile_cursors',
+        'temporary_artifacts',
+        'reservations',
+        'route_health',
+        'profile_health',
+        'route_target_health',
+        'target_health',
+        'observations',
+        'observation_applications',
+        'imported_health_samples',
+        'audit_events',
+        'shared_route_grants',
+        'catalog_command_receipts',
+        'probe_claims',
+    ];
 
-    private static string $defaultPrefix = 'pxm_';
-
-    public static function prefix(): string
+    public static function prefix(?Connection $connection = null): string
     {
-        $prefix = self::$prefixResolver !== null ? (self::$prefixResolver)() : self::$defaultPrefix;
-
-        return new TablePrefix($prefix)->value();
+        return TablePrefixResolver::forConnection($connection)->value();
     }
 
-    public static function usePrefix(TablePrefix|string|null $prefix): void
+    public static function table(string $noun, ?Connection $connection = null): string
     {
-        if ($prefix === null) {
-            self::$defaultPrefix = 'pxm_';
-
-            return;
+        if (! in_array($noun, self::TABLE_NOUNS, true)) {
+            throw new InvalidArgumentException("Unknown Proxyma table noun '{$noun}'.");
         }
 
-        self::$defaultPrefix = ($prefix instanceof TablePrefix ? $prefix : new TablePrefix($prefix))->value();
+        return self::prefix($connection).$noun;
     }
 
-    /** @param (Closure(): string)|null $resolver */
-    public static function resolvePrefixUsing(?Closure $resolver): void
+    public static function query(Connection $db, string $noun): Builder
     {
-        self::$prefixResolver = $resolver;
-    }
-
-    public static function table(string $noun): string
-    {
-        $tables = self::tables();
-
-        return $tables[$noun] ?? throw new InvalidArgumentException("Unknown Proxyma table noun '{$noun}'.");
-    }
-
-    public static function identifier(string $suffix): string
-    {
-        return self::prefix().$suffix;
+        return $db->table(self::table($noun, $db));
     }
 
     /** @return array<string, string> */
-    public static function tables(): array
+    public static function tables(?Connection $connection = null): array
     {
-        $models = [
-            'encrypted_secrets' => EncryptedSecretRecord::class,
-            'endpoints' => EndpointRecord::class,
-            'routes' => RouteRecord::class,
-            'route_profiles' => RouteProfileRecord::class,
-            'route_profile_members' => RouteProfileMemberRecord::class,
-            'targets' => TargetRecord::class,
-            'policy_heads' => PolicyHeadRecord::class,
-            'policy_revisions' => PolicyRevisionRecord::class,
-            'bindings' => BindingRecord::class,
-            'binding_revisions' => BindingRevisionRecord::class,
-            'operations' => OperationRecord::class,
-            'demands' => DemandRecord::class,
-            'demand_scopes' => DemandScopeRecord::class,
-            'permits' => PermitRecord::class,
-            'attempts' => AttemptRecord::class,
-            'budgets' => BudgetRecord::class,
-            'quota_windows' => QuotaWindowRecord::class,
-            'quota_reservations' => QuotaReservationRecord::class,
-            'reconcile_cursors' => ReconcileCursorRecord::class,
-            'temporary_artifacts' => TemporaryArtifactRecord::class,
-            'reservations' => ReservationRecord::class,
-            'route_health' => RouteHealthRecord::class,
-            'profile_health' => ProfileHealthRecord::class,
-            'route_target_health' => RouteTargetHealthRecord::class,
-            'target_health' => TargetHealthRecord::class,
-            'observations' => ObservationRecord::class,
-            'observation_applications' => ObservationApplicationRecord::class,
-            'imported_health_samples' => ImportedHealthSampleRecord::class,
-            'audit_events' => AuditEventRecord::class,
-            'shared_route_grants' => SharedRouteGrantRecord::class,
-            'catalog_command_receipts' => CatalogCommandReceiptRecord::class,
-            'probe_claims' => ProbeClaimRecord::class,
-        ];
+        $prefix = self::prefix($connection);
 
-        return array_map(static fn (string $model): string => (new $model)->getTable(), $models);
+        return array_combine(self::TABLE_NOUNS, array_map(static fn (string $noun): string => $prefix.$noun, self::TABLE_NOUNS));
     }
 
     public static function up(Connection $db): void
@@ -135,8 +84,8 @@ final class PackageSchema
             throw new RuntimeException('Proxyma authority requires PostgreSQL.');
         }
 
-        $p = self::prefix();
-        $t = self::tables();
+        $p = self::prefix($db);
+        $t = self::tables($db);
         $key = "text COLLATE \"C\" NOT NULL CHECK (%s ~ '^[a-z0-9][a-z0-9_.:-]{0,127}$')";
         $scope = "text COLLATE \"C\" NOT NULL CHECK (scope_key ~ '^[a-z0-9][a-z0-9_.:-]{0,254}$')";
         $tenant = sprintf($key, 'tenant_key');
@@ -341,8 +290,8 @@ final class PackageSchema
 
     public static function down(Connection $db): void
     {
-        $p = self::prefix();
-        $t = self::tables();
+        $p = self::prefix($db);
+        $t = self::tables($db);
         $db->statement("ALTER TABLE {$t['policy_heads']} DROP CONSTRAINT {$p}policy_current_fk");
         // FK задают порядок удаления; зависимости health/budgets не совпадают с порядком словаря.
         foreach (['audit_events', 'observation_applications', 'observations', 'route_target_health', 'target_health', 'profile_health', 'route_health', 'reservations', 'quota_windows', 'budgets', 'attempts', 'permits', 'demands', 'operations', 'bindings', 'policy_revisions', 'policy_heads', 'targets', 'route_profile_members', 'route_profiles', 'routes', 'endpoints'] as $name) {

@@ -39,7 +39,7 @@ final readonly class OperationCommands
             $db = $scope->connection;
             // Новый root ещё не существует: provisioning mutex сериализует его создание.
             $db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:operation:'.$tenant->value.':'.$operation->operationId->value]);
-            $table = $db->table(PackageSchema::tables()['operations']);
+            $table = PackageSchema::query($db, 'operations');
             $existing = (clone $table)->where('tenant_key', $tenant->value)->where('id', $operation->operationId->value)->lockForUpdate()->first();
             if ($existing !== null) {
                 if ($existing->intent_hash !== $intent) {
@@ -78,7 +78,7 @@ final readonly class OperationCommands
                 return;
             }
             $db = $this->transactions->scope->connection;
-            $db->table(PackageSchema::tables()['operations'])->where('tenant_key', $tenant->value)->where('id', $id->value)
+            PackageSchema::query($db, 'operations')->where('tenant_key', $tenant->value)->where('id', $id->value)
                 ->update(['status' => 'cancelled', 'revoked_at' => $db->raw('clock_timestamp()'), 'revision' => $expectedRevision + 1]);
         });
     }

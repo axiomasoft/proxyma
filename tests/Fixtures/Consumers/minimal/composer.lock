@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "2f318a2716199cd04244c0d82e8805ee",
+    "content-hash": "48be6724754fc4ea4b833a3706bd59a2",
     "packages": [
         {
             "name": "axiomasoft/packman",
@@ -12,7 +12,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../../../../packman/packages/core",
-                "reference": "dcd4efd42207b42019f8e489f9c67104ffc8e8c9"
+                "reference": "82c18ba53635a88430a8398b429f6fa6b1fb5874"
             },
             "require": {
                 "php": "^8.4",
@@ -94,7 +94,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../../../../packman/packages/panels",
-                "reference": "97c22d237fdcedc7af6317d7cec2d39f5e11172d"
+                "reference": "3690197c2ba5d96e5ad6d2dd68d2557557383537"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -144,19 +144,22 @@
         },
         {
             "name": "axiomasoft/packman-plugins",
-            "version": "0.1.1",
+            "version": "0.1.2",
             "dist": {
                 "type": "path",
                 "url": "../../../../../packman/packages/plugins",
-                "reference": "bca062ab80e8767868a2a322b1df75065e4d7f27"
+                "reference": "438685e3bb4aa886cc5f2008f9d7aaf016d3db1d"
             },
             "require": {
-                "axiomasoft/packman": "^0.1",
+                "axiomasoft/packman": "^0.1.1",
                 "illuminate/console": "^12.0|^13.0",
                 "illuminate/container": "^12.0|^13.0",
                 "illuminate/contracts": "^12.0|^13.0",
                 "illuminate/support": "^12.0|^13.0",
                 "php": "^8.4"
+            },
+            "conflict": {
+                "axiomasoft/packman-schema": "<0.1.1"
             },
             "suggest": {
                 "axiomasoft/packman-schema": "Optional schema ownership integration for plugins declaring owned schema nouns."
@@ -200,7 +203,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../../../../packman/packages/schema",
-                "reference": "99e93dfb6c3bbe2813d30bb0d1979a7ceab85243"
+                "reference": "870346f6ea605c9f66561960950740b5ac97716a"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
@@ -250,12 +253,12 @@
             "dist": {
                 "type": "path",
                 "url": "../../../../packages/core",
-                "reference": "27aba792d77daca92956d1d4beb5a709ea105d50"
+                "reference": "e95512e15ca03a269fe0d9907bcbd76a44871a83"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
                 "axiomasoft/packman-panels": "^0.1",
-                "axiomasoft/packman-plugins": "^0.1.1",
+                "axiomasoft/packman-plugins": "^0.1.2",
                 "axiomasoft/packman-schema": "^0.1",
                 "ext-curl": "*",
                 "ext-mbstring": "*",

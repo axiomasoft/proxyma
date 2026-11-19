@@ -30,7 +30,7 @@ final readonly class OperationsMetrics
         $this->scope->assertOutsideTransaction();
         $this->access->authorize($tenant, 'diagnostics.metrics', new Uuid('00000000-0000-0000-0000-000000000001'));
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $demands = $db->table($t['demands'])->where('tenant_key', $tenant->value)->where('state', 'active')->orderBy('created_at')->orderBy('id')->limit($limit)->get();
         $permits = $db->table($t['permits'].' as p')->join($t['demands'].' as d', 'd.id', '=', 'p.demand_id')
             ->where('p.tenant_key', $tenant->value)->orderByDesc('p.created_at')->orderBy('p.id')->limit($limit)

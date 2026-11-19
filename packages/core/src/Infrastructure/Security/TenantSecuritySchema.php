@@ -17,8 +17,8 @@ final class TenantSecuritySchema
 {
     public static function up(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         $db->statement("CREATE TABLE {$t['shared_route_grants']} (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_key text COLLATE \"C\" NOT NULL,
             consumer_tenant_key text COLLATE \"C\" NOT NULL CHECK (consumer_tenant_key ~ '^[a-z0-9][a-z0-9_.:-]{0,127}$'),
@@ -124,8 +124,8 @@ final class TenantSecuritySchema
 
     public static function down(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         // Rollback предназначен для isolated reinstall: shared memberships отсутствуют в старой схеме.
         $db->statement("DROP TRIGGER {$p}member_grant ON {$t['route_profile_members']}");
         $db->statement("DELETE FROM {$t['route_profile_members']} WHERE shared_grant_id IS NOT NULL");

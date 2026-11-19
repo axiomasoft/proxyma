@@ -36,7 +36,7 @@ final readonly class ReconcileRepository
     {
         $this->locks->enter(AuthorityLockTier::Operation, $id."\0".$tenant->value, $tx);
 
-        return $this->scope->connection->table(PackageSchema::tables()['operations'])->where('tenant_key', $tenant->value)->where('id', $id)
+        return PackageSchema::query($this->scope->connection, 'operations')->where('tenant_key', $tenant->value)->where('id', $id)
             ->lock($skip ? 'FOR UPDATE SKIP LOCKED' : 'FOR UPDATE')->first();
     }
 
@@ -48,7 +48,7 @@ final readonly class ReconcileRepository
     public function lockSubset(object $root, LockedTransactionContext $tx): array
     {
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $rootId = RowValues::colStr($root, 'id');
         $rootProfileId = RowValues::colStr($root, 'profile_id');
         $rootTargetId = RowValues::colStr($root, 'target_id');
@@ -171,14 +171,14 @@ final readonly class ReconcileRepository
             array_values(array_filter($state['references'], static fn (stdClass $r): bool => RowValues::colStr($r, 'permit_id') === $permitId)),
             $state['budgets'],
         );
-        $this->scope->connection->table(PackageSchema::tables()['permits'])->where('id', $permitId)->update(['lease_released_at' => $this->scope->connection->raw('clock_timestamp()')]);
+        PackageSchema::query($this->scope->connection, 'permits')->where('id', $permitId)->update(['lease_released_at' => $this->scope->connection->raw('clock_timestamp()')]);
     }
 
     /** @param ReconcileState $state */
     public function expire(object $root, array $state): int
     {
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $now = DatabaseClock::now($db);
         $dead = RowValues::colStr($root, 'status') !== 'active'
             || RowValues::colNullableStr($root, 'revoked_at') !== null

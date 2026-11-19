@@ -17,7 +17,6 @@ use Proxyma\Domain\Health\HealthSignal;
 use Proxyma\Domain\Health\HealthSignals;
 use Proxyma\Domain\Health\HealthSnapshot;
 use Proxyma\Domain\Health\TargetAvailability;
-use Proxyma\Infrastructure\Eloquent\ImportedHealthSampleRecord;
 use Proxyma\Infrastructure\Health\ProbeClaims;
 use Proxyma\Internal\Database\RowValues;
 
@@ -30,7 +29,7 @@ final readonly class HealthRepository
     {
         $this->scope->assertActive($transaction);
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $s = $fact->summary;
         $now = DatabaseClock::now($db);
         $signals = HealthSignals::fromSummary($s);
@@ -131,7 +130,7 @@ final readonly class HealthRepository
 
     private function dedup(CompletionFact $fact, string $key, int $epoch, bool $eligible = true): bool
     {
-        return $this->scope->connection->table(PackageSchema::tables()['observation_applications'])->insertOrIgnore([
+        return PackageSchema::query($this->scope->connection, 'observation_applications')->insertOrIgnore([
             'id' => Uuid::random()->value, 'tenant_key' => $fact->tenant->value, 'observation_id' => $fact->observationId->value,
             'application_key' => $key, 'health_epoch' => $epoch, 'reducer_allowed' => $eligible,
         ]) === 1;
@@ -143,7 +142,7 @@ final readonly class HealthRepository
         if ($scope === HealthScope::Route) {
             return [0, 0, 0];
         }
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $seconds = $scope === HealthScope::Target ? $this->reducer->thresholds->corroborationWindowSeconds : $this->reducer->thresholds->routeTargetWindowSeconds;
         $rows = $this->scope->connection->table($t['observations'].' as o')->join($t['observation_applications'].' as a', 'a.observation_id', '=', 'o.id')
             ->where('a.application_key', $key)->where('a.health_epoch', $epoch)->where('a.reducer_allowed', true)
@@ -163,7 +162,7 @@ final readonly class HealthRepository
                 }
             }
         }
-        $imports = $this->scope->connection->table((new ImportedHealthSampleRecord)->getTable())
+        $imports = PackageSchema::query($this->scope->connection, 'imported_health_samples')
             ->where('tenant_key', $tenant)
             ->where('application_key', $key)->where('health_epoch', $epoch)->where('reducer_allowed', true)
             ->where('observed_at', '>=', $now->modify('-'.$seconds.' seconds')->format('Y-m-d H:i:s.uP'))->get();

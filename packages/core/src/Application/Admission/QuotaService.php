@@ -46,7 +46,7 @@ final readonly class QuotaService
         }
         $hash = hash('sha256', $hash.json_encode($actor, JSON_THROW_ON_ERROR));
         $this->transactions->run(function ($tx) use ($tenant, $budgetId, $hour, $day, $expectedRevision, $scope, $actor, $hash): void {
-            $t = PackageSchema::tables();
+            $t = PackageSchema::tables($this->transactions->scope->connection);
             $row = $scope->connection->table($t['budgets'])->where('tenant_key', $tenant->value)->where('id', $budgetId->value)->first()
                 ?? throw new AdmissionRejected('budget_missing');
             $row = $this->locks->rows(AuthorityLockTier::Budget, $tenant, [RowValues::colStr($row, 'scope_key')], $tx)[0];
@@ -77,7 +77,7 @@ final readonly class QuotaService
         }
         $this->transactions->run(function ($tx) use ($scope, $tenant, $budgetIds): void {
             $budgetIdValues = array_map(static fn (Uuid $id): string => $id->value, $budgetIds);
-            $rows = array_values($scope->connection->table(PackageSchema::tables()['budgets'])->where('tenant_key', $tenant->value)
+            $rows = array_values(PackageSchema::query($scope->connection, 'budgets')->where('tenant_key', $tenant->value)
                 ->whereIn('id', $budgetIdValues)->get()->all());
             if (count($rows) !== count(array_unique($budgetIdValues))) {
                 throw new AdmissionRejected('budget_missing');
@@ -102,7 +102,7 @@ final readonly class QuotaService
         $hash = hash('sha256', $hash.json_encode($actor, JSON_THROW_ON_ERROR));
 
         return $this->transactions->run(function ($tx) use ($scope, $tenant, $originBudget, $origin, $class, $percent, $expectedRevision, $actor, $hash): Uuid {
-            $t = PackageSchema::tables();
+            $t = PackageSchema::tables($this->transactions->scope->connection);
             $parent = $this->locks->rows(AuthorityLockTier::Budget, $tenant, [$origin->budgetScopeKey()], $tx)[0];
             $receipt = $this->receipt($tenant, $actor, $hash);
             if ($receipt !== null) {
@@ -145,7 +145,7 @@ final readonly class QuotaService
 
     private function receipt(TenantKey $tenant, CatalogMutationActor $actor, string $hash): ?object
     {
-        $receipt = $this->transactions->scope->connection->table(PackageSchema::tables()['catalog_command_receipts'])
+        $receipt = PackageSchema::query($this->transactions->scope->connection, 'catalog_command_receipts')
             ->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key((string) $actor->idempotencyKey))->first();
         if ($receipt === null) {
             return null;
@@ -159,7 +159,7 @@ final readonly class QuotaService
 
     public function assertWindow(string $permitId, int $requiredUs, TenantKey $tenant, Uuid $operation): void
     {
-        $permit = $this->transactions->scope->connection->table(PackageSchema::tables()['permits'])->where('id', $permitId)
+        $permit = PackageSchema::query($this->transactions->scope->connection, 'permits')->where('id', $permitId)
             ->where('tenant_key', $tenant->value)->where('operation_id', $operation->value)->first() ?? throw new AdmissionRejected('permit_missing');
         if ($permit->state !== 'reserved') {
             return;
@@ -176,7 +176,7 @@ final readonly class QuotaService
     private function replan(string $permitId): never
     {
         $scope = $this->transactions->scope;
-        $row = $scope->connection->table(PackageSchema::tables()['permits'])->where('id', $permitId)->first()
+        $row = PackageSchema::query($scope->connection, 'permits')->where('id', $permitId)->first()
             ?? throw new AdmissionRejected('permit_missing');
         $exception = new NeedsReplan(new TenantKey(RowValues::colStr($row, 'tenant_key')), new Uuid(RowValues::colStr($row, 'operation_id')), new Uuid($permitId));
         $cleanup = function () use ($exception): void {
@@ -198,7 +198,7 @@ final readonly class QuotaService
         $this->access->authorize($replan->tenant, 'execution.reservation.cancel', $replan->operationId);
 
         return $this->transactions->run(function ($tx) use ($scope, $replan): bool {
-            $t = PackageSchema::tables();
+            $t = PackageSchema::tables($this->transactions->scope->connection);
             $db = $scope->connection;
             $this->locks->rows(AuthorityLockTier::Operation, $replan->tenant, [$replan->operationId->value], $tx);
             $row = $db->table($t['permits'])->where('tenant_key', $replan->tenant->value)->where('operation_id', $replan->operationId->value)

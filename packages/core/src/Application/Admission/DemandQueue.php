@@ -64,7 +64,7 @@ final readonly class DemandQueue
             if (! $fits) {
                 return $this->wait('slice_exhausted', $now, $deadline);
             }
-            $count = $this->transactions->scope->connection->table(PackageSchema::tables()['demands'])
+            $count = PackageSchema::query($this->transactions->scope->connection, 'demands')
                 ->where('tenant_key', $tenant->value)->where('operation_id', RowValues::colStr($root, 'id'))->whereNotNull('physical_attempt_id')->count();
             if ($count >= RowValues::colInt($root, 'max_physical_attempts')) {
                 throw new AdmissionRejected('physical_attempt_limit');
@@ -156,7 +156,7 @@ final readonly class DemandQueue
                 return $wait;
             }
             $db = $this->transactions->scope->connection;
-            $updated = $db->table(PackageSchema::tables()['demands'])->where('id', RowValues::colStr($row, 'id'))->where('tenant_key', $tenant->value)
+            $updated = PackageSchema::query($db, 'demands')->where('id', RowValues::colStr($row, 'id'))->where('tenant_key', $tenant->value)
                 ->where('state', 'active')->whereRaw('expires_at > clock_timestamp() AND deadline >= clock_timestamp() + ? * interval \'1 millisecond\'',
                     [$request->timeouts->totalTimeoutMs + $request->timeouts->cleanupMarginMs])->update(['state' => 'admitted', 'admitted_at' => $db->raw('clock_timestamp()')]);
             if ($updated !== 1) {
@@ -176,7 +176,7 @@ final readonly class DemandQueue
         $this->access->authorize($tenant, 'execution.demand.cancel', $operation);
         $this->transactions->run(function ($tx) use ($tenant, $operation, $demand): void {
             $this->locks->rows(AuthorityLockTier::Operation, $tenant, [$operation->value], $tx);
-            $exists = $this->transactions->scope->connection->table(PackageSchema::tables()['demands'])
+            $exists = PackageSchema::query($this->transactions->scope->connection, 'demands')
                 ->where('tenant_key', $tenant->value)->where('operation_id', $operation->value)->where('id', $demand->value)->exists();
             if (! $exists) {
                 throw new AdmissionRejected('demand_identity_conflict');
@@ -190,7 +190,7 @@ final readonly class DemandQueue
             if (! in_array($row->state, ['active', 'admitted'], true)) {
                 return;
             }
-            if ($this->transactions->scope->connection->table(PackageSchema::tables()['permits'])->where('demand_id', $row->id)->exists()) {
+            if (PackageSchema::query($this->transactions->scope->connection, 'permits')->where('demand_id', $row->id)->exists()) {
                 throw new AdmissionRejected('permit_accounting_cancellation_required');
             }
             $this->repository->state($row, 'cancelled');
@@ -218,7 +218,7 @@ final readonly class DemandQueue
                 throw new AdmissionRejected('operation_owner_lost');
             }
             // Standalone owner уже держит этот root; не берём его повторно после prefix.
-            $root = $db->table(PackageSchema::tables()['operations'])->where('tenant_key', $operation->owner->tenantKey->value)->where('id', $request->operationId->value)->first();
+            $root = PackageSchema::query($db, 'operations')->where('tenant_key', $operation->owner->tenantKey->value)->where('id', $request->operationId->value)->first();
         } else {
             $root = $this->locks->operation($request->operationId, $operation->owner, $tx);
         }

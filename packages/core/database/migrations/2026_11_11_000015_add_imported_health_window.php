@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Database\PackageSchema;
-use Proxyma\Infrastructure\Eloquent\ImportedHealthSampleRecord;
 
 return new class extends ProxymaMigration
 {
     public function up(): void
     {
         $db = $this->db();
-        $p = PackageSchema::prefix();
-        $table = (new ImportedHealthSampleRecord)->getTable();
+        $p = PackageSchema::prefix($this->db());
+        $table = PackageSchema::table('imported_health_samples', $this->db());
         $db->statement("CREATE TABLE {$table} (
             tenant_key text NOT NULL, observation_id uuid NOT NULL, attempt_id uuid NOT NULL,
             application_key text NOT NULL, health_epoch bigint NOT NULL CHECK (health_epoch > 0),
@@ -27,7 +26,7 @@ return new class extends ProxymaMigration
     public function down(): void
     {
         $db = $this->db();
-        $table = (new ImportedHealthSampleRecord)->getTable();
+        $table = PackageSchema::table('imported_health_samples', $this->db());
         $db->statement("DROP TABLE IF EXISTS {$table}");
     }
 };

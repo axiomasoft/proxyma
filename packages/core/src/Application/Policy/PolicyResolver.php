@@ -767,7 +767,7 @@ final class PolicyResolver implements PolicyResolverContract
         ?string $panelKey = null,
     ): LivePolicyAuthority|PolicyChanged|NeedsReplan|ExecutionBlocked {
         $db = $this->requireConnection();
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
 
         try {
             $tenant = $this->verifyTenantContext($subjects->tenant);

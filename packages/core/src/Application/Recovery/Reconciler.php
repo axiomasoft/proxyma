@@ -14,7 +14,6 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
-use Proxyma\Infrastructure\Eloquent\ReconcileCursorRecord;
 use Proxyma\Internal\Database\RowValues;
 
 #[Api(since: '1.0')]
@@ -31,7 +30,7 @@ final readonly class Reconciler
         $scope->assertOutsideTransaction();
         $this->access->authorize($tenant, 'execution.reconcile', new Uuid('00000000-0000-0000-0000-000000000001'));
         $db = $scope->connection;
-        $cursorTable = (new ReconcileCursorRecord)->getTable();
+        $cursorTable = PackageSchema::table('reconcile_cursors', $db);
         $token = Uuid::random()->value;
         $cursor = $db->transaction(function () use ($db, $tenant, $cursorTable, $token): ?object {
             $db->table($cursorTable)->insertOrIgnore(['tenant_key' => $tenant->value]);
@@ -42,7 +41,7 @@ final readonly class Reconciler
         if ($cursor === null) {
             return new ReconcilePage(0, 0, 0, null, true);
         }
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $afterId = RowValues::colNullableStr($cursor, 'after_id');
         $permitsTable = $t['permits'].' as p';
         $demandsTable = $t['demands'].' as d';

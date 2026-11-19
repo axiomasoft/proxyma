@@ -44,7 +44,7 @@ final readonly class CatalogAudit
     /** @param list<string> $fields */
     public function mutation(string $table, TenantKey $tenant, Uuid $id, string $ability, CatalogMutationActor $actor, string $hash, ?object $previous, object $result, array $fields): void
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->db);
         $auditId = Uuid::random()->value;
         $fields = array_values(array_intersect($fields, [...self::Fields[$table], 'budgets']));
         sort($fields, SORT_STRING);
@@ -61,7 +61,7 @@ final readonly class CatalogAudit
 
     public function read(string $table, Uuid $id, string $ability, TenantContext $context, int $revision): void
     {
-        $this->db->table(PackageSchema::tables()['audit_events'])->insert(['tenant_key' => $context->tenant->value,
+        PackageSchema::query($this->db, 'audit_events')->insert(['tenant_key' => $context->tenant->value,
             'actor_type' => $context->actor->type, 'actor_id' => hash('sha256', $context->actor->id),
             'reason' => hash('sha256', 'catalog-read'), 'ability' => $ability, 'entity_type' => $table, 'entity_id' => $id->value,
             'event_kind' => 'read', 'previous_revision' => $revision, 'revision' => $revision,

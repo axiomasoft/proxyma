@@ -29,14 +29,14 @@ final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
             return new SchemaDiagnosticReport(false, $db->getDriverName());
         }
         $missing = [];
-        foreach (PackageSchema::tables() as $table) {
+        foreach (PackageSchema::tables($db) as $table) {
             $regclass = RowValues::nullableObject($db->selectOne('SELECT to_regclass(?) AS name', [$table]));
             if ($regclass === null || RowValues::colNullableStr($regclass, 'name') === null) {
                 $missing[] = $table;
             }
         }
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         $required = [[$t['policy_heads'], "{$p}policy_current_fk"], [$t['budgets'], "{$p}budget_lock_idx"],
             [$t['route_health'], "{$p}credential_hold_identity"], [$t['budgets'], "{$p}cooldown_finite"]];
         $constraints = [];
@@ -79,7 +79,7 @@ final readonly class DatabaseDiagnosticsQueries implements DiagnosticsQueries
     private function health(string $table, TenantKey $tenant, array $where): ?HealthSnapshot
     {
         $this->scope->assertOutsideTransaction();
-        $row = $this->scope->connection->table(PackageSchema::tables()[$table])->where('tenant_key', $tenant->value)->where($where)->first();
+        $row = PackageSchema::query($this->scope->connection, $table)->where('tenant_key', $tenant->value)->where($where)->first();
         if ($row === null) {
             return null;
         }

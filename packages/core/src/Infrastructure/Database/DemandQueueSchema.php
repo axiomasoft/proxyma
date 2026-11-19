@@ -13,8 +13,8 @@ final class DemandQueueSchema
 {
     public static function up(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         $db->statement("ALTER TABLE {$t['operations']} ADD COLUMN external_operation_key text,
             ADD COLUMN parent_attempt_id uuid, ADD COLUMN intent_hash text,
             ADD CONSTRAINT {$p}operation_correlation_check CHECK (external_operation_key IS NULL OR
@@ -81,8 +81,8 @@ final class DemandQueueSchema
 
     public static function down(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         if ($db->table($t['demands'])->whereNotNull('physical_attempt_id')->exists()
             || $db->table($t['operations'])->whereNotNull('intent_hash')->exists()) {
             throw new RuntimeException('Cannot remove durable operation/demand identity history.');

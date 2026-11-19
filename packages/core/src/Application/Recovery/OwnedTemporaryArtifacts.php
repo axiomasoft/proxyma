@@ -14,7 +14,6 @@ use Proxyma\Domain\Execution\Uuid;
 use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
-use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
 use Proxyma\Internal\Database\RowValues;
 use stdClass;
 use Throwable;
@@ -55,7 +54,7 @@ final readonly class OwnedTemporaryArtifacts
                 if (! in_array($permit->value, array_map(static fn (stdClass $p): string => RowValues::colStr($p, 'id'), $state['permits']), true)) {
                     throw new AdmissionRejected('artifact_permit_missing');
                 }
-                $this->transactions->scope->connection->table((new TemporaryArtifactRecord)->getTable())->insert(['id' => $id->value,
+                PackageSchema::query($this->transactions->scope->connection, 'temporary_artifacts')->insert(['id' => $id->value,
                     'tenant_key' => $tenant->value, 'operation_id' => $operation->value, 'permit_id' => $permit->value, 'ownership_token' => $token]);
             });
         } catch (Throwable $error) {
@@ -74,9 +73,9 @@ final readonly class OwnedTemporaryArtifacts
             throw new InvalidArgumentException('Positive retention and page 1..64 are required.');
         }
         $this->access->authorize($tenant, 'execution.artifact.prune', new Uuid('00000000-0000-0000-0000-000000000001'));
-        $table = (new TemporaryArtifactRecord)->getTable();
+        $table = PackageSchema::table('temporary_artifacts', $this->transactions->scope->connection);
         $db = $scope->connection;
-        $rows = $db->table($table.' as a')->join(PackageSchema::tables()['permits'].' as p', 'p.id', '=', 'a.permit_id')
+        $rows = $db->table($table.' as a')->join(PackageSchema::table('permits', $db).' as p', 'p.id', '=', 'a.permit_id')
             ->where('a.tenant_key', $tenant->value)->whereIn('p.state', ['completed', 'cancelled_before_send', 'expired_before_send'])
             ->whereNotNull('p.lease_released_at')->whereRaw("a.created_at<clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds])
             ->select('a.*')->orderBy('a.id')->limit($limit)->get();

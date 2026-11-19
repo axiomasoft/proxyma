@@ -40,7 +40,7 @@ final readonly class ResetHealth
 
         return $db->transaction(function () use ($db, $scope, $id, $tenant, $actor, $expectedRevision, $idempotencyKey, $ability, $hash): object {
             (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($db, $actor);
-            $t = PackageSchema::tables();
+            $t = PackageSchema::tables($db);
             new CatalogProvisioner($db)->lockCatalog($tenant);
             $receipt = $db->table($t['catalog_command_receipts'])->where('tenant_key', $tenant->value)
                 ->where('idempotency_key', CatalogAudit::key($idempotencyKey))->first();

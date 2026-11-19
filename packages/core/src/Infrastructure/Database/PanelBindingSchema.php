@@ -8,7 +8,6 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use LogicException;
 use Packman\Attributes\Internal;
-use Proxyma\Infrastructure\Eloquent\BindingRevisionRecord;
 use Proxyma\Internal\Database\RowValues;
 
 /** @internal */
@@ -17,9 +16,9 @@ final class PanelBindingSchema
 {
     public static function down(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
-        $history = (new BindingRevisionRecord)->getTable();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
+        $history = PackageSchema::table('binding_revisions', $db);
         if ($db->table($history)->exists() || $db->table($t['audit_events'])->where('entity_type', 'bindings')->exists()
             || $db->table($t['bindings'])->where(fn (Builder $q): Builder => $q->where('panel_key', '<>', 'default')->orWhere('slot_key', '<>', 'default')->orWhere('policy_key', '<>', 'default'))->exists()) {
             throw new LogicException('Binding history or scoped bindings prevent rollback.');
@@ -34,10 +33,10 @@ final class PanelBindingSchema
 
     public static function up(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         $table = $t['bindings'];
-        $history = (new BindingRevisionRecord)->getTable();
+        $history = PackageSchema::table('binding_revisions', $db);
         // Ищем старый unique по колонкам: PostgreSQL сокращает длинное имя constraint.
         $constraints = $db->select("SELECT conname FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'u'
             AND pg_get_constraintdef(oid) = 'UNIQUE (tenant_key, subject_type, subject_id)'", [$table]);

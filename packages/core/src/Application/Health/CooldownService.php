@@ -52,7 +52,7 @@ final readonly class CooldownService
             return;
         }
         $db = $this->scope->connection;
-        $table = PackageSchema::tables()['budgets'];
+        $table = PackageSchema::table('budgets', $db);
         $budgetIds = is_array($summary['cooldown_budget_ids'] ?? null) ? RowValues::strList($summary['cooldown_budget_ids']) : [];
         foreach ($budgetIds as $id) {
             $db->update("UPDATE {$table} SET cooldown_until = GREATEST(cooldown_until, ?::timestamptz), revision = revision + 1

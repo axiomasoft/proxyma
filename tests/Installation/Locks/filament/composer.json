@@ -35,7 +35,7 @@
                     "axiomasoft/packman": "0.1.1",
                     "axiomasoft/packman-filament": "0.1.1",
                     "axiomasoft/packman-panels": "0.1.1",
-                    "axiomasoft/packman-plugins": "0.1.1",
+                    "axiomasoft/packman-plugins": "0.1.2",
                     "axiomasoft/packman-schema": "0.1.1"
                 }
             }

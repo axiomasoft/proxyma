@@ -243,7 +243,7 @@ final class TransactionCoordinator implements ClaimActivationAuthority, Coordina
     {
         $this->scope->current();
         $sealer->verify($wire);
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $row = $this->scope->connection->table($t['attempts'].' as a')->join($t['permits'].' as p', 'p.id', '=', 'a.permit_id')
             ->where('a.permit_id', $candidate->permitId->value)->where('a.operation_id', $candidate->operationId->value)
             ->where('a.physical_attempt_id', $candidate->physicalAttemptId->value)->where('a.wire_fingerprint', $candidate->wireFingerprint->hex)

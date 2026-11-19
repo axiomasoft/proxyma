@@ -20,7 +20,7 @@ final class PolicyAuthoritySnapshot
     /** @return array{heads: list<array{0: string, 1: string, 2: int}>, versions: array<string, int>} */
     public static function read(Connection $db, EffectivePolicy $policy): array
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $heads = $db->table($t['policy_heads'])->whereIn('tenant_key', array_unique([$policy->tenantKey->value, TenantKey::SYSTEM]))
             ->orderBy('scope_key')->orderBy('tenant_key')->limit(1025)->get()->all();
         if (count($heads) > 1024) {

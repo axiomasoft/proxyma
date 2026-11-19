@@ -25,7 +25,7 @@ final readonly class BindingEditVersion
 
     public function current(TenantKey $tenant): string
     {
-        $heads = $this->db->table(PackageSchema::tables()['policy_heads'])
+        $heads = PackageSchema::query($this->db, 'policy_heads')
             ->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))
             ->orderBy('tenant_key')->orderBy('id')->get(['tenant_key', 'id', 'revision', 'current_revision_id'])->all();
 

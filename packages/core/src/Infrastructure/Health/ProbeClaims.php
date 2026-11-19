@@ -26,7 +26,7 @@ final readonly class ProbeClaims
 
     public function find(string $token): ?object
     {
-        return $this->scope->connection->table((new ProbeClaimRecord)->getTable())->where('id', $token)->first();
+        return PackageSchema::query($this->scope->connection, 'probe_claims')->where('id', $token)->first();
     }
 
     public function ownsCompletion(CompletionFact $fact): bool
@@ -36,7 +36,7 @@ final readonly class ProbeClaims
             return false;
         }
         $claim = $this->find(RowValues::str($s['probe_token']));
-        $attempt = $this->scope->connection->table(PackageSchema::tables()['attempts'])->where('id', $fact->attemptId->value)->first();
+        $attempt = PackageSchema::query($this->scope->connection, 'attempts')->where('id', $fact->attemptId->value)->first();
 
         return $claim !== null
             && $attempt !== null
@@ -56,7 +56,7 @@ final readonly class ProbeClaims
         $rows = [];
         foreach ($epochs as $key => $epoch) {
             [$name, $id] = explode(':', $key, 2);
-            $table = PackageSchema::tables()[HealthScope::from($name)->value];
+            $table = PackageSchema::table(HealthScope::from($name)->value, $this->scope->connection);
             $row = $this->scope->connection->table($table)->where('id', $id)->first();
             if ($row !== null) {
                 $rows[$key] = $row;
@@ -130,7 +130,7 @@ final readonly class ProbeClaims
             throw new AdmissionRejected('probe_ownership_lost');
         }
         $claim = $this->find($probeToken->value) ?? throw new AdmissionRejected('probe_ownership_lost');
-        $updated = $this->scope->connection->table((new ProbeClaimRecord)->getTable())->where('id', RowValues::colStr($claim, 'id'))
+        $updated = PackageSchema::query($this->scope->connection, 'probe_claims')->where('id', RowValues::colStr($claim, 'id'))
             ->whereNull('physical_attempt_id')->whereRaw('expires_at > clock_timestamp()')
             ->update(['physical_attempt_id' => $input->request->physicalAttemptId->value]);
         if ($updated !== 1) {

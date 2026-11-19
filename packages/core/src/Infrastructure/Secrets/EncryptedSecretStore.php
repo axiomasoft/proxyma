@@ -55,7 +55,7 @@ final readonly class EncryptedSecretStore implements SecretResolver
             throw new AuthorizationDenied;
         }
         try {
-            $t = PackageSchema::tables();
+            $t = PackageSchema::tables($this->scope->connection);
             $row = $this->scope->connection->table($t['encrypted_secrets'].' as s')
                 ->join($t['endpoints'].' as e', function (JoinClause $join): void {
                     $join->on('e.tenant_key', '=', 's.tenant_key')->on('e.id', '=', 's.endpoint_id')

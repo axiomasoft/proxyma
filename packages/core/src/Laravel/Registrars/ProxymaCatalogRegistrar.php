@@ -4,25 +4,17 @@ declare(strict_types=1);
 
 namespace Proxyma\Laravel\Registrars;
 
+use Illuminate\Console\Events\ArtisanStarting;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Connection;
 use Override;
 use Packman\Attributes\Spi;
 use Packman\Attributes\SpiKind;
-use Packman\Config\Data\TablePrefix;
-use Packman\Config\Exceptions\InvalidConfiguration;
 use Packman\Config\Laravel\ConfigSectionRegistration;
-use Packman\Extensions\Laravel\ExtensionFacetRegistrar;
 use Packman\Foundation\Contracts\PackageRegistrar;
-use Packman\Panels\Contracts\Registry\PanelRegistry;
-use Packman\Panels\Laravel\PanelExtensionBridge;
-use Packman\Plugins\Contracts\Registry\PluginInspector;
-use Packman\Plugins\Data\Plugin\PluginDescription;
-use Packman\Plugins\Exceptions\Registry\RegistryFrozenException;
-use Packman\Plugins\Laravel\ExtensionRegistrar;
-use Packman\Schema\Laravel\SchemaExtensions;
 use Proxyma\Application\Authorization\CatalogAccess;
 use Proxyma\Application\Catalog\DatabaseCatalogCommands;
 use Proxyma\Application\Catalog\RotateCredentials;
@@ -41,7 +33,6 @@ use Proxyma\Diagnostics\ProxymaDoctorCheck;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseCatalogQueries;
 use Proxyma\Infrastructure\Database\DatabaseDiagnosticsQueries;
-use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Secrets\EncryptedSecretStore;
 use Proxyma\Infrastructure\Security\ContainerAuthorizer;
 use Proxyma\Infrastructure\Security\ContainerTenantContextResolver;
@@ -56,9 +47,7 @@ use Proxyma\Laravel\Console\ProbeCommand;
 use Proxyma\Laravel\Console\PruneCommand;
 use Proxyma\Laravel\Console\ReconcileCommand;
 use Proxyma\Laravel\Console\TransportDoctorCommand;
-use Proxyma\Plugins\ProxymaCorePlugin;
-use WeakMap;
-use WeakReference;
+use Proxyma\Laravel\TablePrefixResolver;
 
 /**
  * Registers Proxyma's core extension plugin, compiled options, schema ownership, diagnostics, catalog, and security ports.
@@ -69,83 +58,16 @@ final class ProxymaCatalogRegistrar implements PackageRegistrar
     #[Override]
     public function register(Application $app): void
     {
-        try {
-            ExtensionRegistrar::builtInFor($app, ProxymaCorePlugin::class);
-        } catch (RegistryFrozenException $exception) {
-            if (! $app->bound(PluginInspector::class)
-                || ! array_any(
-                    $app->make(PluginInspector::class)->describe(),
-                    static fn (PluginDescription $plugin): bool => $plugin->class === ProxymaCorePlugin::class,
-                )
-            ) {
-                throw $exception;
-            }
-        }
-
-        $app->singletonIf(ProxymaCorePlugin::class);
-
         $app->singleton(ProxymaDoctorCheck::class, static fn (Application $app): ProxymaDoctorCheck => new ProxymaDoctorCheck(
             config: $app->make(Repository::class),
             queries: $app->make(DiagnosticsQueries::class),
             optionsResolver: static fn (): ProxymaOptions => $app->make(ProxymaOptions::class),
         ));
 
-        ExtensionFacetRegistrar::register(
-            $app,
-            ProxymaCorePlugin::class,
-            dirname(__DIR__, 3).'/composer.json',
-        );
-
-        $weakApp = WeakReference::create($app);
-        PackageSchema::resolvePrefixUsing(static function () use ($weakApp): string {
-            $container = $weakApp->get();
-
-            if (! $container instanceof Application) {
-                return 'pxm_';
-            }
-
-            if ($container->resolved(ProxymaOptions::class)) {
-                try {
-                    return $container->make(ProxymaOptions::class)->tablePrefix->value();
-                } catch (InvalidConfiguration) {
-                    // Diagnostics still need table names when another configuration section is invalid.
-                }
-            }
-
-            if ($container->bound(Repository::class)) {
-                $raw = $container->make(Repository::class)->get('proxyma.table_prefix', 'pxm_');
-
-                return is_string($raw) ? TablePrefix::fromArrayValue($raw, 'proxyma.table_prefix')->value() : 'pxm_';
-            }
-
-            return 'pxm_';
+        TablePrefixResolver::register($app);
+        ConfigSectionRegistration::own($app, 'proxyma', static function (array $section): void {
+            ProxymaOptions::fromArray($section, 'proxyma');
         });
-
-        /** @var WeakMap<Application, true>|null $ownedSections */
-        static $ownedSections = null;
-
-        if (! $ownedSections instanceof WeakMap) {
-            /** @var WeakMap<Application, true> $map */
-            $map = new WeakMap;
-            $ownedSections = $map;
-        }
-
-        if (! isset($ownedSections[$app])) {
-            $ownedSections[$app] = true;
-            ConfigSectionRegistration::own($app, 'proxyma', static function (array $section): void {
-                ProxymaOptions::fromArray($section, 'proxyma');
-            });
-        }
-
-        SchemaExtensions::register($app, ProxymaCorePlugin::class, 'axiomasoft.proxyma');
-
-        if ($app->bound(PanelRegistry::class)) {
-            PanelExtensionBridge::registerExtension($app, $app->make(ProxymaCorePlugin::class));
-        } else {
-            $app->afterResolving(PanelRegistry::class, static function (mixed $_, Application $app): void {
-                PanelExtensionBridge::registerExtension($app, $app->make(ProxymaCorePlugin::class));
-            });
-        }
 
         $app->bindIf(Authorizer::class, DenyAuthorizer::class);
         $app->bindIf(CatalogMutationFence::class, StandaloneCatalogMutationFence::class);
@@ -197,8 +119,8 @@ final class ProxymaCatalogRegistrar implements PackageRegistrar
             return;
         }
 
-        \Illuminate\Console\Application::starting(static function (\Illuminate\Console\Application $artisan): void {
-            $artisan->resolveCommands([
+        $app->make(Dispatcher::class)->listen(ArtisanStarting::class, static function (ArtisanStarting $event): void {
+            $event->artisan->resolveCommands([
                 ReconcileCommand::class,
                 TransportDoctorCommand::class,
                 DoctorCommand::class,

@@ -7,20 +7,18 @@ namespace Proxyma\Infrastructure\Database;
 use Illuminate\Database\Connection;
 use LogicException;
 use Packman\Attributes\Internal;
-use Proxyma\Infrastructure\Eloquent\ReconcileCursorRecord;
-use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
 
 #[Internal]
 final class RecoverySchema
 {
     public static function up(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
-        $cursor = (new ReconcileCursorRecord)->getTable();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
+        $cursor = PackageSchema::table('reconcile_cursors', $db);
         $db->statement("CREATE TABLE {$cursor} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_key text NOT NULL UNIQUE, after_id uuid, lease_token uuid,
             lease_until timestamptz CHECK (isfinite(lease_until)), CHECK ((lease_token IS NULL) = (lease_until IS NULL)))");
-        $artifact = (new TemporaryArtifactRecord)->getTable();
+        $artifact = PackageSchema::table('temporary_artifacts', $db);
         $db->statement("ALTER TABLE {$t['permits']} ADD CONSTRAINT {$p}permit_artifact_identity UNIQUE (tenant_key,id,operation_id)");
         $db->statement("CREATE TABLE {$artifact} (id uuid PRIMARY KEY,tenant_key text NOT NULL,operation_id uuid NOT NULL,permit_id uuid NOT NULL,
             ownership_token text NOT NULL CHECK (ownership_token ~ '^[0-9a-f]{64}$'),created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -72,10 +70,10 @@ final class RecoverySchema
 
     public static function down(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         if ($db->table($t['attempts'])->whereNotNull('receipt_key')->exists() || $db->table($t['permits'])->whereNotNull('lease_released_at')->exists()
-            || $db->table((new TemporaryArtifactRecord)->getTable())->exists()) {
+            || PackageSchema::query($db, 'temporary_artifacts')->exists()) {
             throw new LogicException('Cannot remove recovery history.');
         }
         $db->statement("DROP TRIGGER {$p}receipt_guard ON {$t['attempts']}");
@@ -88,8 +86,8 @@ final class RecoverySchema
         $db->statement("ALTER TABLE {$t['attempts']} DROP CONSTRAINT {$p}receipt_key_unique, DROP CONSTRAINT {$p}receipt_pair,
             DROP COLUMN receipt_key, DROP COLUMN receipt_digest, DROP COLUMN result_digest, DROP COLUMN result_summary");
         $db->statement("ALTER TABLE {$t['permits']} DROP COLUMN lease_released_at");
-        $db->statement('DROP TABLE '.(new ReconcileCursorRecord)->getTable());
-        $db->statement('DROP TABLE '.(new TemporaryArtifactRecord)->getTable());
+        $db->statement('DROP TABLE '.PackageSchema::table('reconcile_cursors', $db));
+        $db->statement('DROP TABLE '.PackageSchema::table('temporary_artifacts', $db));
         $db->statement("ALTER TABLE {$t['permits']} DROP CONSTRAINT {$p}permit_artifact_identity");
     }
 }

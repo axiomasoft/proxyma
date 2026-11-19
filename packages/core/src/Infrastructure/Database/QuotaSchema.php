@@ -15,8 +15,8 @@ final class QuotaSchema
 {
     public static function up(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         $db->statement("ALTER TABLE {$t['audit_events']} DROP CONSTRAINT {$p}audit_events_entity_type_check,
             ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','bindings','budgets'))");
         $db->statement("ALTER TABLE {$t['budgets']} ADD COLUMN hour_limit bigint CHECK (hour_limit >= 0),
@@ -88,8 +88,8 @@ final class QuotaSchema
 
     public static function down(Connection $db): void
     {
-        $p = PackageSchema::prefix();
-        $t = PackageSchema::tables();
+        $p = PackageSchema::prefix($db);
+        $t = PackageSchema::tables($db);
         if ($db->table($t['quota_windows'])->exists() || $db->table($t['quota_reservations'])->exists()
             || $db->table($t['budgets'])->whereNotNull('hour_limit')->orWhereNotNull('day_limit')->orWhereNotNull('traffic_class')->exists()
             || $db->table($t['audit_events'])->where('entity_type', 'budgets')->exists()

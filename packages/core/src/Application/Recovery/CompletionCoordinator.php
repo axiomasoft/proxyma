@@ -99,7 +99,7 @@ final readonly class CompletionCoordinator implements Completion
         try {
             return $this->transactions->run(function ($tx) use ($tenant, $operation, $physical, $summary, $receiptDigest, $receiptKey, $wire, $resultDigest, $scope): LateReceiptResult {
                 $db = $scope->connection;
-                $t = PackageSchema::tables();
+                $t = PackageSchema::tables($db);
                 $root = $this->repository->root($tenant, $operation->value, $tx) ?? throw new AdmissionRejected('operation_missing');
                 $state = $this->repository->lockSubset($root, $tx);
                 $attempt = array_values(array_filter(
@@ -191,7 +191,7 @@ final readonly class CompletionCoordinator implements Completion
                 return new LateReceiptResult(LateReceiptOutcome::TransitionedToCompleted, $next, true, $allowed);
             });
         } catch (QueryException $error) {
-            if ($error->getCode() === '23505' && str_contains($error->getMessage(), PackageSchema::identifier('receipt_key_unique'))) {
+            if ($error->getCode() === '23505' && str_contains($error->getMessage(), PackageSchema::prefix($this->transactions->scope->connection).'receipt_key_unique')) {
                 throw new AdmissionRejected('receipt_conflict');
             }
             throw $error;
@@ -207,7 +207,7 @@ final readonly class CompletionCoordinator implements Completion
         string $classification, LockedTransactionContext $tx): void
     {
         $db = $this->transactions->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $previous = $db->table($t['observations'])->where('attempt_id', $attemptId)->where('classification', $classification)->first();
         if ($previous !== null) {
             $previousEvidence = RowValues::jsonAssoc(RowValues::colStr($previous, 'evidence'));

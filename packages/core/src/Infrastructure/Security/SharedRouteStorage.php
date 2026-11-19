@@ -21,7 +21,7 @@ final readonly class SharedRouteStorage
 
     public function forConsumer(TenantKey $consumer, Uuid $routeId): ?SharedRouteGrant
     {
-        $row = $this->db->table(PackageSchema::tables()['shared_route_grants'])
+        $row = PackageSchema::query($this->db, 'shared_route_grants')
             ->where('consumer_tenant_key', $consumer->value)->where('route_id', $routeId->value)->whereNull('retired_at')->first();
 
         return $row === null ? null : self::map($row);

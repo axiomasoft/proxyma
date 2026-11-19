@@ -31,7 +31,7 @@ final readonly class ReservationCatalogLocks
     {
         $tenant = $input->operation->owner->tenantKey;
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $versions = ['policy' => $input->policy->effectiveRevision];
         $owners = array_unique([$tenant->value, TenantKey::SYSTEM]);
         sort($owners, SORT_STRING);

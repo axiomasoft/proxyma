@@ -21,7 +21,6 @@ use Proxyma\Infrastructure\Admission\ReservationCatalogLocks;
 use Proxyma\Infrastructure\Audit\CatalogAudit;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
-use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 use Proxyma\Infrastructure\Health\ProbeClaims;
 use Proxyma\Internal\Database\RowValues;
 
@@ -55,7 +54,7 @@ final readonly class ProbeCoordinator
             }
             $evidence = $this->catalog->lock($input, $tx, probeClaim: true);
             if ($review !== null) {
-                $receipt = $scope->connection->table(PackageSchema::tables()['catalog_command_receipts'])
+                $receipt = PackageSchema::query($scope->connection, 'catalog_command_receipts')
                     ->where('tenant_key', $input->operation->owner->tenantKey->value)
                     ->where('idempotency_key', CatalogAudit::key($reviewIdempotencyKey))->exists();
                 if ($receipt) {
@@ -121,7 +120,7 @@ final readonly class ProbeCoordinator
                     if ($name === HealthScope::Target->value) {
                         $patch['availability'] = 'unavailable';
                     }
-                    $scope->connection->table(PackageSchema::tables()[$name])->where('id', RowValues::colStr($row, 'id'))->update($patch);
+                    PackageSchema::query($scope->connection, $name)->where('id', RowValues::colStr($row, 'id'))->update($patch);
                 }
 
                 return null;
@@ -134,7 +133,7 @@ final readonly class ProbeCoordinator
                 throw new AdmissionRejected('probe_scope_empty');
             }
             $claim = new ProbeClaim($token, $epochs, $until);
-            $scope->connection->table((new ProbeClaimRecord)->getTable())->insert([
+            PackageSchema::query($scope->connection, 'probe_claims')->insert([
                 'id' => $token->value, 'tenant_key' => $input->operation->owner->tenantKey->value,
                 'operation_id' => $input->operation->operationId->value, 'route_id' => $input->route->id->value,
                 'target_id' => $input->target->id->value, 'epochs' => json_encode($claim->epochs->epochs, JSON_THROW_ON_ERROR),
@@ -143,7 +142,7 @@ final readonly class ProbeCoordinator
             foreach ($blocked as $key => $row) {
                 [$name] = explode(':', $key, 2);
                 $stateVersion = RowValues::colInt($row, 'state_version');
-                $changed = $scope->connection->table(PackageSchema::tables()[HealthScope::from($name)->value])
+                $changed = $scope->connection->table(PackageSchema::table(HealthScope::from($name)->value, $scope->connection))
                     ->where('id', RowValues::colStr($row, 'id'))
                     ->where('health_epoch', RowValues::colInt($row, 'health_epoch'))
                     ->where('state_version', $stateVersion)
@@ -164,7 +163,7 @@ final readonly class ProbeCoordinator
                 [$name, $id] = explode(':', $first, 2);
                 $row = $blocked[$first];
                 $stateVersion = RowValues::colInt($row, 'state_version');
-                $t = PackageSchema::tables();
+                $t = PackageSchema::tables($this->transactions->scope->connection);
                 $tenant = $input->operation->owner->tenantKey->value;
                 $auditId = Uuid::random()->value;
                 $key = CatalogAudit::key($reviewIdempotencyKey);

@@ -45,7 +45,7 @@ class CatalogBrowser
             default => throw new InvalidArgumentException('Unknown catalog section.'),
         };
         $tenant = $this->tenants->resolve()->tenant;
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($this->db);
         $query = $this->db->table($tables[$table])->whereNull('retired_at')->where(function (Builder $query) use ($kind, $selectable, $tenant, $tables): void {
             $query->where('tenant_key', $tenant->value);
             if ($kind === 'route' && $selectable) {

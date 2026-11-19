@@ -196,7 +196,7 @@ it('registers all ProxymaErrorCode entries and DescribesError exceptions in Prob
 });
 
 it('declares stateless ProxymaCorePlugin facets, schema set, panels, and thin providers', function (): void {
-    $plugin = new ProxymaCorePlugin;
+    $plugin = $this->app->make(ProxymaCorePlugin::class);
     $profile = ExtensionInspector::inspect($plugin);
     $interfaces = array_values(class_implements($plugin));
     sort($interfaces);
@@ -387,7 +387,7 @@ it('honors configured proxyma.table_prefix dynamically across PackageSchema, Elo
     $this->app['config']->set('proxyma.table_prefix', 'audit_');
     $this->app->forgetInstance(ProxymaOptions::class);
 
-    $plugin = new ProxymaCorePlugin;
+    $plugin = $this->app->make(ProxymaCorePlugin::class);
     $profile = ExtensionInspector::inspect($plugin);
 
     expect(PackageSchema::prefix())->toBe('audit_')
@@ -399,7 +399,8 @@ it('honors configured proxyma.table_prefix dynamically across PackageSchema, Elo
     $this->app->instance(ProxymaOptions::class, new ProxymaOptions(tablePrefix: new TablePrefix('bound_')));
     expect(PackageSchema::prefix())->toBe('bound_')
         ->and((new EndpointRecord)->getTable())->toBe('bound_endpoints')
-        ->and($plugin->tablePrefix())->toBe('bound_');
+        ->and($this->app->make(ProxymaCorePlugin::class)->tablePrefix())->toBe('bound_')
+        ->and($plugin->tablePrefix())->toBe('audit_');
 
     $this->app->forgetInstance(ProxymaOptions::class);
     $this->app['config']->set('proxyma.maintenance.batch_size', 65);

@@ -6,7 +6,6 @@ namespace Proxyma\Infrastructure\Eloquent;
 
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
-use Override;
 use Packman\Attributes\Internal;
 use Proxyma\Infrastructure\Database\PackageSchema;
 
@@ -20,13 +19,14 @@ abstract class AuthorityRecord extends Model
 
     protected $guarded = ['*'];
 
-    #[Override]
-    public function getTable(): string
+    /** @param array<string, mixed> $attributes */
+    public function __construct(array $attributes = [])
     {
+        parent::__construct($attributes);
         $base = parent::getTable();
         $noun = str_starts_with($base, 'pxm_') ? substr($base, 4) : $base;
 
-        return PackageSchema::prefix().$noun;
+        $this->setTable(PackageSchema::prefix().$noun);
     }
 
     public function save(array $options = [])

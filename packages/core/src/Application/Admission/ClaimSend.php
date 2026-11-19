@@ -133,7 +133,7 @@ final class ClaimSend
             || $input->request->timeouts->connectTimeoutMs > RowValues::colInt($root, 'connect_timeout_ms')) {
             throw new AdmissionRejected('operation_intent_conflict');
         }
-        $priorAttempts = $scope->connection->table(PackageSchema::tables()['attempts'])
+        $priorAttempts = PackageSchema::query($scope->connection, 'attempts')
             ->where('tenant_key', $tenant->value)->where('operation_id', $rootId)->get(['snapshot']);
         $distinctLimit = min($input->request->timeouts->maxDistinctRoutes, $input->policy->timeouts->maxDistinctRoutes);
         $usedRoutes = [];
@@ -149,7 +149,7 @@ final class ClaimSend
         }
         $evidence = $this->catalog->lock($input, $tx);
         if ($input->route->endpointId !== null) {
-            $endpoint = $scope->connection->table(PackageSchema::tables()['endpoints'])->where('id', $input->route->endpointId->value)->first()
+            $endpoint = PackageSchema::query($scope->connection, 'endpoints')->where('id', $input->route->endpointId->value)->first()
                 ?? throw new AdmissionRejected('prepared_credential_conflict');
             if (RowValues::colNullableStr($endpoint, 'credential_ref') !== $wire->credential?->reference->reference
                 || ($wire->credential !== null && RowValues::colNullableInt($endpoint, 'credential_version') !== $wire->credential->reference->version)) {
@@ -305,7 +305,7 @@ final class ClaimSend
         $scope = $this->transactions->scope;
         $scope->assertOutsideTransaction();
         $db = $scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $db->transaction(function () use ($db, $t, $candidate): void {
             $db->table($t['operations'])->where('id', $candidate->operationId->value)->lockForUpdate()->first();
             $permit = $db->table($t['permits'])->where('id', $candidate->permitId->value)->lockForUpdate()->first();

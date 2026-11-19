@@ -189,7 +189,7 @@ it('migrates, inspects, and persists catalog entities under a custom configured 
         expect(PackageSchema::prefix())->toBe('audit_')
             ->and((new EndpointRecord)->getTable())->toBe('audit_endpoints')
             ->and(PackageSchema::tables()['attempts'])->toBe('audit_attempts')
-            ->and(ExtensionInspector::inspect(new ProxymaCorePlugin)->tablePrefix)->toBe('audit_');
+            ->and(ExtensionInspector::inspect($this->app->make(ProxymaCorePlugin::class))->tablePrefix)->toBe('audit_');
 
         $this->migrateSchemaSets(['axiomasoft/proxyma-core:proxyma'], 'pgsql');
 

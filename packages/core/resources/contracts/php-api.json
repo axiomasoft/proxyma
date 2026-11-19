@@ -34943,6 +34943,26 @@
             ],
             "doc": [],
             "methods": {
+                "__construct": {
+                    "visibility": "public",
+                    "static": false,
+                    "final": false,
+                    "abstract": false,
+                    "by_reference": false,
+                    "parameters": [
+                        {
+                            "name": "prefix",
+                            "type": "Packman\\Config\\Data\\TablePrefix",
+                            "by_reference": false,
+                            "variadic": false,
+                            "optional": true,
+                            "default": "new \\Packman\\Config\\Data\\TablePrefix('pxm_')",
+                            "flags": 68
+                        }
+                    ],
+                    "return": null,
+                    "doc": []
+                },
                 "configRoot": {
                     "visibility": "public",
                     "static": false,

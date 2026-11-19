@@ -15,7 +15,6 @@ use Proxyma\Domain\Policy\TenantKey;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
 use Proxyma\Infrastructure\Database\ReconcileRepository;
-use Proxyma\Infrastructure\Eloquent\TemporaryArtifactRecord;
 use Proxyma\Internal\Database\RowValues;
 use stdClass;
 
@@ -33,7 +32,7 @@ final readonly class RetentionPruner
         $scope->assertOutsideTransaction();
         $this->access->authorize($tenant, 'execution.retention.prune', new Uuid('00000000-0000-0000-0000-000000000001'));
         $db = $scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $ids = RowValues::strList(
             $db->table($t['operations'])->where('tenant_key', $tenant->value)->whereIn('status', ['completed', 'cancelled', 'expired'])
                 ->whereRaw("deadline<clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds])
@@ -45,7 +44,7 @@ final readonly class RetentionPruner
                     ->whereRaw("p.expires_at>=clock_timestamp()-(?::bigint*interval '1 second')", [$retentionSeconds]))
                 ->whereNotExists(static fn (Builder $q): Builder => $q->selectRaw('1')->from($t['demands'].' as d')->whereColumn('d.operation_id', $t['operations'].'.id')
                     ->whereNotIn('d.state', ['expired', 'cancelled', 'completed']))
-                ->whereNotExists(static fn (Builder $q): Builder => $q->selectRaw('1')->from((new TemporaryArtifactRecord)->getTable().' as a')->whereColumn('a.operation_id', $t['operations'].'.id'))
+                ->whereNotExists(static fn (Builder $q): Builder => $q->selectRaw('1')->from(PackageSchema::table('temporary_artifacts', $db).' as a')->whereColumn('a.operation_id', $t['operations'].'.id'))
                 ->whereNotExists(static fn (Builder $q): Builder => $q->selectRaw('1')->from($t['permits'].' as p')
                     ->join($t['quota_reservations'].' as r', 'r.permit_id', '=', 'p.id')
                     ->join($t['quota_windows'].' as w', 'w.id', '=', 'r.window_id')
@@ -63,7 +62,7 @@ final readonly class RetentionPruner
                     return 0;
                 }
                 $state = $this->repository->lockSubset($root, $tx);
-                if ($db->table((new TemporaryArtifactRecord)->getTable())->where('operation_id', $id)->exists()) {
+                if (PackageSchema::query($db, 'temporary_artifacts')->where('operation_id', $id)->exists()) {
                     return 0;
                 }
                 // Authorization facts and their associations remain durable; unresolved unknowns hold the whole root.

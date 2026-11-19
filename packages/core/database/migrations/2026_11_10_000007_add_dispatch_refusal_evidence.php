@@ -10,8 +10,8 @@ return new class extends ProxymaMigration
     public function up(): void
     {
         $db = $this->db();
-        $p = PackageSchema::prefix();
-        $table = PackageSchema::tables()['attempts'];
+        $p = PackageSchema::prefix($this->db());
+        $table = PackageSchema::tables($this->db())['attempts'];
         $db->statement("ALTER TABLE {$table} ADD COLUMN dispatch_outcome text NOT NULL DEFAULT 'unknown'
             CHECK (dispatch_outcome IN ('unknown','not_dispatched')), ADD COLUMN dispatch_refused_at timestamptz,
             ADD CHECK ((dispatch_outcome='not_dispatched') = (dispatch_refused_at IS NOT NULL))");
@@ -34,8 +34,8 @@ return new class extends ProxymaMigration
     public function down(): void
     {
         $db = $this->db();
-        $p = PackageSchema::prefix();
-        $table = PackageSchema::tables()['attempts'];
+        $p = PackageSchema::prefix($this->db());
+        $table = PackageSchema::tables($this->db())['attempts'];
         if ($db->table($table)->whereNotNull('dispatch_refused_at')->exists()) {
             throw new LogicException('Dispatch refusal history prevents rollback.');
         }

@@ -154,7 +154,7 @@ final class AuthorityLocker
         $rows = [];
         foreach ($keys as $key) {
             $this->enter($tier, $key."\0".$tenant->value, $transaction);
-            $row = $this->scope->connection->table(PackageSchema::tables()[$name])
+            $row = PackageSchema::query($this->scope->connection, $name)
                 ->where('tenant_key', $tenant->value)->where($column, $key)->lock($lock)->first();
             if ($row === null) {
                 throw new AdmissionRejected('required_state_missing');
@@ -184,7 +184,7 @@ final class AuthorityLocker
         if ($requested === []) {
             return [];
         }
-        $query = $this->scope->connection->table(PackageSchema::tables()['policy_heads']);
+        $query = PackageSchema::query($this->scope->connection, 'policy_heads');
         $query->where(static function (Builder $query) use ($requested): void {
             foreach ($requested as [$tenant, $scopeKey]) {
                 $query->orWhere(static function (Builder $query) use ($tenant, $scopeKey): void {
@@ -219,7 +219,7 @@ final class AuthorityLocker
             foreach ($chunk as $key => $budget) {
                 $this->enter(AuthorityLockTier::Budget, $key, $transaction);
             }
-            $query = $this->scope->connection->table(PackageSchema::tables()['budgets']);
+            $query = PackageSchema::query($this->scope->connection, 'budgets');
             $query->where(static function (Builder $query) use ($chunk): void {
                 foreach ($chunk as $budget) {
                     $query->orWhere(static function (Builder $query) use ($budget): void {

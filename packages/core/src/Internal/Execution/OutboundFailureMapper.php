@@ -285,7 +285,7 @@ final readonly class OutboundFailureMapper
             return false;
         }
 
-        return $this->scope->connection->table(PackageSchema::tables()['route_health'])
+        return PackageSchema::query($this->scope->connection, 'route_health')
             ->where(function (Builder $query) use ($routesByOwner): void {
                 foreach ($routesByOwner as $owner => $routeIds) {
                     $query->orWhere(fn (Builder $owned): Builder => $owned->where('tenant_key', $owner)->whereIn('route_id', $routeIds));

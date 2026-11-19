@@ -15,7 +15,7 @@ return new class extends ProxymaMigration
 
     public function down(): void
     {
-        $table = PackageSchema::tables()['encrypted_secrets'];
+        $table = PackageSchema::tables($this->db())['encrypted_secrets'];
         $this->db()->statement("DROP TABLE {$table}");
     }
 };

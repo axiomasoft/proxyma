@@ -50,7 +50,6 @@ use Proxyma\Domain\Policy\PanelDefinition;
 use Proxyma\Domain\Policy\SubjectChain;
 use Proxyma\Domain\Policy\SubjectRef;
 use Proxyma\Laravel\ProxymaServiceProvider;
-use Proxyma\Laravel\Registrars\ProxymaCatalogRegistrar;
 use Proxyma\Plugins\ProxymaCorePlugin;
 use stdClass;
 
@@ -210,10 +209,10 @@ it('registers the core plugin in the supplied application when another container
     $isolated->instance(Repository::class, $config);
     new PluginsServiceProvider($isolated)->register();
 
-    new ProxymaCatalogRegistrar()->register($isolated);
+    new ProxymaServiceProvider($isolated)->register();
 
     expect(array_column($isolated->make(PluginInspector::class)->describe(), 'class'))->toBe([ProxymaCorePlugin::class]);
-    new ProxymaCatalogRegistrar()->register($isolated);
+    new ProxymaServiceProvider($isolated)->register();
     expect($isolated->make(PluginInspector::class)->describe())->toHaveCount(1);
 });
 

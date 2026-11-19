@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "638af53830aa6750bc1906255b35d250",
+    "content-hash": "7581b14832d7b5c0a2c7c3ceadff36b1",
     "packages": [
         {
             "name": "axiomasoft/packman",
@@ -144,19 +144,22 @@
         },
         {
             "name": "axiomasoft/packman-plugins",
-            "version": "0.1.1",
+            "version": "0.1.2",
             "dist": {
                 "type": "path",
                 "url": "sources/packman/plugins",
-                "reference": "c4319d96d411f508be115fa95965ae9470c1f881"
+                "reference": "5e5b3e7a397aed15fe4fd5d23941d5e25bb72b4d"
             },
             "require": {
-                "axiomasoft/packman": "^0.1",
+                "axiomasoft/packman": "^0.1.1",
                 "illuminate/console": "^12.0|^13.0",
                 "illuminate/container": "^12.0|^13.0",
                 "illuminate/contracts": "^12.0|^13.0",
                 "illuminate/support": "^12.0|^13.0",
                 "php": "^8.4"
+            },
+            "conflict": {
+                "axiomasoft/packman-schema": "<0.1.1"
             },
             "suggest": {
                 "axiomasoft/packman-schema": "Optional schema ownership integration for plugins declaring owned schema nouns."
@@ -250,12 +253,12 @@
             "dist": {
                 "type": "path",
                 "url": "sources/core",
-                "reference": "8c68e72694b02105b09d6e2949fffbf466247258"
+                "reference": "af9a5aec3e65a4ab66d3b7bce355d43db01e15ee"
             },
             "require": {
                 "axiomasoft/packman": "^0.1",
                 "axiomasoft/packman-panels": "^0.1",
-                "axiomasoft/packman-plugins": "^0.1.1",
+                "axiomasoft/packman-plugins": "^0.1.2",
                 "axiomasoft/packman-schema": "^0.1",
                 "ext-curl": "*",
                 "ext-mbstring": "*",

@@ -67,7 +67,6 @@ use Proxyma\Infrastructure\Database\CatalogRowMapper;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Database\DatabaseClock;
 use Proxyma\Infrastructure\Database\PackageSchema;
-use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 use Proxyma\Infrastructure\Telemetry\OperationsTelemetry;
 use Proxyma\Internal\Database\RowValues;
 use Proxyma\Internal\Execution\OutboundFailureMapper;
@@ -165,10 +164,10 @@ final readonly class OutboundExecutor implements OutboundClient
 
         $hopAttempt = $physicalAttempt;
         $redirectHop = $physicalRedirects;
-        $totalSends = $this->scope->connection->table(PackageSchema::tables()['permits'])
+        $totalSends = PackageSchema::query($this->scope->connection, 'permits')
             ->where('tenant_key', $tenant->value)->where('operation_id', $request->operationId->value)
             ->whereNotNull('authorized_at')->count();
-        foreach ($this->scope->connection->table(PackageSchema::tables()['permits'])
+        foreach (PackageSchema::query($this->scope->connection, 'permits')
             ->where('tenant_key', $tenant->value)->where('operation_id', $request->operationId->value)
             ->whereNotNull('authorized_at')->distinct()->pluck('route_id') as $routeId) {
             $triedRouteIds[] = new Uuid(RowValues::str($routeId));
@@ -180,7 +179,7 @@ final readonly class OutboundExecutor implements OutboundClient
         $lastDeliveredResponse = null;
         $operationProvisioned = false;
         $operationLimit = RowValues::nullableInt(
-            $this->scope->connection->table(PackageSchema::tables()['operations'])
+            PackageSchema::query($this->scope->connection, 'operations')
                 ->where('tenant_key', $tenant->value)->where('id', $request->operationId->value)->value('max_physical_attempts'),
         );
 
@@ -298,7 +297,7 @@ final readonly class OutboundExecutor implements OutboundClient
                     return new ExecutionDeferred(DeferralReason::SliceExhausted, new RetryAt($this->nowWall()), $attemptIds, $lastDeliveredResponse);
                 }
 
-                $cooldown = $this->scope->connection->table(PackageSchema::tables()['budgets'])
+                $cooldown = PackageSchema::query($this->scope->connection, 'budgets')
                     ->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))
                     ->where('scope_key', $currentUrl->origin->budgetScopeKey())
                     ->whereRaw('cooldown_until > clock_timestamp()')->max('cooldown_until');
@@ -380,7 +379,7 @@ final readonly class OutboundExecutor implements OutboundClient
                     if ($probeToken === null) {
                         return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'probe_token_missing'], $attemptIds);
                     }
-                    $probe = $this->scope->connection->table((new ProbeClaimRecord)->getTable())
+                    $probe = PackageSchema::query($this->scope->connection, 'probe_claims')
                         ->where('id', $probeToken->value)->where('tenant_key', $tenant->value)
                         ->where('operation_id', $context->operation->operationId->value)->where('target_id', $target->id->value)
                         ->whereNull('physical_attempt_id')->whereRaw('expires_at > clock_timestamp()')->first();
@@ -921,7 +920,7 @@ final readonly class OutboundExecutor implements OutboundClient
         }
 
         $db = $this->scope->connection;
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($db);
 
         $existingProfileId = $db->table($tables['operations'])
             ->where('tenant_key', $tenant->value)
@@ -1043,7 +1042,7 @@ final readonly class OutboundExecutor implements OutboundClient
         Uuid $targetId,
         RequestTimeoutPolicy $timeouts,
     ): void {
-        $tables = PackageSchema::tables();
+        $tables = PackageSchema::tables($this->scope->connection);
         $exists = $this->scope->connection->table($tables['operations'])
             ->where('tenant_key', $tenant->value)
             ->where('id', $context->operation->operationId->value)
@@ -1068,7 +1067,7 @@ final readonly class OutboundExecutor implements OutboundClient
             throw new AuthorizationDenied;
         }
 
-        $row = $this->scope->connection->table(PackageSchema::tables()['endpoints'])
+        $row = PackageSchema::query($this->scope->connection, 'endpoints')
             ->where('tenant_key', $route->tenantKey->value)
             ->where('id', $route->endpointId->value)
             ->first();

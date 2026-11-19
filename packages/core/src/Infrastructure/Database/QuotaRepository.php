@@ -44,7 +44,7 @@ final readonly class QuotaRepository
      */
     public function lockWindows(array $budgets, string|array|null $permitId = null): void
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $old = [];
         if ($permitId !== null) {
             $permitIds = is_array($permitId) ? $permitId : [$permitId];
@@ -75,7 +75,7 @@ final readonly class QuotaRepository
             $byId[RowValues::colStr($budget, 'id')] = $budget;
         }
         $result = [];
-        $rows = $this->scope->connection->table(PackageSchema::tables()['quota_windows'])->whereIn('budget_id', array_keys($byId))
+        $rows = PackageSchema::query($this->scope->connection, 'quota_windows')->whereIn('budget_id', array_keys($byId))
             ->where('starts_at', '<=', $now->format('Y-m-d H:i:s.uP'))->where('ends_at', '>', $now->format('Y-m-d H:i:s.uP'))->get();
         foreach ($rows as $row) {
             $budget = $byId[RowValues::colStr($row, 'budget_id')];
@@ -99,7 +99,7 @@ final readonly class QuotaRepository
         if ($db->transactionLevel() < 1) {
             throw new LogicException('Quota provisioning requires a catalog transaction.');
         }
-        $table = PackageSchema::tables()['quota_windows'];
+        $table = PackageSchema::table('quota_windows', $db);
         $tenantKey = RowValues::colStr($budget, 'tenant_key');
         $budgetId = RowValues::colStr($budget, 'id');
         $quotaPolicyKey = RowValues::colStr($budget, 'quota_policy_key');
@@ -128,7 +128,7 @@ final readonly class QuotaRepository
 
     private static function seedHistory(Connection $db, object $budget, object $window, DateTimeImmutable $now): void
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $budgetId = RowValues::colStr($budget, 'id');
         $tenantKey = RowValues::colStr($budget, 'tenant_key');
         $parent = RowValues::colNullableStr($budget, 'traffic_parent_id') ?? $budgetId;
@@ -181,7 +181,7 @@ final readonly class QuotaRepository
         if ($originScope !== null) {
             $parents = array_keys(array_filter($byId, static fn (stdClass $row): bool => RowValues::colStr($row, 'scope_key') === $originScope));
             $persisted = RowValues::strList(
-                $this->scope->connection->table(PackageSchema::tables()['budgets'])->whereIn('traffic_parent_id', $parents)
+                PackageSchema::query($this->scope->connection, 'budgets')->whereIn('traffic_parent_id', $parents)
                     ->where('traffic_class', $trafficClass)->pluck('id')->all(),
             );
             if (array_diff($persisted, array_keys($byId)) !== []) {
@@ -227,7 +227,7 @@ final readonly class QuotaRepository
                     continue;
                 }
                 $window = new FixedWindow($kind, $now);
-                $row = $this->scope->connection->table(PackageSchema::tables()['quota_windows'])->where('tenant_key', $tenantKey)
+                $row = PackageSchema::query($this->scope->connection, 'quota_windows')->where('tenant_key', $tenantKey)
                     ->where('budget_id', $budgetId)->where('window_kind', $kind)->where('policy_key', $quotaPolicyKey)
                     ->where('starts_at', $window->startsAt->format('Y-m-d H:i:s.uP'))->first()
                     ?? throw new AdmissionRejected('quota_materialization_missing');
@@ -256,7 +256,7 @@ final readonly class QuotaRepository
     public function assertAvailable(array $plan): void
     {
         $retry = null;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         foreach ($plan as $row) {
             if ($row['spent'] >= $row['limit'] || $row['reserved'] >= $row['limit'] - $row['spent']) {
                 $at = new DateTimeImmutable($row['ends']);
@@ -279,7 +279,7 @@ final readonly class QuotaRepository
     public function reserve(object $permit, array $plan): void
     {
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $tenantKey = RowValues::colStr($permit, 'tenant_key');
         $permitId = RowValues::colStr($permit, 'id');
         foreach ($plan as $row) {
@@ -303,7 +303,7 @@ final readonly class QuotaRepository
     /** @return list<stdClass> */
     public function references(string $permitId): array
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
 
         return array_values($this->scope->connection->table($t['quota_reservations'].' as r')->join($t['quota_windows'].' as w', 'w.id', '=', 'r.window_id')
             ->where('r.permit_id', $permitId)->orderBy('w.budget_id')->orderBy('w.window_kind')->orderBy('w.starts_at')
@@ -313,7 +313,7 @@ final readonly class QuotaRepository
     public function consume(string $permitId, DateTimeImmutable $authorizedAt): void
     {
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         foreach ($this->references($permitId) as $ref) {
             if (RowValues::colStr($ref, 'state') !== 'reserved') {
                 throw new AdmissionRejected('quota_already_consumed');
@@ -334,7 +334,7 @@ final readonly class QuotaRepository
     public function release(string $permitId): void
     {
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         foreach ($this->references($permitId) as $ref) {
             if (RowValues::colStr($ref, 'state') !== 'reserved') {
                 continue;

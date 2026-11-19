@@ -4,25 +4,19 @@ declare(strict_types=1);
 
 use Proxyma\Database\ProxymaMigration;
 use Proxyma\Infrastructure\Database\PackageSchema;
-use Proxyma\Infrastructure\Eloquent\AuditEventRecord;
-use Proxyma\Infrastructure\Eloquent\EndpointRecord;
-use Proxyma\Infrastructure\Eloquent\OperationRecord;
-use Proxyma\Infrastructure\Eloquent\RouteHealthRecord;
-use Proxyma\Infrastructure\Eloquent\RouteRecord;
-use Proxyma\Infrastructure\Health\ProbeClaimRecord;
 
 return new class extends ProxymaMigration
 {
     public function up(): void
     {
         $db = $this->db();
-        $p = PackageSchema::prefix();
-        $claims = (new ProbeClaimRecord)->getTable();
-        $operations = (new OperationRecord)->getTable();
-        $health = (new RouteHealthRecord)->getTable();
-        $endpoints = (new EndpointRecord)->getTable();
-        $routes = (new RouteRecord)->getTable();
-        $audit = (new AuditEventRecord)->getTable();
+        $p = PackageSchema::prefix($this->db());
+        $claims = PackageSchema::table('probe_claims', $this->db());
+        $operations = PackageSchema::table('operations', $this->db());
+        $health = PackageSchema::table('route_health', $this->db());
+        $endpoints = PackageSchema::table('endpoints', $this->db());
+        $routes = PackageSchema::table('routes', $this->db());
+        $audit = PackageSchema::table('audit_events', $this->db());
         $db->statement("ALTER TABLE {$audit} DROP CONSTRAINT {$p}audit_events_entity_type_check,
             ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN
             ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','budgets','route_health','route_target_health','target_health'))");
@@ -47,15 +41,15 @@ return new class extends ProxymaMigration
     public function down(): void
     {
         $db = $this->db();
-        $p = PackageSchema::prefix();
-        $audit = (new AuditEventRecord)->getTable();
+        $p = PackageSchema::prefix($this->db());
+        $audit = PackageSchema::table('audit_events', $this->db());
         if ($db->table($audit)->whereIn('entity_type', ['route_health', 'route_target_health', 'target_health'])->exists()) {
             throw new LogicException('Health audit history prevents rollback.');
         }
         $db->statement("ALTER TABLE {$audit} DROP CONSTRAINT {$p}audit_events_entity_type_check,
             ADD CONSTRAINT {$p}audit_events_entity_type_check CHECK (entity_type IN
             ('endpoints','routes','route_profiles','targets','shared_route_grants','policy_heads','budgets'))");
-        $db->statement('DROP TABLE '.(new ProbeClaimRecord)->getTable());
-        $db->statement('ALTER TABLE '.(new RouteHealthRecord)->getTable().' DROP COLUMN credential_endpoint_id, DROP COLUMN credential_version');
+        $db->statement('DROP TABLE '.PackageSchema::table('probe_claims', $this->db()));
+        $db->statement('ALTER TABLE '.PackageSchema::table('route_health', $this->db()).' DROP COLUMN credential_endpoint_id, DROP COLUMN credential_version');
     }
 };

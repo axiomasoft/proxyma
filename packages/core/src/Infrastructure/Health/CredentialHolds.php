@@ -19,7 +19,7 @@ final readonly class CredentialHolds
         if ($newVersion <= $oldVersion) {
             return;
         }
-        $this->db->table(PackageSchema::tables()['route_health'])->where('tenant_key', $tenant)
+        PackageSchema::query($this->db, 'route_health')->where('tenant_key', $tenant)
             ->where('credential_endpoint_id', $endpoint)->where('credential_version', $oldVersion)
             ->where('reason_code', 'credential_hold:'.$oldVersion)->update([
                 'state' => 'unknown', 'health_epoch' => $this->db->raw('health_epoch + 1'),

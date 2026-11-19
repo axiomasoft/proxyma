@@ -29,7 +29,6 @@ use Proxyma\Infrastructure\Cache\PolicyResolutionCache;
 use Proxyma\Infrastructure\Database\BindingStorage;
 use Proxyma\Infrastructure\Database\CatalogProvisioner;
 use Proxyma\Infrastructure\Database\PackageSchema;
-use Proxyma\Infrastructure\Eloquent\BindingRevisionRecord;
 use Proxyma\Infrastructure\Security\StandaloneCatalogMutationFence;
 use Proxyma\Internal\Database\RowValues;
 
@@ -89,7 +88,7 @@ final readonly class DatabaseBindingCommands implements BindingCommands
         try {
             $result = $this->db->transaction(function () use ($command, $subject, $id, $retire, $patch, $hash, $expectedRevision, $idempotencyKey): SubjectPolicyBinding {
                 (app()->bound(CatalogMutationFence::class) ? app(CatalogMutationFence::class) : new StandaloneCatalogMutationFence)->lock($this->db, $command->actor);
-                $t = PackageSchema::tables();
+                $t = PackageSchema::tables($this->db);
                 $tenant = $subject->tenant->value;
                 if ($command instanceof BindSubjectPolicyCommand && $command->expectedPolicyVersion !== null && ! $subject->tenant->isSystem()) {
                     $this->db->select('SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))', ['proxyma:policy-set:'.TenantKey::SYSTEM]);
@@ -106,7 +105,7 @@ final readonly class DatabaseBindingCommands implements BindingCommands
                         throw new PolicyConflict;
                     }
                     $saved = RowValues::object(json_decode(RowValues::colStr($receipt, 'result'), false, flags: JSON_THROW_ON_ERROR));
-                    $version = $this->db->table((new BindingRevisionRecord)->getTable())->where('tenant_key', $tenant)
+                    $version = PackageSchema::query($this->db, 'binding_revisions')->where('tenant_key', $tenant)
                         ->where('binding_id', RowValues::colStr($row, 'id'))->where('revision', RowValues::colInt($saved, 'revision'))->first();
                     if ($version === null) {
                         throw new PolicyStorageFailure;
@@ -154,7 +153,7 @@ final readonly class DatabaseBindingCommands implements BindingCommands
                     $query->update($values);
                 }
                 $bindingId = $row === null ? $id->value : RowValues::colStr($row, 'id');
-                $this->db->table((new BindingRevisionRecord)->getTable())->insert(['tenant_key' => $tenant, 'binding_id' => $bindingId,
+                PackageSchema::query($this->db, 'binding_revisions')->insert(['tenant_key' => $tenant, 'binding_id' => $bindingId,
                     'revision' => $revision, 'policy_revision_id' => $revisionId->value, 'head_id' => $headId,
                     'profile_id' => $profile, 'policy_key' => $command->policyKey, 'retired' => $retire]);
                 $auditId = Uuid::random()->value;

@@ -29,14 +29,14 @@ final readonly class CatalogProvisioner
         // Mutex сериализует создание отсутствующих строк. Runtime его не берёт.
         $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['proxyma:catalog:'.$tenant->value]);
         foreach (['route_profiles', 'profile_health', 'endpoints', 'routes', 'route_health', 'route_target_health', 'targets', 'target_health'] as $table) {
-            $this->db->table(PackageSchema::tables()[$table])->where('tenant_key', $tenant->value)->orderBy('id')->lockForUpdate()->get();
+            PackageSchema::query($this->db, $table)->where('tenant_key', $tenant->value)->orderBy('id')->lockForUpdate()->get();
         }
     }
 
     /** @param list<BudgetConstraint> $budgets */
     public function materialize(TenantKey $tenant, array $budgets): void
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->db);
         foreach (['route_profiles' => ['profile_health', 'profile_id'], 'routes' => ['route_health', 'route_id']] as $parent => [$health, $column]) {
             foreach ($this->db->table($t[$parent])->where('tenant_key', $tenant->value)->orderBy('id')->pluck('id') as $id) {
                 $this->db->table($t[$health])->insertOrIgnore(['tenant_key' => $tenant->value, $column => $id]);

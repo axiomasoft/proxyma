@@ -13,7 +13,7 @@ final class SecretSchema
 {
     public static function up(Connection $db): void
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $db->statement("CREATE TABLE {$t['encrypted_secrets']} (
             tenant_key text COLLATE \"C\" NOT NULL,
             reference text NOT NULL CHECK (reference ~ '^[0-9a-f-]{36}$'),

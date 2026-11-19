@@ -104,7 +104,7 @@ final readonly class ReservationService
         $extra = array_values(array_filter($policy->budgets, static fn (BudgetConstraint $b): bool => (! str_starts_with($b->scopeKey, 'origin:')
             && ! str_starts_with($b->scopeKey, 'route-origin:') && ! str_starts_with($b->scopeKey, 'egress-origin:')) || in_array($b->scopeKey, $special, true)));
         $trafficScope = TrafficSharePolicy::scope($request->url->origin, $request->trafficClass);
-        $persistedTraffic = $this->transactions->scope->connection->table(PackageSchema::tables()['budgets'])
+        $persistedTraffic = PackageSchema::query($this->transactions->scope->connection, 'budgets')
             ->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))->where('scope_key', $trafficScope)
             ->where('traffic_class', $request->trafficClass)->exists();
         if (array_key_exists($request->trafficClass, $this->traffic->classes) || $persistedTraffic) {
@@ -320,7 +320,7 @@ final readonly class ReservationService
         $this->transactions->run(function ($tx) use ($tenant, $operationId, $permitId, $scope): void {
             $this->locks->rows(AuthorityLockTier::Operation, $tenant, [$operationId->value], $tx);
             $db = $scope->connection;
-            $t = PackageSchema::tables();
+            $t = PackageSchema::tables($db);
             $row = $db->table($t['permits'])->where('tenant_key', $tenant->value)->where('operation_id', $operationId->value)->where('id', $permitId->value)->first()
                 ?? throw new AdmissionRejected('permit_missing');
             $rowId = RowValues::colStr($row, 'id');

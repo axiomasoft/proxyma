@@ -78,7 +78,7 @@ final readonly class DatabaseOwnerAuthority implements OwnerAuthority, SqlConnec
 
     private function query(OwnerRef $owner): Builder
     {
-        return $this->connection()->table(PackageSchema::tables()['operations'])->where('tenant_key', $owner->tenantKey->value)
+        return $this->connection()->table(PackageSchema::table('operations', $this->scope->connection))->where('tenant_key', $owner->tenantKey->value)
             ->where('id', $owner->ownerId)->where('owner_type', $owner->ownerType)->where('owner_id', $owner->ownerId)
             ->where('owner_generation', $owner->generation)->where('owner_token', $owner->token())
             ->where('status', 'active')->whereNull('revoked_at')->whereRaw('deadline > clock_timestamp()');

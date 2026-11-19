@@ -31,7 +31,7 @@ final readonly class AdmissionDiagnosis
         $policy = $explanation->effectivePolicy ?? throw new LogicException('Effective policy explanation required.');
         $snapshot = $this->candidates->readOnly($subjects->tenant, $profile, $target, $policy);
         $keys = array_values(array_unique(array_merge([], ...array_map(static fn (Candidate $c): array => $c->budgetScopes, $snapshot->candidates))));
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $budgets = $this->scope->connection->table($t['budgets'])
             ->whereIn('tenant_key', array_unique([$subjects->tenant->value, TenantKey::SYSTEM]))->whereIn('scope_key', $keys)->get();
         $windows = $this->scope->connection->table($t['quota_windows'])->whereIn('budget_id', $budgets->pluck('id')->all())

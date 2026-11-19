@@ -49,7 +49,7 @@ class OperationsQuery
         $windowMap = [];
         if ($kind === 'budgets' && $pageItems !== []) {
             $budgetIds = array_map(static fn (object $item): string => FilamentValue::colStr($item, 'id'), $pageItems);
-            $windowsResult = $this->scope->connection->table(PackageSchema::tables()['quota_windows'])
+            $windowsResult = PackageSchema::query($this->scope->connection, 'quota_windows')
                 ->where('tenant_key', $this->tenants->resolve()->tenant->value)->whereIn('budget_id', $budgetIds)
                 ->where('starts_at', '<=', $now)->where('ends_at', '>', $now)->get();
             foreach ($windowsResult as $windowRow) {
@@ -98,7 +98,7 @@ class OperationsQuery
     {
         $this->scope->assertOutsideTransaction();
 
-        return $this->scope->connection->table(PackageSchema::tables()[$table])->where('tenant_key', $this->tenants->resolve()->tenant->value);
+        return PackageSchema::query($this->scope->connection, $table)->where('tenant_key', $this->tenants->resolve()->tenant->value);
     }
 
     /** @return array{0: string, 1: list<string>} */

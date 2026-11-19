@@ -33,7 +33,7 @@ final readonly class DemandRepository
      */
     public function resolveBudgets(TenantKey $tenant, WireRequest $request, RouteSelection $route, array $additionalScopes): array
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $catalog = $this->scope->connection->table($t['route_profile_members'].' as m')
             ->join($t['routes'].' as r', fn (JoinClause $j): JoinClause => $j->on('r.id', '=', 'm.route_id')->on('r.tenant_key', '=', 'm.route_owner_tenant_key'))
             ->where('m.tenant_key', $tenant->value)->where('m.profile_id', $route->profileId?->value)->where('m.route_id', $route->routeId->value)
@@ -58,7 +58,7 @@ final readonly class DemandRepository
         foreach ($keys as $key) {
             new BudgetKey($tenant, $key);
         }
-        $rows = array_values($this->scope->connection->table(PackageSchema::tables()['budgets'])->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))
+        $rows = array_values(PackageSchema::query($this->scope->connection, 'budgets')->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))
             ->whereIn('scope_key', $keys)->orderByRaw('scope_key COLLATE "C", tenant_key COLLATE "C"')->get()->all());
         $found = array_map(static fn (stdClass $r): string => RowValues::colStr($r, 'scope_key'), $rows);
         if (array_diff($required, $found) !== []) {
@@ -86,7 +86,7 @@ final readonly class DemandRepository
 
     public function byAttempt(TenantKey $tenant, Uuid $operation, Uuid $attempt): ?stdClass
     {
-        return $this->scope->connection->table(PackageSchema::tables()['demands'])->where('tenant_key', $tenant->value)
+        return PackageSchema::query($this->scope->connection, 'demands')->where('tenant_key', $tenant->value)
             ->where('operation_id', $operation->value)->where('physical_attempt_id', $attempt->value)->first();
     }
 
@@ -95,7 +95,7 @@ final readonly class DemandRepository
         DateTimeImmutable $expires, string $intent, array $budgets): stdClass
     {
         $db = $this->scope->connection;
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($db);
         $id = Uuid::random();
         $scopeKeys = array_map(static fn (stdClass $budget): string => RowValues::colStr($budget, 'tenant_key').':'.RowValues::colStr($budget, 'id'), $budgets);
         sort($scopeKeys, SORT_STRING);
@@ -118,7 +118,7 @@ final readonly class DemandRepository
      */
     public function predecessors(stdClass $candidate, array $budgetIds): array
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
 
         return array_values($this->scope->connection->table($t['demands'].' as d')->join($t['operations'].' as o', 'o.id', '=', 'd.operation_id')
             ->where('d.state', 'active')->whereNotNull('d.physical_attempt_id')->whereRaw('(d.sequence, d.id) < (?, ?::uuid)', [RowValues::colInt($candidate, 'sequence'), RowValues::colStr($candidate, 'id')])
@@ -134,7 +134,7 @@ final readonly class DemandRepository
      */
     public function scopes(array $demandIds): array
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $result = [];
         $rows = $this->scope->connection->table($t['demand_scopes'].' as s')->join($t['budgets'].' as b', 'b.id', '=', 's.budget_id')
             ->whereIn('s.demand_id', $demandIds)->select(['b.*', 's.demand_id'])->get();
@@ -161,7 +161,7 @@ final readonly class DemandRepository
 
     public function pendingForBudget(string $budgetId): object
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
 
         return $this->scope->connection->table($t['demands'].' as d')->join($t['demand_scopes'].' as s', 's.demand_id', '=', 'd.id')
             ->join($t['operations'].' as o', 'o.id', '=', 'd.operation_id')->where('s.budget_id', $budgetId)
@@ -173,7 +173,7 @@ final readonly class DemandRepository
 
     public function state(stdClass $row, string $state): void
     {
-        $this->scope->connection->table(PackageSchema::tables()['demands'])
+        PackageSchema::query($this->scope->connection, 'demands')
             ->where('tenant_key', RowValues::colStr($row, 'tenant_key'))
             ->where('id', RowValues::colStr($row, 'id'))
             ->update(['state' => $state]);
@@ -186,7 +186,7 @@ final readonly class DemandRepository
      */
     public function availability(array $budgets, int $retryMs): array
     {
-        $t = PackageSchema::tables();
+        $t = PackageSchema::tables($this->scope->connection);
         $result = [];
         foreach ($budgets as $budget) {
             $budgetId = RowValues::colStr($budget, 'id');

@@ -49,7 +49,7 @@ final readonly class ReviewedProbe
         }
         $epochs = [];
         foreach (HealthScope::cases() as $scope) {
-            $query = $this->scope->connection->table(PackageSchema::tables()[$scope->value])->where('tenant_key', $tenant->value);
+            $query = PackageSchema::query($this->scope->connection, $scope->value)->where('tenant_key', $tenant->value);
             if ($scope !== HealthScope::Target) {
                 $query->where('route_id', $routeId->value);
             }
@@ -108,7 +108,7 @@ final readonly class ReviewedProbe
      */
     private function receipt(TenantKey $tenant, CatalogMutationActor $actor, string $hash): ?array
     {
-        $row = $this->scope->connection->table(PackageSchema::tables()['catalog_command_receipts'])
+        $row = PackageSchema::query($this->scope->connection, 'catalog_command_receipts')
             ->where('tenant_key', $tenant->value)->where('idempotency_key', CatalogAudit::key($actor->idempotencyKey ?? ''))->first(['command_hash', 'result']);
         if ($row === null) {
             return null;
