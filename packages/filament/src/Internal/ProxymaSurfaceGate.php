@@ -252,7 +252,7 @@ final readonly class ProxymaSurfaceGate implements FilamentSurfaceGate
                 default => $entryPermission->name,
             };
 
-            if ($this->gate->has($key) && $this->gate->forUser($user)->denies($key)) {
+            if (! $this->gate->has($key) || $this->gate->forUser($user)->denies($key)) {
                 return false;
             }
         }

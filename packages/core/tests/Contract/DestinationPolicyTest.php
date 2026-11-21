@@ -50,7 +50,7 @@ it('закрепляет публичные адреса и пересчитыв
 it('отклоняет любой запрещённый адрес в DNS ответе', function (string $address): void {
     [$policy, $target, $context] = destinationFixture(fn (): array => ['8.8.8.8', $address]);
     expect(fn () => $policy->resolve(new SafeUrl('https://example.test/'), $context, 100, $target))->toThrow(InvalidArgumentException::class);
-})->with(['127.0.0.1', '10.0.0.1', '100.64.0.1', '169.254.169.254', '::ffff:127.0.0.1', '::1', 'fe80::1', 'fc00::1']);
+})->with(['127.0.0.1', '10.0.0.1', '100.64.0.1', '169.254.169.254', '192.88.99.1', '::ffff:127.0.0.1', '::1', 'fe80::1', 'fc00::1', 'fec0::1']);
 
 it('разрешает только точную fixture привязку target и адреса', function (): void {
     $id = '00000000-0000-0000-0000-000000000001';

@@ -113,11 +113,8 @@ reducer отдельно проверяют свои версии. Durable compl
 
 ## Provenance и проверки
 
-Donor: Agelto `f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f`, hashes из
-`docs/reference/source-manifest.json`: `NetworkAuthorityRepository.php`,
-`NetworkPermitRepository.php`, `NetworkPermitSqlHelper.php`, `NetworkOwnerFence.php`.
-`AnalysisProviderSendGate.php` — caller, который после financial mutation
-выбрасывает `JointProviderSendRejected` при отказе network claim.
+Порядок транзакции, отказ network claim и отсутствие owner prefix на late receipt
+проверяет `packages/core/tests/Contract/TransactionCompositionTest.php`.
 
 `TransactionCompositionTest.php` использует отдельную schema в отмеченной
 `proxyma_test` и реальные PostgreSQL transactions. Проверены совместный rollback

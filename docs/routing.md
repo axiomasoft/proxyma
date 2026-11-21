@@ -56,12 +56,8 @@ authorizer; реализация `Authorizer` отвечает за стоимо
 
 ## Provenance сценариев
 
-Baseline Agelto `f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f`:
-`tests/Feature/Crawler/ProxyResolverTest.php`, SHA-256
-`0d568f651d52851b5273657477a430ebced0fb93889aa617e373344db81cb011`.
-Исторические тесты о явной привязке и исключённом узле характеризованы в
-`RouteSelectionTest.php` через точный membership; тест об открытом breaker — через
-health hold; authorization order — через `SelectionQueryBudgetTest.php`.
-Исторические названия country-сценариев не делают country admission policy:
-исходный тест удаляет route из profile. Donor source hashes остаются в
-`docs/reference/source-manifest.json`.
+Явная привязка, исключённый узел и health hold проверяются в
+`packages/core/tests/Integration/RouteSelectionTest.php`. Порядок авторизации —
+`packages/core/tests/Contract/SelectionQueryBudgetTest.php`. Исторические
+названия country-сценариев не вводят country admission policy: сценарий удаляет
+route из profile.

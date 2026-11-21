@@ -4,14 +4,14 @@
 
 Репозиторий `axiomasoft/proxyma` поставляет два пакета:
 
-- `packages/core` (`axiomasoft/proxyma`, namespace `Proxyma\`) — предметная модель, контракты, политики, допуск (admission), бюджеты, сетевой health, транспорт и адаптер Laravel.
+- `packages/core` (`axiomasoft/proxyma-core`, namespace `Proxyma\`) — предметная модель, контракты, политики, допуск (admission), бюджеты, сетевой health, транспорт и адаптер Laravel. Пакет заменяет имя `axiomasoft/proxyma`.
 - `packages/filament` (`axiomasoft/proxyma-filament`, namespace `Proxyma\Filament\`) — опциональный административный интерфейс Filament 5.
 
 Жёсткие границы слоёв:
 
 - `Proxyma\Domain\{Catalog,Policy,Execution,Health}` содержит только чистые PHP value objects, перечисления и детерминированные переходы состояний. Зависимости от `Illuminate\*`, `Eloquent`, `Filament\*`, `App\*` и `ProcessCore\*` в `Domain` запрещены.
 - `Proxyma\Contracts` определяет публичные порты приложения и ограниченные контракты расширений без зависимостей от фреймворка и потребителя.
-- `packages/core` никогда не зависит от `App\*`, `Filament\*`, `ProcessCore\*`, процессного леджера Agelto, биллинга LLM или платформенных перечислений/заголовков (`x-goog-api-key`).
+- Ядро не импортирует приложение-хост: в `packages/core` нет зависимостей от `App\*`, `Filament\*`, `ProcessCore\*`, биллинга LLM и платформенных перечислений или заголовков потребителя (`x-goog-api-key`).
 
 ## Обязательный контур безопасности (D2)
 
@@ -62,7 +62,7 @@
   - Переход `unknown_after_authorization -> completed` разрешён только при верифицированном позднем receipt (`LateReceiptTransition`) для того же `physicalAttemptId` и `wireFingerprint`.
   - После `authorized` возврат в `reserved` или переход в `*_before_send` запрещён; квота расходуется необратимо в момент `authorized`.
 - **Отображение legacy-статусов (`PermitState::fromLegacyStatus`)**:
-  - Исторический статус `released` из схемы Agelto **нельзя** безусловно переименовывать в `completed`:
+  - Исторический статус `released` из прежней схемы **нельзя** безусловно переименовывать в `completed`:
     - `released` без факта авторизации отправки (`wasAuthorized === false`) отображается в `cancelled_before_send`;
     - `released` после авторизации (`wasAuthorized === true`) отображается в `completed` только при наличии подтверждённого receipt (`hasVerifiedReceipt === true`), иначе — в `unknown_after_authorization`.
 

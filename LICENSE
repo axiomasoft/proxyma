@@ -1,0 +1,7 @@
+Copyright Axioma Soft. All rights reserved.
+
+Viewing the public repository does not grant a license to copy, modify, or distribute.
+
+Просмотр публичного репозитория не даёт лицензии на копирование, изменение или
+распространение. Поле `license` в `composer.json` — `proprietary`. Это не grant
+с открытым исходным кодом.

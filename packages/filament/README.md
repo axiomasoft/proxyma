@@ -1,8 +1,10 @@
 # Proxyma Filament (`axiomasoft/proxyma-filament`)
 
-Filament v5 administration integration for Proxyma, implementing `Packman\Filament\Contracts\FilamentPanelPlugin` and delegating guarded binding forms to `Packman\Filament\Forms\BindingEditor`.
+Необязательный UI Filament 5 для `axiomasoft/proxyma-core`: каталог, инспектор
+политики, раздел настроек и редактор привязок. Namespace `Proxyma\Filament\`.
+Пакет зависит от core через `self.version`: в path map обеим строкам версии
+задаётся одно значение.
 
-## Features
-
-- `ProxymaPlugin` implementing `FilamentPanelPlugin` with explicit panel access and ability defaults.
-- Catalog browser, policy inspector, settings section, and bindings editor pages backed by headless `axiomasoft/proxyma-core` services.
+Установка вместе с core и Packman: [установка](../../docs/installation.md).
+Packman для этого дерева — commit `a5a5442898cabb2d22e9f6a47a83caa798e3e5a3`.
+Без UI этот пакет не подключают.

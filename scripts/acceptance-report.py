@@ -31,6 +31,64 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def prettify_test_method(method):
+    name = method[5:] if method.startswith('test_') else method[4:]
+    name = re.sub(r'(?<!^)(?=[A-Z])', ' ', name.replace('_', ' '))
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name[:1].upper() + name[1:]
+
+
+def trait_search_roots(root):
+    roots = []
+    vendor = root / 'vendor/axiomasoft'
+    if vendor.is_dir():
+        roots.extend(child.resolve() if child.is_symlink() else child for child in vendor.iterdir() if child.is_dir() or child.is_symlink())
+    packages = root / 'packages'
+    if packages.is_dir():
+        roots.append(packages)
+    return roots
+
+
+def declared_scenarios(root, test_file):
+    source = (root / test_file).read_text()
+    declarations = re.findall(r"^\s*(it|test)\(\s*'((?:[^'\\]|\\.)*)'", source, re.MULTILINE)
+    declared = {('it ' if kind == 'it' else '') + text.replace("\\'", "'").replace('\\\\', '\\') for kind, text in declarations}
+    imported = {name.rsplit('\\', 1)[-1]: name for name in re.findall(r'^use\s+([A-Za-z0-9_\\]+)\s*;', source, re.MULTILINE)}
+    for short in re.findall(r'^[ \t]+use\s+(\w+)\s*;', source, re.MULTILINE):
+        trait = imported.get(short)
+        if trait is None:
+            continue
+        for base in trait_search_roots(root):
+            matched = False
+            for path in base.rglob(short + '.php'):
+                trait_source = path.read_text(errors='replace')
+                if not declares_type(trait_source, 'trait', trait):
+                    continue
+                declared.update(prettify_test_method(method) for method in re.findall(r'function (test[A-Za-z0-9_]+)\s*\(', trait_source))
+                matched = True
+                break
+            if matched:
+                break
+    return declared
+
+
+def declares_type(source, kind, qualified_name):
+    namespace, _, name = qualified_name.rpartition('\\')
+    declared_namespace = re.search(r'^\s*namespace\s+([\w\\]+)\s*;', source, re.MULTILINE)
+    return (namespace == (declared_namespace[1] if declared_namespace else '')
+            and re.search(r'^\s*(?:final\s+|abstract\s+)?' + kind + r'\s+' + re.escape(name) + r'\b', source, re.MULTILINE) is not None)
+
+
+def owns_junit_case(source, reported, declared_class):
+    """Pest records a repository path. PHPUnit may record a description plus the class."""
+    if not declared_class:
+        return False
+    _, separator, reported_class = reported.rpartition(' (')
+    return (bool(separator) and reported_class.endswith(')')
+            and reported_class[:-1] in (declared_class, declared_class.removesuffix('Test'))
+            and declares_type(source.read_text(), 'class', declared_class))
+
+
 def finite_number(value, positive=False):
     number = float(value)
     if not math.isfinite(number) or number < 0 or (positive and number == 0):
@@ -78,8 +136,7 @@ def collect(root, git_sha, fingerprint, expected, runtime):
         actual = tree.findall('.//testcase')
         if not actual:
             raise ValueError('zero executed scenarios')
-        declarations = re.findall(r"^\s*(it|test)\(\s*'((?:[^'\\]|\\.)*)'", (root / test_file).read_text(), re.MULTILINE)
-        declared = {('it ' if kind == 'it' else '') + text.replace("\\'", "'").replace('\\\\', '\\') for kind, text in declarations}
+        declared = declared_scenarios(root, test_file)
         expected_names = None
         if test_file == PACKAGE_ACCEPTANCE:
             if not PACKAGE_DATASETS.keys() <= declared:
@@ -97,7 +154,8 @@ def collect(root, git_sha, fingerprint, expected, runtime):
             identity = (classname, name)
             if not name or not classname or identity in identities:
                 raise ValueError('missing or duplicate scenario identity')
-            if case.get('file', '').split('::')[0] != test_file:
+            reported = case.get('file', '').split('::')[0]
+            if reported != test_file and not owns_junit_case(root / test_file, reported, case.get('class')):
                 raise ValueError('JUnit source file mismatch')
             base = name.split(' with data set ')[0]
             if base not in declared:
@@ -124,10 +182,8 @@ def collect(root, git_sha, fingerprint, expected, runtime):
     if files != set(expected):
         raise ValueError('missing package test files: ' + ', '.join(sorted(set(expected) - files)))
     mapping = json.loads((root / MAP).read_text())
-    donor = json.loads((root / 'docs/reference/source-manifest.json').read_text())
-    if mapping['schema'] != 'proxyma-qualification-map/v1' or mapping['baseline'] != donor['commit']:
+    if mapping.get('schema') != 'proxyma-qualification-map/v1':
         raise ValueError('qualification provenance mismatch')
-    donor_files = {item['path']: item['sha256'] for item in donor['files']}
     matrix, invariant_ids = [], set()
     for item in mapping['invariants']:
         if item['id'] in invariant_ids or item['evolution'] not in ('inherited', 'added', 'strengthened'):
@@ -147,12 +203,9 @@ def collect(root, git_sha, fingerprint, expected, runtime):
             sources.update({str(source.relative_to(root)): sha256(source) for source in paths})
         if not sources:
             raise ValueError('empty invariant source set')
-        baseline = {path: donor_files[path] for path in item.get('donor_paths', [])}
-        if item['evolution'] != 'added' and not baseline:
-            raise ValueError('missing inherited source provenance')
         matrix.append({**item, 'git_sha': git_sha, 'source_sha256': sources,
                        'test_sha256': {path: sha256(root / path) for path in item['tests']},
-                       'executed_ids': selected, 'donor_commit': donor['commit'], 'donor_sha256': baseline})
+                       'executed_ids': selected})
     if invariant_ids != REQUIRED_INVARIANTS:
         raise ValueError('incomplete invariant inventory')
     return {'git_sha': git_sha, 'source_sha256': fingerprint, 'runtime': runtime,

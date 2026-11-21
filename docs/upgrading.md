@@ -1,19 +1,19 @@
 # Обновление и rollback 0.1
 
-Private candidate не подтверждает завершение интеграции. Package fresh install
-и populated Agelto upgrade — разные проверки; package JUnit не заменяет consumer
-install/regression/cutover evidence.
+Свежая установка пакета и обновление уже заполненной базы — разные проверки.
+JUnit пакета не заменяет проверку install и populated upgrade в приложении.
+Смена исходников — [установка](installation.md).
 
 ## До переключения authority
 
-Сохраните прежние source SHA, consumer composer.lock/private-vendors.lock,
-образы, migration inventory, backup и snapshot/checksums активных данных.
-Проверьте новый candidate через [private installation](private-installation.md).
-Не меняйте historical migrations и не удаляйте compatibility shim исторической
-модели, пока fresh install её вызывает.
+Сохраните прежние source SHA, composer.lock приложения, образы, migration
+inventory, backup и snapshot/checksums активных данных. Новый checkout
+проверяйте по [установке](installation.md). Не меняйте historical migrations
+и не удаляйте compatibility shim исторической модели, пока fresh install её
+вызывает.
 
-Agelto владеет additive mappings, migration journal и authority generation.
-До их реализации нет универсальной package-команды production cutover.
+Приложение-хост владеет additive mappings, migration journal и authority
+generation. Универсальной package-команды production cutover нет.
 Нужны idempotent catalog/binding transfer, сохранение quota used+reserved,
 TAT/send TAT, cooldown, epochs, active windows, reducer observation windows и
 owner correlations. Сначала проверьте это на populated isolated fixture.

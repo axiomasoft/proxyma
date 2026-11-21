@@ -1,0 +1,35 @@
+name: Prepare
+description: Check out Packman, set up PHP 8.4, restore the Composer cache, and install locked dependencies.
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Packman
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: axiomasoft/packman
+        ref: ${{ env.PACKMAN_REF }}
+        path: packman
+        persist-credentials: false
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+      with:
+        php-version: "8.4"
+        tools: composer:2.8.2
+        coverage: none
+        extensions: curl, pdo_pgsql, pdo_sqlite, mbstring, openssl, intl, gd, bcmath, zip
+
+    - name: Cache Composer downloads
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: /tmp/composer-cache
+        key: composer-${{ hashFiles('proxyma/composer.lock') }}
+        restore-keys: composer-
+
+    - name: Install dependencies
+      working-directory: proxyma
+      shell: bash
+      run: |
+        set -euo pipefail
+        composer install --no-interaction --prefer-dist --no-progress

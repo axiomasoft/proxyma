@@ -1,6 +1,5 @@
 {
   "schema": "proxyma-qualification-map/v1",
-  "baseline": "f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f",
   "invariants": [
     {
       "id": "P1.boundaries",
@@ -28,9 +27,6 @@
       ],
       "tests": [
         "packages/core/tests/Contract/TransactionCompositionTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/NetworkAuthorityRepository.php"
       ]
     },
     {
@@ -45,9 +41,6 @@
         "packages/core/tests/Integration/CatalogCommandTest.php",
         "packages/core/tests/Integration/AdminAuditTest.php",
         "packages/core/tests/Integration/CatalogSchemaTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/NetworkAuthorityRepository.php"
       ]
     },
     {
@@ -86,9 +79,6 @@
       "tests": [
         "packages/core/tests/Integration/RouteSelectionTest.php",
         "packages/core/tests/Contract/SelectionQueryBudgetTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Proxy/RouteSelector.php"
       ]
     },
     {
@@ -100,9 +90,6 @@
       ],
       "tests": [
         "packages/core/tests/Contract/SelectionQueryBudgetTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Proxy/RouteSelector.php"
       ]
     },
     {
@@ -117,9 +104,6 @@
         "packages/core/tests/Concurrency/GcraReservationTest.php",
         "packages/core/tests/Concurrency/AuthorityInterleavingTest.php",
         "packages/core/tests/Integration/QuotaWindowTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/NetworkAuthorityRepository.php"
       ]
     },
     {
@@ -134,9 +118,6 @@
         "packages/core/tests/Integration/CooldownSnapshotTest.php",
         "packages/core/tests/Integration/HealthProjectionTest.php",
         "packages/core/tests/Concurrency/HealthCompletionTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/HealthRepository.php"
       ]
     },
     {
@@ -150,9 +131,6 @@
       "tests": [
         "packages/core/tests/Contract/TenantAuthorizationTest.php",
         "packages/core/tests/Integration/RouteSelectionTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Proxy/RouteSelector.php"
       ]
     },
     {
@@ -165,9 +143,6 @@
       "tests": [
         "packages/core/tests/Contract/PhysicalTransportTest.php",
         "packages/core/tests/Contract/BoundedResponseTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Network/HttpTransport.php"
       ]
     },
     {
@@ -180,9 +155,6 @@
       "tests": [
         "packages/core/tests/Integration/BoundedDemandTest.php",
         "packages/core/tests/Concurrency/DemandFifoTest.php"
-      ],
-      "donor_paths": [
-        "tests/Feature/ProcessCore/Network/BoundedFifoDemandTest.php"
       ]
     },
     {
@@ -196,9 +168,6 @@
       "tests": [
         "packages/core/tests/Integration/MultiScopeReservationTest.php",
         "packages/core/tests/Concurrency/GcraReservationTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/NetworkPermitSqlHelper.php"
       ]
     },
     {
@@ -224,9 +193,6 @@
       "tests": [
         "packages/core/tests/Concurrency/ClaimSendFenceTest.php",
         "packages/core/tests/Contract/SealedWireTest.php"
-      ],
-      "donor_paths": [
-        "tests/Feature/ProcessCore/Network/ClaimSendFenceTest.php"
       ]
     },
     {
@@ -239,9 +205,6 @@
       ],
       "tests": [
         "packages/core/tests/Concurrency/AuthorityInterleavingTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/NetworkAuthorityRepository.php"
       ]
     },
     {
@@ -254,9 +217,6 @@
       "tests": [
         "packages/core/tests/Integration/RecoveryLifecycleTest.php",
         "packages/core/tests/Concurrency/CompletionReconcileTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/NetworkAuthorityRepository.php"
       ]
     },
     {
@@ -270,9 +230,6 @@
       "tests": [
         "packages/core/tests/Contract/DestinationPolicyTest.php",
         "packages/core/tests/Contract/RedirectPolicyTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Network/HttpTransport.php"
       ]
     },
     {
@@ -286,9 +243,6 @@
       "tests": [
         "packages/core/tests/Contract/SecretRotationTest.php",
         "packages/core/tests/Contract/TlsPolicyTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Network/HttpTransport.php"
       ]
     },
     {
@@ -302,9 +256,6 @@
       "tests": [
         "packages/core/tests/Contract/SealedWireTest.php",
         "packages/core/tests/Contract/DispatchDeadlineTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Network/HttpTransport.php"
       ]
     },
     {
@@ -318,9 +269,6 @@
       "tests": [
         "packages/core/tests/Contract/BoundedResponseTest.php",
         "packages/core/tests/Contract/ArtifactOwnershipTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Network/HttpTransport.php"
       ]
     },
     {
@@ -334,9 +282,6 @@
       "tests": [
         "packages/core/tests/Contract/ExecutorPolicyTest.php",
         "packages/core/tests/Contract/RedirectPolicyTest.php"
-      ],
-      "donor_paths": [
-        "app/Services/Procurement/Network/HttpTransport.php"
       ]
     },
     {
@@ -350,9 +295,6 @@
       "tests": [
         "packages/core/tests/Integration/HealthProjectionTest.php",
         "packages/core/tests/Concurrency/HealthCompletionTest.php"
-      ],
-      "donor_paths": [
-        "app/Repositories/Procurement/Network/HealthRepository.php"
       ]
     },
     {
@@ -366,9 +308,6 @@
       "tests": [
         "packages/core/tests/Concurrency/ProbeOwnershipTest.php",
         "packages/core/tests/Concurrency/AuthorityInterleavingTest.php"
-      ],
-      "donor_paths": [
-        "tests/Feature/ProcessCore/Network/ProbeOwnershipTest.php"
       ]
     },
     {

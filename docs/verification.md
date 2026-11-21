@@ -71,8 +71,8 @@ Dataset labels остаются частью executed identity. Python collector
 
 Матрица содержит invariant ID, смысл, provenance, exact source/test SHA256,
 HEAD, actual JUnit class/name IDs, assertion counts, timing и пути raw reports.
-`dirty_worktree=true` явно отмечает незакоммиченный candidate; fingerprint
-идентифицирует проверенное дерево. После commit нужен новый прогон на новом SHA:
+`dirty_worktree=true` явно отмечает незакоммиченное дерево; fingerprint
+идентифицирует проверенные исходники. После commit нужен новый прогон на новом SHA:
 перепривязывать старый JUnit изменением metadata запрещено.
 
 ## Invariant → test → actual evidence
@@ -85,15 +85,12 @@ IDs находятся в `matrix[].executed_ids`, результаты — `cas
 команды — `runs[]`. Карта сама по себе не утверждает green и не содержит
 заготовленных «actual» чисел.
 
-`inherited` означает сохранённый контракт Agelto; `strengthened` — сохранённый
-контракт с package-specific fencing/расширенным negative proof; `added` — новая
-package guarantee. Это происхождение поведения, не утверждение побайтового копирования.
-Baseline: `axiomasoft/agelto@f8828dc8d43fb14b8389daf10e1f81fd2e5ca62f`.
-Donor hashes берутся из неизменного `docs/reference/source-manifest.json`;
-полный manifest заново не пересчитывается. Три прочитанных donor файла
-(`process-test-rig.md`, `private-vendors.lock.json`, `vendor-sync.sh`) сверены
-с ним при P8.2. Historical Agelto scenario manifests и SHA256 остаются исходными;
-package JUnit не заменяет consumer replay или scenario-transfers.
+`inherited` означает сохранённый контракт поведения; `strengthened` — тот же
+контракт с package-specific fencing и расширенным negative proof; `added` — новая
+гарантия пакета. Это происхождение поведения, не утверждение побайтового копирования.
+Метки и пути лежат в [`qualification-map.json`](../tests/Architecture/qualification-map.json);
+исполняемые сценарии — в таблице ниже и в `matrix[].executed_ids`. JUnit пакета
+не заменяет повтор сценариев в приложении-хосте.
 
 | IDs | Проверяемое поведение | Owning tests |
 | --- | --- | --- |
@@ -152,14 +149,14 @@ checkpoint не подменяет tests и отдельное cross-provider re
 
 Coverage gate обеспечивается через `composer test:coverage` (`min_coverage: 90` в
 `packman.json`). Вне объёма остаются live crawling/load, paid API и утверждения
-exactly-once HTTP delivery. P8.2 не доказывает Agelto integration/cutover, заполненный consumer
-upgrade, private source lock agreement либо удаление старого runtime: это P9–P10.
-Audit proposals об optional safety-off, arbitrary model/hooks, generic durable
-outbox и внешнем event delivery отклонены D1/D10 для 0.1; обязательный adopted
-event contract — durable audit плюс best-effort after-commit observers.
+exactly-once HTTP delivery. Прогон пакета не доказывает populated upgrade
+приложения, согласие его lock или удаление прежнего runtime.
+Предложения optional safety-off, произвольных model/hooks, generic durable
+outbox и внешней доставки событий для 0.1 отклонены; принятый контракт событий —
+durable audit плюс best-effort after-commit observers.
 
-P8.3 использует actual `build/test-report.json` только для соответствующего
-candidate SHA/fingerprint; наличие этого документа не является qualification.
-Compatibility lowest lanes с advisories из P8.1 не превращаются в рекомендованный
-production dependency lock. Release/install documentation должна различать
-locked qualification и нижнюю совместимость, package acceptance и consumer rollout.
+`build/test-report.json` действителен только для того SHA и fingerprint, на которых
+он собран; наличие файла не является квалификацией. Lower lanes с security
+advisories не становятся рекомендованным production lock. Документация установки
+различает закреплённую квалификацию и нижнюю границу совместимости, приёмку
+пакета и выкладку в приложение.

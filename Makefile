@@ -20,5 +20,5 @@ quality:
 	composer validate --no-check-publish --working-dir=packages/core
 	composer validate --no-check-publish --working-dir=packages/filament
 	docker compose -p proxyma_test -f docker/compose.test.yml exec -T runner vendor/bin/pint --test
-	docker compose -p proxyma_test -f docker/compose.test.yml exec -T runner vendor/bin/phpstan analyse --no-progress
+	docker compose -p proxyma_test -f docker/compose.test.yml exec -T runner vendor/bin/phpstan analyse --memory-limit=1G --no-progress
 	python3 scripts/test-rig.py file tests/Smoke/ArchitectureTest.php
