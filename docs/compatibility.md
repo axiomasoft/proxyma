@@ -35,7 +35,7 @@ python3 scripts/install-fixture.py prepare
 make test-file TEST_FILE=tests/Installation/PackageInstallTest.php
 ```
 
-Setup требует host Composer **2.8.2 PHAR** и запускает отдельный контейнер с
+Setup требует host Composer **2.11.2 PHAR** и запускает отдельный контейнер с
 сетью для загрузки архивов в `build/installation/cache`. PHP, extensions и
 Composer resolver работают в том же PHP image, что и rig. Setup также
 устанавливает два extension consumers предыдущего этапа. Для осознанного

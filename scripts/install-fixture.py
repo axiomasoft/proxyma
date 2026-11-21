@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / 'tests/Installation'
 BUILD = ROOT / 'build/installation'
 LANES = ('core', 'filament', 'core-lowest', 'filament-lowest')
+COMPOSER_VERSION = '2.11.2'
 
 
 def run(arguments, cwd=ROOT, offline=False):
@@ -32,7 +33,7 @@ def composer(*arguments, cwd=ROOT, offline=False):
     if not composer_bin.exists():
         host_composer = shutil.which('composer')
         if not host_composer:
-            raise ValueError('Composer 2.8.2 PHAR is required on host or in build/installation/composer.phar')
+            raise ValueError(f'Composer {COMPOSER_VERSION} PHAR is required on host or in build/installation/composer.phar')
         BUILD.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(host_composer, composer_bin)
     run([*php_command(), str(composer_bin), *arguments, '--no-interaction', '--no-plugins', '--no-scripts'], cwd, offline)
@@ -68,7 +69,7 @@ def main():
         BUILD.mkdir(parents=True, exist_ok=True)
         composer_path = shutil.which('composer')
         if not composer_path:
-            raise ValueError('Composer 2.8.2 PHAR is required on host')
+            raise ValueError(f'Composer {COMPOSER_VERSION} PHAR is required on host')
         shutil.copyfile(composer_path, BUILD / 'composer.phar')
         if args.native:
             run(['python3', 'scripts/install-fixture.py', 'prepare-runtime',
@@ -85,8 +86,8 @@ def main():
     if not (BUILD / 'composer.phar').exists():
         composer('--version')
     version = subprocess.check_output([*php_command(), str(BUILD / 'composer.phar'), '--version'], text=True)
-    if not version.startswith('Composer version 2.8.2 '):
-        raise ValueError('Expected locked Composer 2.8.2')
+    if not version.startswith(f'Composer version {COMPOSER_VERSION} '):
+        raise ValueError(f'Expected locked Composer {COMPOSER_VERSION}')
     if args.action == 'prepare-runtime':
         if args.refresh_locks:
             composer('update', 'axiomasoft/proxyma-core', 'axiomasoft/proxyma-filament', '--no-install')

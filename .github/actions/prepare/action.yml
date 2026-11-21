@@ -1,27 +1,34 @@
 name: Prepare
-description: Check out Packman, set up PHP 8.4, restore the Composer cache, and install locked dependencies.
+description: Check out Packman, set up Node.js LTS and PHP 8.4, and install locked dependencies.
 
 runs:
   using: composite
   steps:
     - name: Checkout Packman
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: axiomasoft/packman
         ref: ${{ env.PACKMAN_REF }}
         path: packman
         persist-credentials: false
 
+    - name: Setup Node.js LTS
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 'lts/*'
+        check-latest: true
+        package-manager-cache: false
+
     - name: Setup PHP
       uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
       with:
         php-version: "8.4"
-        tools: composer:2.8.2
+        tools: composer:2.11.2
         coverage: none
         extensions: curl, pdo_pgsql, pdo_sqlite, mbstring, openssl, intl, gd, bcmath, zip
 
     - name: Cache Composer downloads
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: /tmp/composer-cache
         key: composer-${{ hashFiles('proxyma/composer.lock') }}
