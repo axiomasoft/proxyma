@@ -86,10 +86,18 @@ PHP;
         }
     }
 
-    /** @return array<array-key, false> */
+    /** @return array<string, false> */
     private static function resolverEnvironment(): array
     {
         // Symfony Process inherits missing variables, and false explicitly removes them.
-        return array_fill_keys(array_keys(getenv() + $_ENV), false);
+        $environment = [];
+        foreach (array_keys(getenv() + $_ENV) as $name) {
+            if (! is_string($name)) {
+                throw new RuntimeException('DNS resolution failed.');
+            }
+            $environment[$name] = false;
+        }
+
+        return $environment;
     }
 }
