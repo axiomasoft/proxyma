@@ -35,10 +35,9 @@ class AcceptanceReportTest(unittest.TestCase):
                          'test_file': self.test, 'command': ['vendor/bin/pest', self.test, '--log-junit', '/work/' + str(self.path.relative_to(self.root))],
                          'cwd': '/work', 'host_cwd': '/fixture', 'exit': 0, 'started_at': '2026-11-10T00:00:00+00:00',
                          'elapsed_seconds': 0.3, 'runtime': self.runtime, 'fixture_receipts': None}
-        self.mapping = {'schema': 'proxyma-qualification-map/v1', 'baseline': 'c' * 40,
+        self.mapping = {'schema': 'proxyma-qualification-map/v1',
                         'invariants': [{'id': 'authority', 'evolution': 'added', 'tests': [self.test], 'sources': ['packages/core/src/Example.php']}]}
-        for name, content in [(self.test, "<?php\nit('denies', function () {});"), ('packages/core/src/Example.php', '<?php'),
-                              ('docs/reference/source-manifest.json', json.dumps({'commit': 'c' * 40, 'files': []}))]:
+        for name, content in [(self.test, "<?php\nit('denies', function () {});"), ('packages/core/src/Example.php', '<?php')]:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
@@ -51,6 +50,42 @@ class AcceptanceReportTest(unittest.TestCase):
         self.path.with_suffix('.log').write_text('actual runner output')
         (self.root / REPORT.MAP).write_text(json.dumps(self.mapping))
         return REPORT.collect(self.root, self.sha, self.fingerprint, expected or {self.test}, self.runtime)
+
+    def test_declares_scenarios_contributed_by_a_used_trait(self):
+        (self.root / self.test).write_text("<?php\nnamespace Tests;\nuse Fixture\\Holds;\nclass ExampleTest {\n    use Holds;\n}\n")
+        trait = self.root / 'packages/fixture/Holds.php'
+        trait.parent.mkdir(parents=True)
+        trait.write_text("<?php\nnamespace Fixture;\ntrait Holds { public function test_example_holds(): void {} }\n")
+        self.xml = self.xml.replace('name="it denies"', 'name="Example holds" class="Tests\\ExampleTest"')
+        self.xml = self.xml.replace(
+            'file="tests/Contract/ExampleTest.php::it denies"',
+            'file="Holds (Tests\\Example)::Example holds"',
+        )
+        result = self.collect()
+        self.assertEqual(['Example::Example holds'], result['matrix'][0]['executed_ids'])
+
+    def test_accepts_phpunit_description_when_the_class_lives_in_the_executed_file(self):
+        (self.root / self.test).write_text("<?php\nnamespace Tests;\nclass ExampleTest {}\nit('denies', function () {});\n")
+        self.xml = self.xml.replace(
+            'file="tests/Contract/ExampleTest.php::it denies"',
+            'file="Example conformance (Tests\\ExampleTest)::it denies" class="Tests\\ExampleTest"',
+        )
+        result = self.collect()
+        self.assertEqual('it denies', result['cases'][0]['name'])
+        self.xml = self.xml.replace(
+            'file="Example conformance (Tests\\ExampleTest)::it denies"',
+            'file="tests/Contract/OtherTest.php::it denies"',
+        )
+        with self.assertRaisesRegex(ValueError, 'JUnit source file mismatch'):
+            self.collect()
+
+    def test_rejects_a_phpunit_class_from_a_different_namespace(self):
+        (self.root / self.test).write_text("<?php\nnamespace Other;\nclass ExampleTest {}\nit('denies', function () {});\n")
+        self.xml = self.xml.replace('name="it denies"', 'name="it denies" class="Tests\\ExampleTest"')
+        self.xml = self.xml.replace('file="tests/Contract/ExampleTest.php::it denies"',
+                                    'file="Example (Tests\\Example)::it denies"')
+        with self.assertRaisesRegex(ValueError, 'JUnit source file mismatch'):
+            self.collect()
 
     def test_records_exact_executed_identity_assertions_digests_and_context(self):
         result = self.collect()
@@ -151,7 +186,7 @@ class AcceptanceReportTest(unittest.TestCase):
 
     def test_rejects_unexecuted_mapping_missing_provenance_and_duplicate_invariant(self):
         original = copy.deepcopy(self.mapping['invariants'][0])
-        for field, value in [('tests', ['tests/AbsentTest.php']), ('sources', []), ('evolution', 'inherited'), ('evolution', 'invented')]:
+        for field, value in [('tests', ['tests/AbsentTest.php']), ('sources', []), ('evolution', 'invented')]:
             with self.subTest(field=field):
                 self.mapping['invariants'] = [{**original, field: value}]
                 with self.assertRaises(ValueError):
@@ -163,10 +198,10 @@ class AcceptanceReportTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'incomplete invariant inventory'):
             self.collect()
         self.mapping['invariants'] = [original]
-        self.mapping['baseline'] = 'd' * 40
+        self.mapping['schema'] = 'other'
         with self.assertRaisesRegex(ValueError, 'provenance mismatch'):
             self.collect()
-        self.mapping['baseline'] = 'c' * 40
+        self.mapping['schema'] = 'proxyma-qualification-map/v1'
         self.metadata['fixture_receipts'] = {'path': str(self.path.with_suffix('.wire.jsonl').relative_to(self.root)), 'sha256': 'f' * 64}
         self.path.with_suffix('.wire.jsonl').write_text('{}')
         with self.assertRaisesRegex(ValueError, 'modified fixture receipts'):

@@ -46,8 +46,8 @@ def run(args, timeout=900, capture=False):
     return subprocess.run(args, cwd=ROOT, check=True, timeout=timeout, text=True, capture_output=capture)
 
 
-def compose(*args, capture=False):
-    return run(COMPOSE + list(args), capture=capture)
+def compose(*args, capture=False, timeout=900):
+    return run(COMPOSE + list(args), timeout=timeout, capture=capture)
 
 
 def preflight():
@@ -160,7 +160,7 @@ def dispatch():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
     if cmd == 'up':
         (ROOT / 'build').mkdir(exist_ok=True)
-        compose('build', 'runner')
+        compose('build', 'runner', timeout=2400)
         compose('up', '-d', '--wait')
     elif cmd == 'env':
         preflight()

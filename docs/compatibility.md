@@ -66,5 +66,5 @@ Doctor не выполняет network I/O; live crawling и внешние prov
 
 Итогом проверки служит настоящий Pest JUnit с ненулевым набором сценариев,
 привязанный существующим rig к HEAD и fingerprint исходников. CI сохраняет
-`build/junit/` и `build/test-report.json`. Статус конкретного кандидата берётся
+`build/junit/` и `build/test-report.json`. Статус конкретного прогона берётся
 из его выполненных checks; эта таблица не подменяет результат прогона.

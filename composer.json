@@ -85,7 +85,6 @@
         "gate": "@php vendor/bin/packman gate",
         "php-api": "@php vendor/bin/packman php-api --check",
         "error-codes": "@php vendor/bin/packman error-codes --check",
-        "config-schema": "@php vendor/bin/packman config-schema --check",
-        "ai:sync": "@php vendor/bin/packman ai:sync --dry-run"
+        "config-schema": "@php vendor/bin/packman config-schema --check"
     }
 }

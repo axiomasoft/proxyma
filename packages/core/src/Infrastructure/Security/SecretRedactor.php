@@ -66,9 +66,13 @@ final readonly class SecretRedactor
         }
         if (is_string($value)) {
             $value = str_replace($this->tokens, '[redacted]', $value);
-            $value = preg_replace('~(https?://)[^/\s@]+@~i', '$1[redacted]@', $value) ?? '[redacted]';
+            $value = preg_replace('~([a-z][a-z0-9+.-]*://)[^/\s@]+@~i', '$1[redacted]@', $value) ?? '[redacted]';
+            $value = preg_replace('~([a-z][a-z0-9+.-]*://[^\s?#]*)[?#][^\s]*~i', '$1?[redacted]', $value) ?? '[redacted]';
+            if (strlen($value) > 65536) {
+                return mb_strcut($value, 0, 65536, 'UTF-8').'[truncated]';
+            }
 
-            return preg_replace('~(https?://[^\s?#]+)[?#][^\s]*~i', '$1?[redacted]', $value) ?? '[redacted]';
+            return $value;
         }
 
         return $value;

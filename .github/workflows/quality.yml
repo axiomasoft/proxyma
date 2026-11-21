@@ -1,37 +1,131 @@
 name: quality
-on: [push, pull_request]
-defaults:
-  run:
-    working-directory: proxyma
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PACKMAN_REF: a5a5442898cabb2d22e9f6a47a83caa798e3e5a3
+  COMPOSER_CACHE_DIR: /tmp/composer-cache
+
 jobs:
-  test:
+  static:
+    name: lint, analysis, unit
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Proxyma
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: proxyma
-      - uses: actions/checkout@v4
+          persist-credentials: false
+
+      - name: Prepare Packman, PHP, and dependencies
+        uses: ./proxyma/.github/actions/prepare
+
+      - name: Validate Composer manifests
+        working-directory: proxyma
+        run: |
+          composer validate --no-check-publish
+          composer validate --no-check-publish --working-dir=packages/core
+          composer validate --no-check-publish --working-dir=packages/filament
+
+      - name: Lint
+        working-directory: proxyma
+        run: composer lint:check
+
+      - name: Static analysis
+        working-directory: proxyma
+        run: composer analyse
+
+      - name: Refactor check
+        working-directory: proxyma
+        run: composer refactor:check
+
+      - name: Packman gate
+        working-directory: proxyma
+        run: composer gate
+
+      - name: PHP API check
+        working-directory: proxyma
+        run: composer php-api
+
+      - name: Error codes check
+        working-directory: proxyma
+        run: composer error-codes
+
+      - name: Config schema check
+        working-directory: proxyma
+        run: composer config-schema
+
+      - name: Unit tests
+        working-directory: proxyma
+        run: composer test
+
+      - name: Python checks
+        working-directory: proxyma
+        run: |
+          python3 -B scripts/test-rig-selftest.py
+          python3 -B -m unittest tests/Architecture/test_acceptance_report.py
+
+  rig:
+    name: isolated PostgreSQL rig
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    needs: static
+    steps:
+      - name: Checkout Proxyma
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: axiomasoft/packman
-          ref: v0.1.1
-          path: packman
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          tools: composer:2.8.2
-          extensions: curl, pdo_pgsql, mbstring, openssl, intl, gd, bcmath, zip
-      - run: composer install --no-interaction --prefer-dist
-      - run: python3 -B scripts/test-rig-selftest.py
-      - run: make test-up
-      - run: python3 scripts/install-fixture.py prepare
-      - run: make test-env
-      - run: make quality
-      - run: make test-all
-      - run: make test-report
-      - uses: actions/upload-artifact@v4
+          path: proxyma
+          persist-credentials: false
+
+      - name: Prepare Packman, PHP, and dependencies
+        uses: ./proxyma/.github/actions/prepare
+
+      - name: Rig self-test
+        working-directory: proxyma
+        run: python3 -B scripts/test-rig-selftest.py
+
+      - name: Start the isolated rig
+        working-directory: proxyma
+        run: make test-up
+
+      - name: Prepare installation fixtures
+        working-directory: proxyma
+        run: python3 scripts/install-fixture.py prepare
+
+      - name: Check the rig
+        working-directory: proxyma
+        run: make test-env
+
+      - name: Quality commands
+        working-directory: proxyma
+        run: make quality
+
+      - name: Full suite
+        working-directory: proxyma
+        run: make test-all
+
+      - name: Qualification report
+        working-directory: proxyma
+        run: make test-report
+
+      - name: Upload rig evidence
         if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: proxyma-php84-pg17
+          if-no-files-found: ignore
           path: |
             proxyma/build/junit/
             proxyma/build/test-report.json

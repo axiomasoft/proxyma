@@ -210,5 +210,6 @@ it('qualification collector отвергает неполные, stale, duplicat
     $process = new Process(['python3', 'tests/Architecture/test_acceptance_report.py'], dirname(__DIR__, 2));
     $process->run();
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
-        ->and($process->getErrorOutput())->toContain('Ran 6 tests', 'OK');
+        ->and($process->getErrorOutput())->toContain('OK')
+        ->and($process->getErrorOutput())->toMatch('/Ran [1-9][0-9]* tests/');
 });

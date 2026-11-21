@@ -19,14 +19,16 @@ final class TransportDoctorCommand extends Command
 
     public function handle(): int
     {
-        $rawProtocols = $this->option('protocol');
-        $protocols = $rawProtocols !== [] ? $rawProtocols : ['http', 'https', 'socks5'];
-        foreach ($protocols as $name) {
-            if (! is_string($name)) {
-                $this->error('Unknown proxy protocol.');
+        $protocols = $this->protocolNames($this->option('protocol'));
+        if ($protocols === null) {
+            $this->error('Unknown proxy protocol.');
 
-                return self::INVALID;
-            }
+            return self::INVALID;
+        }
+        if ($protocols === []) {
+            $protocols = ['http', 'https', 'socks5'];
+        }
+        foreach ($protocols as $name) {
             $protocol = ProxyProtocol::tryFrom($name);
             if ($protocol === null) {
                 $this->error('Unknown proxy protocol.');
@@ -44,5 +46,22 @@ final class TransportDoctorCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /** @return list<string>|null */
+    private function protocolNames(mixed $raw): ?array
+    {
+        if (! is_array($raw)) {
+            return null;
+        }
+        $names = [];
+        foreach ($raw as $name) {
+            if (! is_string($name)) {
+                return null;
+            }
+            $names[] = $name;
+        }
+
+        return $names;
     }
 }
