@@ -101,12 +101,14 @@ PHP;
 
         try {
             // The child bounds its output below the pipe capacity before writing.
-            while (($status = proc_get_status($process))['running']) {
+            $status = proc_get_status($process);
+            while ($status['running']) {
                 if (hrtime(true) >= $deadline) {
                     proc_terminate($process, 9);
                     throw new RuntimeException('DNS resolution failed.');
                 }
                 usleep(1000);
+                $status = proc_get_status($process);
             }
             if ($status['exitcode'] !== 0) {
                 throw new RuntimeException('DNS resolution failed.');
