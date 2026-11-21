@@ -10,13 +10,14 @@ use JsonException;
 use Packman\Attributes\Api;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use RuntimeException;
-use Symfony\Component\Process\Process;
 use Throwable;
 
 #[Api(since: '1.0')]
 final readonly class DnsResolver
 {
     private const int MAX_ADDRESSES = 16;
+
+    private const int MAX_OUTPUT_BYTES = 1024;
 
     /** @param (Closure(string, int): list<string>)|null $fixture */
     public function __construct(private ConnectionScope $scope, private ?Closure $fixture = null) {}
@@ -39,23 +40,17 @@ final readonly class DnsResolver
 $records = dns_get_record($argv[1], DNS_A | DNS_AAAA);
 if ($records === false) { exit(1); }
 $addresses = [];
-foreach ($records as $record) { if (isset($record['ip'])) $addresses[] = $record['ip']; if (isset($record['ipv6'])) $addresses[] = $record['ipv6']; }
+foreach ($records as $record) {
+    $address = $record['ip'] ?? $record['ipv6'] ?? null;
+    if ($address === null) { continue; }
+    if (count($addresses) >= (int) $argv[2]) { exit(1); }
+    $addresses[] = $address;
+}
 echo json_encode($addresses, JSON_THROW_ON_ERROR);
 PHP;
-        $seconds = $timeoutMs / 1000;
-        $process = new Process([PHP_BINARY, '-r', $script, rtrim($host, '.').'.'], env: self::resolverEnvironment());
-        $process->setTimeout($seconds);
-        $process->setIdleTimeout($seconds);
+        $output = self::runLookup($script, rtrim($host, '.').'.', $timeoutMs);
         try {
-            $process->run();
-        } catch (Throwable) {
-            throw new RuntimeException('DNS resolution failed.');
-        }
-        if (! $process->isSuccessful()) {
-            throw new RuntimeException('DNS resolution failed.');
-        }
-        try {
-            $result = json_decode($process->getOutput(), true, 8, JSON_THROW_ON_ERROR);
+            $result = json_decode($output, true, 8, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             throw new RuntimeException('Invalid DNS response.');
         }
@@ -86,18 +81,45 @@ PHP;
         }
     }
 
-    /** @return array<string, false> */
-    private static function resolverEnvironment(): array
+    private static function runLookup(string $script, string $host, int $timeoutMs): string
     {
-        // Symfony Process inherits missing variables, and false explicitly removes them.
-        $environment = [];
-        foreach (array_keys(getenv() + $_ENV) as $name) {
-            if (! is_string($name)) {
-                throw new RuntimeException('DNS resolution failed.');
-            }
-            $environment[$name] = false;
+        $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+        $deadline = hrtime(true) + $timeoutMs * 1_000_000;
+        try {
+            $process = @proc_open(
+                [PHP_BINARY, '-r', $script, $host, (string) self::MAX_ADDRESSES],
+                [['file', $null, 'r'], ['pipe', 'w'], ['file', $null, 'w']],
+                $pipes,
+                env_vars: [],
+            );
+        } catch (Throwable) {
+            throw new RuntimeException('DNS resolution failed.');
+        }
+        if (! is_resource($process)) {
+            throw new RuntimeException('DNS resolution failed.');
         }
 
-        return $environment;
+        try {
+            // The child bounds its output below the pipe capacity before writing.
+            while (($status = proc_get_status($process))['running']) {
+                if (hrtime(true) >= $deadline) {
+                    proc_terminate($process, 9);
+                    throw new RuntimeException('DNS resolution failed.');
+                }
+                usleep(1000);
+            }
+            if ($status['exitcode'] !== 0) {
+                throw new RuntimeException('DNS resolution failed.');
+            }
+            $output = stream_get_contents($pipes[1], self::MAX_OUTPUT_BYTES + 1);
+            if (! is_string($output) || strlen($output) > self::MAX_OUTPUT_BYTES) {
+                throw new RuntimeException('Invalid DNS response.');
+            }
+
+            return $output;
+        } finally {
+            fclose($pipes[1]);
+            proc_close($process);
+        }
     }
 }

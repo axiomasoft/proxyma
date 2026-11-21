@@ -6,7 +6,6 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseTransactionsManager;
 use Proxyma\Infrastructure\Database\ConnectionScope;
 use Proxyma\Infrastructure\Http\DnsResolver;
-use Symfony\Component\Process\Process;
 
 function dnsResolver(?Closure $fixture = null): DnsResolver
 {
@@ -59,11 +58,22 @@ it('removes inherited host variables from the resolver process', function (): vo
     $_ENV[$name] = 'env-canary';
     $_ENV[$name.'_ENV_ONLY'] = 'env-only-canary';
     try {
-        $environment = new ReflectionMethod(DnsResolver::class, 'resolverEnvironment')->invoke(null);
-        $process = new Process([PHP_BINARY, '-r', 'exit(getenv($argv[1]) === false && getenv($argv[2]) === false ? 0 : 1);', $name, $name.'_ENV_ONLY'], env: $environment);
-        expect($process->run())->toBe(0);
+        $output = new ReflectionMethod(DnsResolver::class, 'runLookup')->invoke(
+            null,
+            'exit(getenv($argv[1]) === false && getenv($argv[1]."_ENV_ONLY") === false ? 0 : 1);',
+            $name,
+            1000,
+        );
+        expect($output)->toBe('');
     } finally {
         putenv($name);
         unset($_ENV[$name], $_ENV[$name.'_ENV_ONLY']);
     }
+});
+
+it('terminates the DNS helper at the lookup deadline', function (): void {
+    $lookup = new ReflectionMethod(DnsResolver::class, 'runLookup');
+
+    expect(fn (): mixed => $lookup->invoke(null, 'sleep(10);', 'example.test.', 25))
+        ->toThrow(RuntimeException::class, 'DNS resolution failed.');
 });
