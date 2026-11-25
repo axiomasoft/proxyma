@@ -1,0 +1,40 @@
+{
+    "name": "axiomasoft/proxyma-filament",
+    "description": "Proxyma Filament panel integration — admin catalog browser, policy inspector, and guarded binding editor.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.4",
+        "axiomasoft/packman": "^0.1",
+        "axiomasoft/packman-filament": "^0.1",
+        "axiomasoft/packman-panels": "^0.1",
+        "axiomasoft/proxyma-core": "self.version",
+        "filament/filament": "^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Proxyma\\Filament\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Proxyma\\Filament\\ProxymaFilamentServiceProvider"
+            ]
+        },
+        "packman": {
+            "schema-version": 1,
+            "package-type": "integration",
+            "stability": "alpha",
+            "error-prefix": "proxyma",
+            "owns": [
+                "Actions",
+                "Pages",
+                "Queries",
+                "Registrars",
+                "Resources",
+                "Schemas"
+            ]
+        }
+    }
+}

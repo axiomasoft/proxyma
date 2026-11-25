@@ -1,0 +1,125 @@
+<?php
+
+declare(strict_types=1);
+
+use Proxyma\Domain\Policy\TenantKey;
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Database Connection & Table Prefix
+    |--------------------------------------------------------------------------
+    |
+    | PostgreSQL is the sole stateful authority backend in Proxyma 0.1.
+    | All shared owner/financial/network claims must use the same connection.
+    |
+    */
+    'connection' => env('PROXYMA_DB_CONNECTION', env('DB_CONNECTION', 'pgsql')),
+    'table_prefix' => 'pxm_',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Tenant Scope
+    |--------------------------------------------------------------------------
+    |
+    | Every query, command, and policy scope requires a non-empty tenant key.
+    | Null wildcards are forbidden; untrusted request tenants are never authority.
+    |
+    */
+    'default_tenant' => TenantKey::SYSTEM,
+
+    // Provider IDs select only explicitly approved PHP class strings; no closures or objects.
+    'settings' => [
+        'approved_providers' => [],
+        'providers' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mandatory Durable Safety Stack (Decision D2)
+    |--------------------------------------------------------------------------
+    |
+    | Admission, budget enforcement, and network health are always active in 0.1.
+    | There is no stateless or NullAuthority bypass mode.
+    |
+    */
+    'safety' => [
+        'admission' => 'mandatory',
+        'budgets' => 'mandatory',
+        'health' => 'mandatory',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Transaction Timeouts
+    |--------------------------------------------------------------------------
+    */
+    'transactions' => [
+        'lock_timeout' => '2s',
+        'statement_timeout' => '5s',
+        'max_attempts' => 3,
+    ],
+
+    'queue' => [
+        'maxPendingPerScope' => 64,
+        'ticketTtlMs' => 30000,
+        'maxEligibleSkip' => 8,
+        'retryMs' => 100,
+        'maxOperationMs' => 3600000,
+    ],
+
+    'wire' => [
+        'digest_key' => env('PROXYMA_WIRE_DIGEST_KEY', ''),
+    ],
+
+    'traffic_shares' => [],
+
+    'health' => [
+        'globalConsecutive' => 5, 'globalBaseSeconds' => 1800, 'globalCapSeconds' => 21600,
+        'routeTargetConsecutive' => 5, 'routeTargetMinSample' => 10, 'routeTargetFailurePercent' => 60,
+        'routeTargetWindowSeconds' => 600, 'routeTargetBaseSeconds' => 300, 'routeTargetCapSeconds' => 3600,
+        'stableDecaySeconds' => 600, 'corroborationWindowSeconds' => 300, 'originCooldownSeconds' => 900,
+    ],
+
+    'health_cooldown_scopes' => [],
+
+    'scheduler' => ['enabled' => false],
+
+    'maintenance' => ['batch_size' => 32, 'retention_seconds' => 2592000],
+
+    // Только пути к CA; secret material хранится через Laravel encrypter, не в config.
+    'tls' => [
+        'origin_bundles' => [],
+        'proxy_bundles' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Registered Extension Contracts
+    |--------------------------------------------------------------------------
+    */
+    'extensions' => [
+        'approved_providers' => [],
+        'providers' => [],
+        'policy_definitions' => [],
+        'route_strategies' => [],
+        'outcome_policies' => [],
+        'route_filters' => [],
+        'budget_contributors' => [],
+        'locked_admission_guards' => [],
+        'observers' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Runtime Policy Defaults & Hard Bounds
+    |--------------------------------------------------------------------------
+    */
+    'policy' => [
+        'project_defaults' => [],
+        'panel_defaults' => [],
+        'hard_bounds' => [],
+        /** @var ?string */
+        'panel_key' => null,
+    ],
+];

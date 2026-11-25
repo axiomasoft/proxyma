@@ -1,0 +1,10 @@
+includes:
+    - vendor/axiomasoft/packman-devtools/config/phpstan-base.neon
+    - vendor/larastan/larastan/extension.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    tmpDir: /tmp/proxyma-phpstan
+    paths:
+        - packages/core/src
+        - packages/filament/src

@@ -1,0 +1,1262 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Proxyma\Application\Execution;
+
+use Closure;
+use DateTimeImmutable;
+use InvalidArgumentException;
+use LogicException;
+use Packman\Attributes\Api;
+use Proxyma\Application\Admission\ClaimSend;
+use Proxyma\Application\Admission\OperationCommands;
+use Proxyma\Application\Admission\ReservationService;
+use Proxyma\Application\Authorization\AuthorizationDenied;
+use Proxyma\Application\Extensions\AttemptObservers;
+use Proxyma\Application\Policy\PolicyResolver;
+use Proxyma\Application\Recovery\CompletionCoordinator;
+use Proxyma\Application\Routing\RouteSelector;
+use Proxyma\Contracts\Admission\WorkBudget;
+use Proxyma\Contracts\Catalog\CatalogQueries;
+use Proxyma\Contracts\Execution\DestinationResolver;
+use Proxyma\Contracts\Execution\OutboundClient;
+use Proxyma\Contracts\Execution\PhysicalTransport;
+use Proxyma\Contracts\Policy\PolicyResolver as PolicyResolverContract;
+use Proxyma\Contracts\Security\SecretResolver;
+use Proxyma\Contracts\Security\TlsTrustPolicy;
+use Proxyma\Domain\Admission\AdmissionRejected;
+use Proxyma\Domain\Admission\DemandWait;
+use Proxyma\Domain\Catalog\Endpoint;
+use Proxyma\Domain\Catalog\ProxyProtocol;
+use Proxyma\Domain\Catalog\Route;
+use Proxyma\Domain\Catalog\RouteKind;
+use Proxyma\Domain\Catalog\RouteProfile;
+use Proxyma\Domain\Execution\AttemptResult;
+use Proxyma\Domain\Execution\BlockedReason;
+use Proxyma\Domain\Execution\DeferralReason;
+use Proxyma\Domain\Execution\DemandPurpose;
+use Proxyma\Domain\Execution\Duration;
+use Proxyma\Domain\Execution\ExecutionBlocked;
+use Proxyma\Domain\Execution\ExecutionContext;
+use Proxyma\Domain\Execution\ExecutionDeferred;
+use Proxyma\Domain\Execution\ExecutionResult;
+use Proxyma\Domain\Execution\ExecutionSucceeded;
+use Proxyma\Domain\Execution\ExecutionUnknownAfterAuthorization;
+use Proxyma\Domain\Execution\IdempotencyClass;
+use Proxyma\Domain\Execution\OutboundRequest;
+use Proxyma\Domain\Execution\OutcomeDecision;
+use Proxyma\Domain\Execution\PhysicalExecutionResult;
+use Proxyma\Domain\Execution\ReadOnlyAttemptObservation;
+use Proxyma\Domain\Execution\RequestTimeoutPolicy;
+use Proxyma\Domain\Execution\RetryAt;
+use Proxyma\Domain\Execution\RouteSelection;
+use Proxyma\Domain\Execution\RouteSelectionContext;
+use Proxyma\Domain\Execution\SafeUrl;
+use Proxyma\Domain\Execution\TransportFailure;
+use Proxyma\Domain\Execution\TransportMetrics;
+use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Execution\WireRequest;
+use Proxyma\Domain\Outcomes\AttemptFacts;
+use Proxyma\Domain\Outcomes\ResolvedOutcome;
+use Proxyma\Domain\Policy\EffectivePolicy;
+use Proxyma\Domain\Policy\SubjectChain;
+use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Domain\Routing\SelectionResult;
+use Proxyma\Infrastructure\Database\CatalogRowMapper;
+use Proxyma\Infrastructure\Database\ConnectionScope;
+use Proxyma\Infrastructure\Database\DatabaseClock;
+use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Infrastructure\Telemetry\OperationsTelemetry;
+use Proxyma\Internal\Database\RowValues;
+use Proxyma\Internal\Execution\OutboundFailureMapper;
+use Throwable;
+
+#[Api(since: '1.0')]
+final readonly class OutboundExecutor implements OutboundClient
+{
+    private OutboundFailureMapper $failures;
+
+    /**
+     * @param  (Closure(int): void)|null  $sleepUs
+     * @param  (Closure(): int)|null  $monotonicClockNs
+     */
+    public function __construct(
+        private ConnectionScope $scope,
+        private CatalogQueries $catalog,
+        private PolicyResolverContract $policies,
+        private DestinationResolver $destinations,
+        private RouteSelector $selector,
+        private ProxyResolver $proxies,
+        private SecretResolver $secrets,
+        private TlsTrustPolicy $tlsTrust,
+        private WireSealer $sealer,
+        private OperationCommands $operations,
+        private ReservationService $reservations,
+        private ClaimSend $claims,
+        private PhysicalTransport $transport,
+        private OutcomePolicyRegistry $outcomes,
+        private CompletionCoordinator $completion,
+        private ?Closure $sleepUs = null,
+        private ?Closure $monotonicClockNs = null,
+        private ?OperationsTelemetry $telemetry = null,
+        private ?AttemptObservers $observers = null,
+    ) {
+        $this->failures = new OutboundFailureMapper($this->scope);
+    }
+
+    public function execute(OutboundRequest $request, ExecutionContext $context): ExecutionResult
+    {
+        $result = $this->executeLoop($request, $context);
+        if ($result instanceof PhysicalExecutionResult) {
+            throw new LogicException('Physical result escaped normal execution.');
+        }
+        if ($result instanceof ExecutionBlocked || $result instanceof ExecutionDeferred) {
+            try {
+                $this->telemetry?->blocked($result->reason->value, $request->operationId);
+            } catch (Throwable) {
+                // Ошибка экспортера не меняет уже принятое решение admission.
+            }
+        }
+
+        return $result;
+    }
+
+    /** One stable physical ID per immutable operation; no retry/redirect loop is entered. */
+    public function executeAttempt(OutboundRequest $request, ExecutionContext $context, RouteSelectionContext $routes,
+        int $attempt = 1, int $redirects = 0): PhysicalExecutionResult|ExecutionResult
+    {
+        if ($attempt < 1 || $redirects < 0) {
+            throw new InvalidArgumentException('Invalid finite execution position.');
+        }
+
+        return $this->executeLoop($request, $context, $routes, $attempt, $redirects);
+    }
+
+    private function executeLoop(OutboundRequest $request, ExecutionContext $context,
+        ?RouteSelectionContext $physicalRoutes = null, int $physicalAttempt = 1, int $physicalRedirects = 0): PhysicalExecutionResult|ExecutionResult
+    {
+        $this->scope->assertOutsideTransaction();
+        if (! $request->operationId->equals($context->operation->operationId)) {
+            throw new InvalidArgumentException('OutboundRequest operationId must match ExecutionContext operation correlation.');
+        }
+
+        $context = new ExecutionContext($context->operation, $context->subjects, $context->remainingSlice,
+            min($context->monotonicDeadlineNs, $this->nowMonotonicNs() + $context->remainingSlice->nanos()));
+
+        $tenant = $context->operation->owner->tenantKey;
+        $currentMethod = $request->method;
+        $currentUrl = $request->url;
+        $currentHeaders = $request->headers;
+        $currentBody = $request->body;
+        $currentIdempotency = $request->idempotency;
+
+        /** @var list<Uuid> $attemptIds */
+        $attemptIds = [];
+        /** @var list<Uuid> $triedRouteIds */
+        $triedRouteIds = [];
+        /** @var array<string, true> $excludedRetryRouteIds */
+        $excludedRetryRouteIds = [];
+        /** @var array<string, list<string>> $failedAddressesByHost */
+        $failedAddressesByHost = [];
+        /** @var array<string, true> $visitedUrls */
+        $visitedUrls = [$currentUrl->reveal() => true];
+
+        $hopAttempt = $physicalAttempt;
+        $redirectHop = $physicalRedirects;
+        $totalSends = PackageSchema::query($this->scope->connection, 'permits')
+            ->where('tenant_key', $tenant->value)->where('operation_id', $request->operationId->value)
+            ->whereNotNull('authorized_at')->count();
+        foreach (PackageSchema::query($this->scope->connection, 'permits')
+            ->where('tenant_key', $tenant->value)->where('operation_id', $request->operationId->value)
+            ->whereNotNull('authorized_at')->distinct()->pluck('route_id') as $routeId) {
+            $triedRouteIds[] = new Uuid(RowValues::str($routeId));
+        }
+        $preferUntried = false;
+        $sameRouteRetry = false;
+        $previousRouteId = null;
+        $pendingDelayMs = 0;
+        $lastDeliveredResponse = null;
+        $operationProvisioned = false;
+        $operationLimit = RowValues::nullableInt(
+            PackageSchema::query($this->scope->connection, 'operations')
+                ->where('tenant_key', $tenant->value)->where('id', $request->operationId->value)->value('max_physical_attempts'),
+        );
+
+        try {
+            while (true) {
+                $this->scope->assertOutsideTransaction();
+
+                try {
+                    $target = $this->catalog->findTarget($tenant, $request->targetId);
+                } catch (AuthorizationDenied) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'target_read'], $attemptIds);
+                }
+
+                if ($target === null || $target->isRetired()) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::TargetRetired, ['target_id' => $request->targetId->value], $attemptIds);
+                }
+
+                try {
+                    $rawPolicy = $this->resolveEffectivePolicy($context->subjects, $request->targetId, $request->trafficKey);
+                } catch (AuthorizationDenied) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'policy_resolve'], $attemptIds);
+                }
+
+                $profileId = $this->resolveProfileId($tenant, $context->operation->operationId, $rawPolicy);
+                if ($profileId === null) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::EmptyProfile, ['target_id' => $request->targetId->value], $attemptIds);
+                }
+
+                try {
+                    $profile = $this->catalog->findProfile($tenant, $profileId);
+                } catch (AuthorizationDenied) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'profile_read'], $attemptIds);
+                }
+
+                if ($profile === null) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'profile_missing_or_retired'], $attemptIds);
+                }
+
+                if ($profile->isEmpty()) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::EmptyProfile, ['profile_id' => $profile->id->value], $attemptIds);
+                }
+
+                $effectivePolicy = $this->intersectPolicy($profile, $rawPolicy, $request);
+                $effectiveTimeouts = $effectivePolicy->timeouts;
+                try {
+                    $this->outcomes->resolve($effectivePolicy->outcomePolicyKey);
+                } catch (LogicException) {
+                    return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'outcome_policy_unregistered'], $attemptIds);
+                }
+
+                // Проверяем все границы цикла ДО локального DNS и ДО резервирования permit.
+                if (($context->operation->purpose === DemandPurpose::Probe && $totalSends > 0)
+                    || ($request->sendLimit !== null && $totalSends >= $request->sendLimit)) {
+                    return new ExecutionDeferred(DeferralReason::AttemptsExhausted, new RetryAt($this->nowWall()), $attemptIds, $lastDeliveredResponse);
+                }
+
+                $operationLimit ??= $effectiveTimeouts->maxAttempts;
+                if ($totalSends >= min($operationLimit, $effectiveTimeouts->maxAttempts)) {
+                    return new ExecutionDeferred(DeferralReason::AttemptsExhausted, new RetryAt($this->nowWall()), $attemptIds, $lastDeliveredResponse);
+                }
+
+                if ($redirectHop > $effectiveTimeouts->maxRedirects) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(
+                        BlockedReason::UrlPolicyDenied,
+                        ['redirect_reason' => 'max_redirects_exceeded', 'max_redirects' => $effectiveTimeouts->maxRedirects],
+                        $attemptIds,
+                    );
+                }
+
+                if ($currentBody !== null && ! $currentBody->isReplayable() && $totalSends > 0) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(
+                        BlockedReason::PolicyReview,
+                        ['reason' => 'non_replayable_body_second_attempt'],
+                        $attemptIds,
+                    );
+                }
+
+                if ($preferUntried && count($triedRouteIds) >= $effectiveTimeouts->maxDistinctRoutes) {
+                    return new ExecutionDeferred(DeferralReason::AttemptsExhausted, new RetryAt($this->nowWall()), $attemptIds, $lastDeliveredResponse);
+                }
+
+                $attemptBudgetMs = $effectiveTimeouts->totalTimeoutMs + $effectiveTimeouts->cleanupMarginMs;
+                if ($pendingDelayMs > 0) {
+                    if (! $this->canFitWindowMs($context, $pendingDelayMs + $attemptBudgetMs)) {
+                        return new ExecutionDeferred(
+                            DeferralReason::SliceExhausted,
+                            new RetryAt($this->nowWall()->modify('+'.$pendingDelayMs.' milliseconds')),
+                            $attemptIds,
+                            $lastDeliveredResponse,
+                        );
+                    }
+                    $this->sleep($pendingDelayMs * 1000);
+                    $pendingDelayMs = 0;
+                }
+
+                if (! $this->canFitWindowMs($context, $attemptBudgetMs)) {
+                    return new ExecutionDeferred(DeferralReason::SliceExhausted, new RetryAt($this->nowWall()), $attemptIds, $lastDeliveredResponse);
+                }
+
+                $cooldown = PackageSchema::query($this->scope->connection, 'budgets')
+                    ->whereIn('tenant_key', array_unique([$tenant->value, TenantKey::SYSTEM]))
+                    ->where('scope_key', $currentUrl->origin->budgetScopeKey())
+                    ->whereRaw('cooldown_until > clock_timestamp()')->max('cooldown_until');
+                if (is_string($cooldown)) {
+                    return new ExecutionDeferred(DeferralReason::RateLimit, new RetryAt(new DateTimeImmutable($cooldown)), $attemptIds, $lastDeliveredResponse);
+                }
+
+                try {
+                    $destination = $this->destinations instanceof DestinationPolicy
+                        ? $this->destinations->resolve($currentUrl, $context, $effectiveTimeouts->connectTimeoutMs, $target)
+                        : $this->destinations->resolve($currentUrl, $context, $effectiveTimeouts->connectTimeoutMs);
+                } catch (InvalidArgumentException $e) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(
+                        BlockedReason::UrlPolicyDenied,
+                        ['reason' => 'destination_policy_denied', 'message' => $e->getMessage()],
+                        $attemptIds,
+                    );
+                } catch (Throwable) {
+                    return new ExecutionDeferred(
+                        DeferralReason::DependencyUnavailable,
+                        new RetryAt($this->nowWall()->modify('+1 second')),
+                        $attemptIds,
+                        $lastDeliveredResponse,
+                    );
+                }
+
+                $failedForHost = $failedAddressesByHost[$currentUrl->origin->host] ?? [];
+                if ($failedForHost !== [] && count($destination->addresses) > 1) {
+                    foreach ($destination->addresses as $candidateAddress) {
+                        if (! in_array($candidateAddress, $failedForHost, true)) {
+                            $destination = $destination->withAddress($candidateAddress);
+                            break;
+                        }
+                    }
+                }
+
+                if (! $operationProvisioned) {
+                    try {
+                        $this->ensureOperationProvisioned($tenant, $context, $profile->id, $target->id, $effectiveTimeouts);
+                        $operationProvisioned = true;
+                    } catch (AdmissionRejected $e) {
+                        return $this->failures->mapAdmissionRejected($e, $attemptIds, $lastDeliveredResponse);
+                    } catch (AuthorizationDenied) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'operation_create'], $attemptIds);
+                    }
+                }
+
+                $physicalAttemptId = $physicalRoutes === null ? Uuid::random() : $request->operationId;
+                $wireRequest = new WireRequest(
+                    operationId: $context->operation->operationId,
+                    physicalAttemptId: $physicalAttemptId,
+                    targetId: $request->targetId,
+                    policyRevision: $effectivePolicy->effectiveRevision,
+                    method: $currentMethod,
+                    url: $currentUrl,
+                    timeouts: $effectiveTimeouts,
+                    deadlineAt: $context->operation->deadlineAt,
+                    headers: $currentHeaders,
+                    body: $currentBody,
+                    idempotency: $currentIdempotency,
+                    purpose: $context->operation->purpose,
+                    trafficClass: $request->trafficKey,
+                    responseProfile: $request->responseProfile,
+                );
+
+                $selectionContext = $physicalRoutes ?? new RouteSelectionContext(
+                    triedRouteIds: $triedRouteIds,
+                    previousRouteId: $previousRouteId,
+                    preferUntried: $preferUntried,
+                    maxDistinctRoutes: $effectiveTimeouts->maxDistinctRoutes,
+                );
+
+                if ($context->operation->purpose === DemandPurpose::Probe) {
+                    $probeToken = $context->operation->probeToken;
+                    if ($probeToken === null) {
+                        return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'probe_token_missing'], $attemptIds);
+                    }
+                    $probe = PackageSchema::query($this->scope->connection, 'probe_claims')
+                        ->where('id', $probeToken->value)->where('tenant_key', $tenant->value)
+                        ->where('operation_id', $context->operation->operationId->value)->where('target_id', $target->id->value)
+                        ->whereNull('physical_attempt_id')->whereRaw('expires_at > clock_timestamp()')->first();
+                    try {
+                        $route = $probe === null ? null : $this->catalog->findRoute($tenant, new Uuid(RowValues::colStr($probe, 'route_id')));
+                    } catch (AuthorizationDenied) {
+                        return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'probe_route_read'], $attemptIds);
+                    }
+                    if ($route === null || ! $profile->containsRoute($route->id)) {
+                        return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'probe_ownership_lost'], $attemptIds);
+                    }
+                    $selection = new RouteSelection($route->id, $route->kind, $profile->id,
+                        $route->endpointId, $route->credentialVersion, $route->egress, $route->independenceGroup);
+                } else {
+                    try {
+                        $selectionResult = $this->selector->select($tenant, $profile->id, $effectivePolicy, $wireRequest, $selectionContext);
+                    } catch (AuthorizationDenied) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'route_select'], $attemptIds);
+                    }
+
+                    if ($selectionResult->route === null || $selectionResult->selection === null) {
+                        return $this->failures->mapUnselectedRoute($tenant, $selectionResult, $attemptIds, $lastDeliveredResponse);
+                    }
+
+                    $route = $selectionResult->route;
+                    $selection = $selectionResult->selection;
+                }
+                if ($sameRouteRetry && ($previousRouteId === null || ! $route->id->equals($previousRouteId))) {
+                    return new ExecutionDeferred(DeferralReason::NoHealthyRoute, new RetryAt($this->nowWall()->modify('+5 seconds')), $attemptIds, $lastDeliveredResponse);
+                }
+
+                if ($preferUntried && isset($excludedRetryRouteIds[$route->id->value])) {
+                    $alternate = $this->findAlternateCandidate($selectionResult, $profile->id, $triedRouteIds, $excludedRetryRouteIds, $effectiveTimeouts->maxDistinctRoutes);
+                    if ($alternate === null) {
+                        return $this->failures->mapExhaustedRouteRotation($tenant, $selectionResult, $attemptIds, $lastDeliveredResponse);
+                    }
+                    [$route, $selection] = $alternate;
+                }
+
+                $proxyDestination = null;
+                $credential = null;
+                $proxyTls = null;
+
+                if ($route->kind === RouteKind::Proxy) {
+                    if ($route->endpointId === null) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'proxy_endpoint_missing'], $attemptIds);
+                    }
+
+                    try {
+                        $endpoint = $this->resolveEndpoint($tenant, $route);
+                    } catch (AuthorizationDenied) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'endpoint_read'], $attemptIds);
+                    }
+
+                    if ($endpoint === null || $endpoint->isRetired()) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'proxy_endpoint_retired'], $attemptIds);
+                    }
+
+                    try {
+                        $proxyDestination = $this->proxies->resolve($endpoint, $effectiveTimeouts->connectTimeoutMs);
+                    } catch (Throwable $e) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::ConfigurationHold,
+                            ['reason' => 'proxy_resolution_failed', 'message' => $e->getMessage()],
+                            $attemptIds,
+                        );
+                    }
+
+                    if ($endpoint->credential !== null) {
+                        try {
+                            $credential = $this->secrets->resolve($endpoint->credential, $route->tenantKey);
+                        } catch (AuthorizationDenied) {
+                            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                            return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'secret_resolve'], $attemptIds);
+                        } catch (Throwable) {
+                            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                            return new ExecutionBlocked(BlockedReason::CredentialHold, ['reason' => 'proxy_secret_unavailable'], $attemptIds);
+                        }
+
+                        if ($credential === null) {
+                            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                            return new ExecutionBlocked(BlockedReason::CredentialHold, ['reason' => 'proxy_secret_missing'], $attemptIds);
+                        }
+                    }
+
+                }
+
+                try {
+                    if ($route->kind === RouteKind::Proxy && $endpoint->protocol === ProxyProtocol::Https) {
+                        $proxyTls = $this->tlsTrust->proxyConfigurationFor($endpoint->host);
+                    }
+                    $originTls = $this->tlsTrust->tlsConfigurationFor($currentUrl->origin, $request->targetId);
+                    $sealedWire = $this->sealer->seal(
+                        $wireRequest,
+                        $route,
+                        $destination,
+                        $originTls,
+                        $credential,
+                        $proxyTls,
+                        $proxyDestination,
+                    );
+                } catch (AdmissionRejected $rejected) {
+                    return $this->failures->mapAdmissionRejected($rejected, $attemptIds, $lastDeliveredResponse);
+                } catch (Throwable) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'wire_preparation_failed'], $attemptIds);
+                }
+
+                $work = $this->workBudget($context);
+                $reservedPermit = null;
+                $claimedPermitId = null;
+
+                try {
+                    $reservationInput = $this->reservations->prepare(
+                        $sealedWire->request,
+                        $context->operation,
+                        $selection,
+                        $effectivePolicy,
+                        $work,
+                    );
+                    $ticketOrWait = $this->reservations->enqueue($reservationInput, $work);
+                    if ($ticketOrWait instanceof DemandWait) {
+                        return $this->failures->mapDemandWait($ticketOrWait, $attemptIds, $lastDeliveredResponse);
+                    }
+
+                    $permitOrWait = $this->reservations->reserve($ticketOrWait, $reservationInput);
+                    if ($permitOrWait instanceof DemandWait) {
+                        return $this->failures->mapDemandWait($permitOrWait, $attemptIds, $lastDeliveredResponse);
+                    }
+                    $reservedPermit = $permitOrWait;
+
+                    $nowBeforeClaim = $this->nowWall();
+                    $waitToNotBeforeUs = DatabaseClock::micros($reservedPermit->slotAt) - DatabaseClock::micros($nowBeforeClaim);
+                    if ($waitToNotBeforeUs > 0) {
+                        $waitMs = intdiv($waitToNotBeforeUs + 999, 1000);
+                        if (! $this->canFitWindowMs($context, $waitMs + $attemptBudgetMs)) {
+                            $this->safeCancelPermit($tenant, $context->operation->operationId, $reservedPermit->permitId);
+
+                            return new ExecutionDeferred(
+                                DeferralReason::SliceExhausted,
+                                new RetryAt($reservedPermit->slotAt),
+                                $attemptIds,
+                                $lastDeliveredResponse,
+                            );
+                        }
+                        $this->sleep($waitToNotBeforeUs);
+                    }
+
+                    $candidate = $this->claims->claim($reservedPermit, $reservationInput, $sealedWire);
+                    $claimedPermitId = $reservedPermit->permitId;
+                    $reservedPermit = null;
+                    $authorizedWire = $this->claims->activate($candidate);
+                } catch (AdmissionRejected $e) {
+                    if ($reservedPermit !== null) {
+                        $this->safeCancelPermit($tenant, $context->operation->operationId, $reservedPermit->permitId);
+                    }
+
+                    return $this->failures->mapAdmissionRejected($e, $attemptIds, $lastDeliveredResponse);
+                } catch (AuthorizationDenied) {
+                    if ($reservedPermit !== null) {
+                        $this->safeCancelPermit($tenant, $context->operation->operationId, $reservedPermit->permitId);
+                    }
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::CrossTenantDenied, ['stage' => 'admission'], $attemptIds);
+                } catch (Throwable) {
+                    if ($reservedPermit !== null) {
+                        $this->safeCancelPermit($tenant, $context->operation->operationId, $reservedPermit->permitId);
+                    }
+
+                    if ($claimedPermitId === null) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(BlockedReason::ConfigurationHold, ['reason' => 'admission_dependency_failed'], $attemptIds);
+                    }
+
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionUnknownAfterAuthorization(
+                        $context->operation->operationId,
+                        $physicalAttemptId,
+                        $claimedPermitId,
+                        $sealedWire->request->fingerprint(),
+                    );
+                }
+
+                $attemptIds[] = $physicalAttemptId;
+                $triedRouteIds = $this->appendUniqueUuid($triedRouteIds, $route->id);
+                $totalSends++;
+
+                try {
+                    $attemptResult = $this->transport->sendOnce($authorizedWire);
+                } catch (Throwable) {
+                    $attemptResult = AttemptResult::failed(TransportFailure::Protocol);
+                }
+
+                $facts = $this->buildAttemptFacts(
+                    $attemptResult,
+                    $sealedWire->request,
+                    $route,
+                    $hopAttempt,
+                    $redirectHop,
+                );
+
+                $policyFailed = false;
+                try {
+                    $resolvedOutcome = $this->outcomes->evaluate(
+                        $effectivePolicy->outcomePolicyKey,
+                        $facts,
+                        $attemptResult,
+                        $sealedWire->request,
+                        $this->nowWall(),
+                    );
+                } catch (Throwable) {
+                    $policyFailed = true;
+                    $resolvedOutcome = (new OutcomePolicyRegistry)->evaluate('default', $facts, $attemptResult, $sealedWire->request, $this->nowWall());
+                }
+
+                try {
+                    $this->completion->recordOutcome(
+                        $context->operation->operationId,
+                        $physicalAttemptId,
+                        $attemptResult,
+                        $resolvedOutcome,
+                    );
+                } catch (Throwable) {
+                    $this->failures->closeArtifactIfNeeded($attemptResult->response, null);
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionUnknownAfterAuthorization($context->operation->operationId, $physicalAttemptId,
+                        $authorizedWire->snapshot->permitId, $sealedWire->request->fingerprint(), $attemptResult->failure);
+                }
+
+                $this->observers?->notify(new ReadOnlyAttemptObservation(
+                    $context->operation->owner->tenantKey, $context->operation->operationId, $physicalAttemptId,
+                    $route->id, $route->kind, $sealedWire->request->targetId, $sealedWire->request->url->origin,
+                    '[redacted]', $sealedWire->request->fingerprint(), $attemptResult->head?->statusCode,
+                    $attemptResult->failure, $resolvedOutcome->classification, $attemptResult->wireBytes, $attemptResult->decodedBytes,
+                    $attemptResult->metrics ?? new TransportMetrics, $this->nowWall(),
+                ));
+
+                if ($attemptResult->response !== null) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, $attemptResult->response);
+                    $lastDeliveredResponse = $attemptResult->response;
+                }
+
+                if ($physicalRoutes !== null && ! $policyFailed) {
+                    return new PhysicalExecutionResult($physicalAttemptId, $route->id, $attemptResult, $resolvedOutcome,
+                        $effectiveTimeouts, $resolvedOutcome->isAmbiguousAfterAuthorization()
+                            ? new ExecutionUnknownAfterAuthorization($context->operation->operationId, $physicalAttemptId,
+                                $authorizedWire->snapshot->permitId, $sealedWire->request->fingerprint(), $attemptResult->failure)
+                            : null);
+                }
+
+                if ($resolvedOutcome->isAmbiguousAfterAuthorization()) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionUnknownAfterAuthorization(
+                        $context->operation->operationId,
+                        $physicalAttemptId,
+                        $authorizedWire->snapshot->permitId,
+                        $sealedWire->request->fingerprint(),
+                        $attemptResult->failure,
+                    );
+                }
+
+                $decision = $resolvedOutcome->decision();
+                if ($policyFailed) {
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                    return new ExecutionBlocked(BlockedReason::PolicyReview, ['reason' => 'outcome_policy_failed'], $attemptIds);
+                }
+
+                if ($resolvedOutcome->isRedirect() && $decision === OutcomeDecision::Accept) {
+                    if ($redirectHop + 1 > $effectiveTimeouts->maxRedirects) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::UrlPolicyDenied,
+                            ['redirect_reason' => 'max_redirects_exceeded', 'max_redirects' => $effectiveTimeouts->maxRedirects],
+                            $attemptIds,
+                        );
+                    }
+
+                    $location = $facts->locationHeader;
+                    if ($location === null || trim($location) === '') {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::UrlPolicyDenied,
+                            ['redirect_reason' => 'missing_redirect_location'],
+                            $attemptIds,
+                        );
+                    }
+
+                    try {
+                        $nextUrl = $this->resolveRedirectUrl($currentUrl, $location);
+                    } catch (InvalidArgumentException $e) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::UrlPolicyDenied,
+                            ['redirect_reason' => 'invalid_redirect_location', 'message' => $e->getMessage()],
+                            $attemptIds,
+                        );
+                    }
+
+                    if ($currentUrl->origin->scheme === 'https' && $nextUrl->origin->scheme === 'http') {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::UrlPolicyDenied,
+                            ['redirect_reason' => 'https_to_http_downgrade'],
+                            $attemptIds,
+                        );
+                    }
+
+                    $nextUrlKey = $nextUrl->reveal();
+                    if (isset($visitedUrls[$nextUrlKey])) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::UrlPolicyDenied,
+                            ['redirect_reason' => 'redirect_cycle'],
+                            $attemptIds,
+                        );
+                    }
+
+                    $statusCode = $facts->httpStatus ?? 0;
+                    if ($statusCode === 303) {
+                        $currentMethod = $currentMethod === 'HEAD' ? 'HEAD' : 'GET';
+                        $currentBody = null;
+                        $currentHeaders = $currentHeaders->withoutContentHeaders();
+                        $currentIdempotency = IdempotencyClass::ReadOnly;
+                    } elseif ($statusCode === 307 || $statusCode === 308) {
+                        if ($currentIdempotency === IdempotencyClass::AmbiguousWrite) {
+                            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                            return new ExecutionBlocked(
+                                BlockedReason::PolicyReview,
+                                ['redirect_reason' => 'ambiguous_write_redirect_denied', 'status' => $statusCode],
+                                $attemptIds,
+                            );
+                        }
+                        if ($currentBody !== null && ! $currentBody->isReplayable()) {
+                            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                            return new ExecutionBlocked(
+                                BlockedReason::PolicyReview,
+                                ['redirect_reason' => 'non_replayable_redirect_body', 'status' => $statusCode],
+                                $attemptIds,
+                            );
+                        }
+                    } elseif ($statusCode === 301 || $statusCode === 302) {
+                        if (($currentMethod !== 'GET' && $currentMethod !== 'HEAD')
+                            || $currentBody !== null
+                            || $currentIdempotency === IdempotencyClass::AmbiguousWrite) {
+                            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                            return new ExecutionBlocked(
+                                BlockedReason::PolicyReview,
+                                ['redirect_reason' => 'unsafe_redirect_method', 'status' => $statusCode],
+                                $attemptIds,
+                            );
+                        }
+                    } else {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::PolicyReview,
+                            ['redirect_reason' => 'unsupported_redirect_status', 'status' => $statusCode],
+                            $attemptIds,
+                        );
+                    }
+
+                    if (! $nextUrl->origin->equals($currentUrl->origin)) {
+                        $currentHeaders = $currentHeaders->acrossOrigin(preserveContentType: $currentBody !== null);
+                    }
+
+                    $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+                    $lastDeliveredResponse = null;
+
+                    $visitedUrls[$nextUrlKey] = true;
+                    $currentUrl = $nextUrl;
+                    $redirectHop++;
+                    $hopAttempt = 1;
+                    $excludedRetryRouteIds = [];
+                    $failedAddressesByHost = [];
+                    $preferUntried = false;
+                    $sameRouteRetry = false;
+                    $previousRouteId = $route->id;
+                    $pendingDelayMs = 0;
+
+                    continue;
+                }
+
+                if ($decision === OutcomeDecision::Accept && $attemptResult->response !== null) {
+                    return new ExecutionSucceeded(
+                        $attemptResult->response,
+                        $attemptIds,
+                        $resolvedOutcome->classification,
+                    );
+                }
+
+                if ($decision === OutcomeDecision::RetrySameRoute || $decision === OutcomeDecision::RetryDifferentRoute) {
+                    if ($attemptResult->failure !== null && in_array($attemptResult->failure, [
+                        TransportFailure::Connect,
+                        TransportFailure::Timeout,
+                        TransportFailure::Truncated,
+                    ], true)) {
+                        $failedAddressesByHost[$currentUrl->origin->host][] = $destination->address;
+                    }
+
+                    if ($totalSends >= $effectiveTimeouts->maxAttempts
+                        || ($request->sendLimit !== null && $totalSends >= $request->sendLimit)) {
+                        return $this->failures->mapExhaustedRetries($resolvedOutcome, $attemptIds, $lastDeliveredResponse);
+                    }
+
+                    if ($currentBody !== null && ! $currentBody->isReplayable()) {
+                        $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                        return new ExecutionBlocked(
+                            BlockedReason::PolicyReview,
+                            ['reason' => 'non_replayable_retry_body'],
+                            $attemptIds,
+                        );
+                    }
+
+                    if ($decision === OutcomeDecision::RetryDifferentRoute) {
+                        $sameRouteRetry = false;
+                        $excludedRetryRouteIds[$route->id->value] = true;
+                        $preferUntried = true;
+                        $previousRouteId = null;
+
+                        if (count($triedRouteIds) >= $effectiveTimeouts->maxDistinctRoutes) {
+                            $hasTriedEligible = array_any($triedRouteIds, fn (Uuid $triedId): bool => ! isset($excludedRetryRouteIds[$triedId->value]));
+                            if (! $hasTriedEligible) {
+                                return $this->failures->mapExhaustedRetries($resolvedOutcome, $attemptIds, $lastDeliveredResponse);
+                            }
+                        }
+                    } else {
+                        $sameRouteRetry = true;
+                        $preferUntried = false;
+                        $previousRouteId = $route->id;
+                    }
+
+                    $pendingDelayMs = $this->resolveRetryDelayMs($effectivePolicy, $resolvedOutcome, $hopAttempt);
+                    $hopAttempt++;
+
+                    continue;
+                }
+
+                if ($decision === OutcomeDecision::Defer) {
+                    $retryAt = $resolvedOutcome->retryAfter() ?? new RetryAt($this->nowWall()->modify('+60 seconds'));
+                    $deferReason = $resolvedOutcome->deferralReason ?? DeferralReason::DependencyUnavailable;
+
+                    return new ExecutionDeferred($deferReason, $retryAt, $attemptIds, $lastDeliveredResponse);
+                }
+
+                $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+
+                $blockedReason = $resolvedOutcome->blockedReason ?? BlockedReason::PolicyReview;
+
+                return new ExecutionBlocked(
+                    $blockedReason,
+                    [
+                        'business_meaning' => $resolvedOutcome->classification->businessMeaning,
+                        'decision' => $decision->value,
+                    ],
+                    $attemptIds,
+                );
+            }
+        } catch (Throwable $e) {
+            $this->failures->closeArtifactIfNeeded($lastDeliveredResponse, null);
+            throw $e;
+        }
+    }
+
+    private function resolveEffectivePolicy(SubjectChain $subjects, Uuid $targetId, string $trafficKey): EffectivePolicy
+    {
+        if ($this->policies instanceof PolicyResolver) {
+            return $this->policies->resolveEffective($subjects, $targetId, $trafficKey);
+        }
+
+        $explanation = $this->policies->explain($subjects, $targetId, $trafficKey);
+        if ($explanation->effectivePolicy !== null) {
+            return $explanation->effectivePolicy;
+        }
+
+        $snapshot = $this->policies->resolve($subjects, $targetId, $trafficKey);
+
+        return new EffectivePolicy(
+            tenantKey: $snapshot->tenantKey,
+            subjectChain: $subjects,
+            targetId: $snapshot->targetId,
+            destinationPolicyKey: 'default',
+            trafficKey: $trafficKey,
+            routeProfileId: $snapshot->routeProfileId,
+            routeProfileKey: 'default',
+            routeProfileRevision: null,
+            allowedProfileKeys: null,
+            timeouts: $snapshot->timeouts,
+            retryDelaysDisabled: false,
+            allowDirectRoute: $snapshot->allowDirectRoute,
+            strategyKey: 'uniform_random',
+            outcomePolicyKey: $snapshot->outcomePolicyKey,
+            deniedRoutes: [],
+            allowedDestinations: null,
+            budgets: [],
+            values: [],
+            disabledSettings: [],
+            layerRevisions: $snapshot->layerRevisions,
+            appliedLayers: [],
+            explanations: [],
+            effectiveRevision: $snapshot->effectiveRevision,
+            policyHash: $snapshot->policyHash,
+        );
+    }
+
+    private function resolveProfileId(TenantKey $tenant, Uuid $operationId, EffectivePolicy $policy): ?Uuid
+    {
+        if ($policy->routeProfileId !== null) {
+            return $policy->routeProfileId;
+        }
+
+        $db = $this->scope->connection;
+        $tables = PackageSchema::tables($db);
+
+        $existingProfileId = $db->table($tables['operations'])
+            ->where('tenant_key', $tenant->value)
+            ->where('id', $operationId->value)
+            ->value('profile_id');
+
+        if (is_string($existingProfileId) && $existingProfileId !== '') {
+            return new Uuid($existingProfileId);
+        }
+
+        $preferredKey = $policy->routeProfileKey ?? 'default';
+        $preferredId = $db->table($tables['route_profiles'])
+            ->where('tenant_key', $tenant->value)
+            ->where('profile_key', $preferredKey)
+            ->whereNull('retired_at')
+            ->value('id');
+
+        if (is_string($preferredId) && $preferredId !== '') {
+            return new Uuid($preferredId);
+        }
+
+        return null;
+    }
+
+    private function intersectPolicy(
+        RouteProfile $profile,
+        EffectivePolicy $rawPolicy,
+        OutboundRequest $request,
+    ): EffectivePolicy {
+        $isExplicit = static function (EffectivePolicy $p, string $key): bool {
+            if ($p->explanations === []) {
+                return true;
+            }
+            $exp = $p->explanations[$key] ?? null;
+
+            return $exp !== null && ($exp->explicit || $exp->clamped);
+        };
+
+        $totalTimeoutMs = min($request->timeouts->totalTimeoutMs, $rawPolicy->timeouts->totalTimeoutMs);
+
+        $connectTimeoutMs = min(
+            $totalTimeoutMs,
+            min($request->timeouts->connectTimeoutMs, $rawPolicy->timeouts->connectTimeoutMs),
+        );
+
+        $readTimeoutMs = min(
+            $totalTimeoutMs,
+            min($request->timeouts->readTimeoutMs, $rawPolicy->timeouts->readTimeoutMs),
+        );
+
+        $maxAttempts = min($request->timeouts->maxAttempts, $rawPolicy->timeouts->maxAttempts);
+
+        $maxDistinctRoutes = min(
+            $maxAttempts,
+            $request->timeouts->maxDistinctRoutes,
+            $rawPolicy->timeouts->maxDistinctRoutes,
+        );
+
+        $maxRedirects = min($request->timeouts->maxRedirects, $rawPolicy->timeouts->maxRedirects);
+
+        $retryDelaysMs = $rawPolicy->retryDelaysDisabled
+            ? []
+            : ($isExplicit($rawPolicy, 'retry.delays_ms') && $rawPolicy->timeouts->retryDelaysMs !== []
+                ? $rawPolicy->timeouts->retryDelaysMs
+                : $request->timeouts->retryDelaysMs);
+
+        $effectiveTimeouts = new RequestTimeoutPolicy(
+            connectTimeoutMs: $connectTimeoutMs,
+            readTimeoutMs: $readTimeoutMs,
+            totalTimeoutMs: $totalTimeoutMs,
+            cleanupMarginMs: $request->timeouts->cleanupMarginMs,
+            maxAttempts: $maxAttempts,
+            maxDistinctRoutes: $maxDistinctRoutes,
+            maxRedirects: $maxRedirects,
+            retryDelaysMs: $retryDelaysMs,
+        );
+
+        $allowDirectRoute = $rawPolicy->allowDirectRoute;
+
+        $strategyKey = $isExplicit($rawPolicy, 'route.strategy')
+            ? $rawPolicy->strategyKey
+            : $profile->strategyKey;
+
+        return new EffectivePolicy(
+            tenantKey: $rawPolicy->tenantKey,
+            subjectChain: $rawPolicy->subjectChain,
+            targetId: $rawPolicy->targetId,
+            destinationPolicyKey: $rawPolicy->destinationPolicyKey,
+            trafficKey: $rawPolicy->trafficKey,
+            routeProfileId: $profile->id,
+            routeProfileKey: $profile->profileKey,
+            routeProfileRevision: $profile->revision,
+            allowedProfileKeys: $rawPolicy->allowedProfileKeys,
+            timeouts: $effectiveTimeouts,
+            retryDelaysDisabled: $rawPolicy->retryDelaysDisabled,
+            allowDirectRoute: $allowDirectRoute,
+            strategyKey: $strategyKey,
+            outcomePolicyKey: $rawPolicy->outcomePolicyKey === 'default'
+                ? ($request->outcomePolicyKey ?? 'default') : $rawPolicy->outcomePolicyKey,
+            deniedRoutes: $rawPolicy->deniedRoutes,
+            allowedDestinations: $rawPolicy->allowedDestinations,
+            budgets: $rawPolicy->budgets,
+            values: $rawPolicy->values,
+            disabledSettings: $rawPolicy->disabledSettings,
+            layerRevisions: $rawPolicy->layerRevisions,
+            appliedLayers: $rawPolicy->appliedLayers,
+            explanations: $rawPolicy->explanations,
+            effectiveRevision: $rawPolicy->effectiveRevision,
+            policyHash: $rawPolicy->policyHash,
+            schemaVersion: $rawPolicy->schemaVersion,
+            authorityVersions: $rawPolicy->authorityVersions,
+        );
+    }
+
+    private function ensureOperationProvisioned(
+        TenantKey $tenant,
+        ExecutionContext $context,
+        Uuid $profileId,
+        Uuid $targetId,
+        RequestTimeoutPolicy $timeouts,
+    ): void {
+        $tables = PackageSchema::tables($this->scope->connection);
+        $exists = $this->scope->connection->table($tables['operations'])
+            ->where('tenant_key', $tenant->value)
+            ->where('id', $context->operation->operationId->value)
+            ->exists();
+
+        if (! $exists) {
+            $this->operations->create($context->operation, $profileId, $targetId, $timeouts);
+        }
+    }
+
+    private function resolveEndpoint(TenantKey $callerTenant, Route $route): ?Endpoint
+    {
+        if ($route->endpointId === null) {
+            return null;
+        }
+
+        if ($route->tenantKey->equals($callerTenant)) {
+            return $this->catalog->findEndpoint($callerTenant, $route->endpointId);
+        }
+
+        if (! $route->isAccessibleBy($callerTenant)) {
+            throw new AuthorizationDenied;
+        }
+
+        $row = PackageSchema::query($this->scope->connection, 'endpoints')
+            ->where('tenant_key', $route->tenantKey->value)
+            ->where('id', $route->endpointId->value)
+            ->first();
+
+        return $row === null ? null : CatalogRowMapper::endpoint($row);
+    }
+
+    /**
+     * @param  list<Uuid>  $triedRouteIds
+     * @param  array<string, true>  $excludedRetryRouteIds
+     * @return ?array{Route, RouteSelection}
+     */
+    private function findAlternateCandidate(
+        SelectionResult $selectionResult,
+        Uuid $profileId,
+        array $triedRouteIds,
+        array $excludedRetryRouteIds,
+        int $maxDistinctRoutes,
+    ): ?array {
+        $triedMap = [];
+        foreach ($triedRouteIds as $id) {
+            $triedMap[$id->value] = true;
+        }
+
+        foreach ($selectionResult->snapshot->candidates as $candidate) {
+            if (! $candidate->eligible() || $candidate->route === null) {
+                continue;
+            }
+            $idStr = $candidate->routeId->value;
+            if (isset($excludedRetryRouteIds[$idStr])) {
+                continue;
+            }
+            if (! isset($triedMap[$idStr]) && count($triedMap) >= $maxDistinctRoutes) {
+                continue;
+            }
+            $route = $candidate->route;
+
+            return [
+                $route,
+                new RouteSelection(
+                    $route->id,
+                    $route->kind,
+                    $profileId,
+                    $route->endpointId,
+                    $route->credentialVersion,
+                    $route->egress,
+                    $route->independenceGroup,
+                ),
+            ];
+        }
+
+        return null;
+    }
+
+    private function buildAttemptFacts(
+        AttemptResult $result,
+        WireRequest $wireRequest,
+        Route $route,
+        int $hopAttempt,
+        int $redirectHop,
+    ): AttemptFacts {
+        return AttemptFacts::fromAttempt(
+            request: $wireRequest,
+            result: $result,
+            routeId: $route->id,
+            routeKind: $route->kind,
+            endpointId: $route->endpointId,
+            egressKey: $route->egress->key,
+            credentialVersion: $route->credentialVersion,
+            attemptNumber: $hopAttempt,
+            redirectHop: $redirectHop,
+        );
+    }
+
+    private function resolveRedirectUrl(SafeUrl $baseUrl, string $location): SafeUrl
+    {
+        return (new RedirectUrlResolver)->resolve($baseUrl, $location);
+    }
+
+    private function resolveRetryDelayMs(
+        EffectivePolicy $policy,
+        ResolvedOutcome $outcome,
+        int $hopAttempt,
+    ): int {
+        $retryAfter = $outcome->retryAfter();
+        if ($retryAfter !== null) {
+            $now = $this->nowWall();
+            $diffUs = DatabaseClock::micros($retryAfter->value) - DatabaseClock::micros($now);
+
+            return max(0, intdiv($diffUs + 999, 1000));
+        }
+
+        if ($policy->retryDelaysDisabled) {
+            return 0;
+        }
+
+        $delays = $policy->timeouts->retryDelaysMs;
+        if ($delays === []) {
+            return 0;
+        }
+
+        $index = min(max(0, $hopAttempt - 1), count($delays) - 1);
+
+        return max(0, $delays[$index]);
+    }
+
+    private function canFitWindowMs(ExecutionContext $context, int $requiredMs): bool
+    {
+        $required = new Duration(max(0, $requiredMs));
+        if (! $context->canFitDuration($required)) {
+            return false;
+        }
+
+        if ($this->nowMonotonicNs() + $required->nanos() > $context->monotonicDeadlineNs) {
+            return false;
+        }
+
+        $nowWall = $this->nowWall();
+        $remainingWallUs = DatabaseClock::micros($context->operation->deadlineAt) - DatabaseClock::micros($nowWall);
+
+        return $remainingWallUs >= $requiredMs * 1000;
+    }
+
+    private function workBudget(ExecutionContext $context): WorkBudget
+    {
+        return new class($context, fn (ExecutionContext $c, int $ms): bool => $this->canFitWindowMs($c, $ms)) implements WorkBudget
+        {
+            /**
+             * @param  Closure(ExecutionContext, int): bool  $checker
+             */
+            public function __construct(
+                private readonly ExecutionContext $context,
+                private readonly Closure $checker,
+            ) {}
+
+            public function canStart(Duration $required): bool
+            {
+                return ($this->checker)($this->context, $required->milliseconds);
+            }
+        };
+    }
+
+    private function safeCancelPermit(TenantKey $tenant, Uuid $operationId, Uuid $permitId): void
+    {
+        try {
+            $this->reservations->cancel($tenant, $operationId, $permitId);
+        } catch (Throwable) {
+        }
+    }
+
+    /**
+     * @param  list<Uuid>  $items
+     * @return list<Uuid>
+     */
+    private function appendUniqueUuid(array $items, Uuid $candidate): array
+    {
+        foreach ($items as $existing) {
+            if ($existing->equals($candidate)) {
+                return $items;
+            }
+        }
+
+        $items[] = $candidate;
+
+        return $items;
+    }
+
+    private function nowWall(): DateTimeImmutable
+    {
+        return DatabaseClock::now($this->scope->connection);
+    }
+
+    private function nowMonotonicNs(): int
+    {
+        return $this->monotonicClockNs !== null ? ($this->monotonicClockNs)() : (int) hrtime(true);
+    }
+
+    private function sleep(int $microseconds): void
+    {
+        if ($microseconds <= 0) {
+            return;
+        }
+
+        if ($this->sleepUs !== null) {
+            ($this->sleepUs)($microseconds);
+
+            return;
+        }
+
+        usleep($microseconds);
+    }
+}

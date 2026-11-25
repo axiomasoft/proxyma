@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/Support/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="default"
+         failOnEmptyTestSuite="false"
+         beStrictAboutOutputDuringTests="true"
+>
+    <testsuites>
+        <testsuite name="Core">
+            <directory>packages/core/tests</directory>
+        </testsuite>
+        <testsuite name="Filament">
+            <directory>packages/filament/tests</directory>
+        </testsuite>
+        <testsuite name="Root">
+            <directory>tests/Unit</directory>
+            <directory>tests/Smoke</directory>
+            <directory>tests/Contract</directory>
+            <directory>tests/Installation</directory>
+            <exclude>tests/Fixtures</exclude>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>packages/core/src</directory>
+            <directory>packages/filament/src</directory>
+        </include>
+    </source>
+
+    <php>
+        <ini name="memory_limit" value="1G"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="CACHE_DRIVER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="DB_URL" value="" force="true"/>
+        <env name="PROXYMA_DB_CONNECTION" value="pgsql" force="true"/>
+        <env name="PACKMAN_TEST_DESTRUCTIVE_OPT_IN" value="1" force="true"/>
+        <env name="PGSQL_HOST" value="127.0.0.1"/>
+        <env name="PGSQL_PORT" value="54329"/>
+        <env name="PGSQL_DATABASE" value="proxyma_test"/>
+        <env name="PGSQL_USERNAME" value="skm"/>
+        <env name="PGSQL_PASSWORD" value="skm_dev"/>
+    </php>
+</phpunit>

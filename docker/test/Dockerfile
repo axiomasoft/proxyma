@@ -1,0 +1,4 @@
+FROM php:8.4-cli-bookworm@sha256:b3e907a1108629c562c4bb313ce3449e34d49991f6bb2487913f6146f47200fe
+RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev libzip-dev libicu-dev libpng-dev python3 openssl git unzip && TERM=xterm docker-php-ext-install pdo_pgsql zip intl gd bcmath && rm -rf /var/lib/apt/lists/*
+COPY docker/test/quality.ini /usr/local/etc/php/conf.d/zz-proxyma-test.ini
+WORKDIR /work

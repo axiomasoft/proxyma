@@ -1,0 +1,160 @@
+{
+    "schema": "packman-error-codes/1",
+    "package": "axiomasoft/proxyma-core",
+    "codes": [
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "AdmissionRejected",
+            "code": "proxyma.admission_rejected",
+            "type": "urn:packman:problem:proxyma.admission_rejected",
+            "status": 409,
+            "title": "Joint admission rejected",
+            "retryable": false,
+            "category": "conflict"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "AuthorizationDenied",
+            "code": "proxyma.authorization_denied",
+            "type": "urn:packman:problem:proxyma.authorization_denied",
+            "status": 403,
+            "title": "Catalog access denied",
+            "retryable": false,
+            "category": "authorization"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "CatalogConflict",
+            "code": "proxyma.catalog_conflict",
+            "type": "urn:packman:problem:proxyma.catalog_conflict",
+            "status": 409,
+            "title": "Catalog revision or identity conflict",
+            "retryable": false,
+            "category": "conflict"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "CatalogInvalidMutation",
+            "code": "proxyma.catalog_invalid_mutation",
+            "type": "urn:packman:problem:proxyma.catalog_invalid_mutation",
+            "status": 422,
+            "title": "Invalid catalog mutation",
+            "retryable": false,
+            "category": "validation"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "CatalogNotFound",
+            "code": "proxyma.catalog_not_found",
+            "type": "urn:packman:problem:proxyma.catalog_not_found",
+            "status": 404,
+            "title": "Catalog entity not found",
+            "retryable": false,
+            "category": "not_found"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "CatalogStorageFailure",
+            "code": "proxyma.catalog_storage_failure",
+            "type": "urn:packman:problem:proxyma.catalog_storage_failure",
+            "status": 500,
+            "title": "Catalog storage or audit failed",
+            "retryable": false,
+            "category": "internal"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "DefinitionError",
+            "code": "proxyma.definition_error",
+            "type": "urn:packman:problem:proxyma.definition_error",
+            "status": 422,
+            "title": "Invalid panel or extension definition",
+            "retryable": false,
+            "category": "validation"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "InvalidSettingPatch",
+            "code": "proxyma.invalid_setting_patch",
+            "type": "urn:packman:problem:proxyma.invalid_setting_patch",
+            "status": 422,
+            "title": "Invalid policy setting patch",
+            "retryable": false,
+            "category": "validation"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "NeedsReplan",
+            "code": "proxyma.needs_replan",
+            "type": "urn:packman:problem:proxyma.needs_replan",
+            "status": 409,
+            "title": "Quota window ended; attempt requires replanning",
+            "retryable": true,
+            "category": "conflict"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "PolicyConflict",
+            "code": "proxyma.policy_conflict",
+            "type": "urn:packman:problem:proxyma.policy_conflict",
+            "status": 409,
+            "title": "Policy revision or idempotency conflict",
+            "retryable": false,
+            "category": "conflict"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "PolicyStorageFailure",
+            "code": "proxyma.policy_storage_failure",
+            "type": "urn:packman:problem:proxyma.policy_storage_failure",
+            "status": 500,
+            "title": "Policy storage or audit failed",
+            "retryable": false,
+            "category": "internal"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "ReservationDeferred",
+            "code": "proxyma.reservation_deferred",
+            "type": "urn:packman:problem:proxyma.reservation_deferred",
+            "status": 429,
+            "title": "Admission reservation deferred",
+            "retryable": true,
+            "category": "rate_limit"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "SecretStorageFailure",
+            "code": "proxyma.secret_storage_failure",
+            "type": "urn:packman:problem:proxyma.secret_storage_failure",
+            "status": 500,
+            "title": "Credential storage or decryption failed",
+            "retryable": false,
+            "category": "internal"
+        },
+        {
+            "package": "axiomasoft/proxyma-core",
+            "enum": "Proxyma\\Errors\\ProxymaErrorCode",
+            "case": "SubjectResolutionFailed",
+            "code": "proxyma.subject_resolution_failed",
+            "type": "urn:packman:problem:proxyma.subject_resolution_failed",
+            "status": 404,
+            "title": "Subject ancestry resolution failed",
+            "retryable": false,
+            "category": "not_found"
+        }
+    ]
+}

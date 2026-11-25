@@ -1,0 +1,3 @@
+# Test-image context is the repo root. The Dockerfile copies only docker/test/quality.ini.
+**
+!docker/test/quality.ini

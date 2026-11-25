@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Proxyma\Filament;
+
+use Filament\Facades\Filament;
+use Filament\Panel;
+use LogicException;
+use Override;
+use Packman\Attributes\Api;
+use Packman\Filament\Contracts\FilamentPanelPlugin;
+use Proxyma\Filament\Pages\Budgets\BudgetsPage;
+use Proxyma\Filament\Pages\Health\HealthPage;
+use Proxyma\Filament\Pages\Operations\AttemptsPage;
+use Proxyma\Filament\Pages\Operations\AuditPage;
+use Proxyma\Filament\Pages\Policy\BindingsPage;
+use Proxyma\Filament\Pages\Policy\PolicyInspector;
+use Proxyma\Filament\Resources\Pages\Endpoints;
+use Proxyma\Filament\Resources\Pages\RouteProfiles;
+use Proxyma\Filament\Resources\Pages\Routes;
+
+/**
+ * Filament panel plugin registering Proxyma administration pages and Packman panel enforcement metadata.
+ */
+#[Api(since: '1.0')]
+class ProxymaPlugin implements FilamentPanelPlugin
+{
+    public const string ID = 'proxyma';
+
+    private ?string $guardPanel = null;
+
+    private bool $enforced = false;
+
+    /** @var array{resources: list<string>, pages: list<string>, widgets: list<string>} */
+    private array $exclude = [
+        'resources' => [],
+        'pages' => [],
+        'widgets' => [],
+    ];
+
+    /** @var list<string> */
+    private array $abilities = ['view', 'update', 'execute'];
+
+    public static function make(): static
+    {
+        $plugin = app(static::class);
+
+        if (! $plugin instanceof static) {
+            throw new LogicException('Expected instance of '.static::class.'.');
+        }
+
+        return $plugin;
+    }
+
+    public static function current(Panel $panel): static
+    {
+        if (! $panel->hasPlugin(self::ID)) {
+            throw new LogicException('Filament panel "'.$panel->getId().'" does not have '.static::class.' registered.');
+        }
+
+        $plugin = $panel->getPlugin(self::ID);
+
+        if (! $plugin instanceof static) {
+            throw new LogicException('Expected instance of '.static::class.'.');
+        }
+
+        return $plugin;
+    }
+
+    public static function get(?string $filamentPanel = null): static
+    {
+        $panel = $filamentPanel === null ? Filament::getCurrentOrDefaultPanel() : Filament::getPanel($filamentPanel);
+
+        if (! $panel instanceof Panel) {
+            throw new LogicException('Filament panel "'.($filamentPanel ?? 'default').'" could not be resolved.');
+        }
+
+        return self::current($panel);
+    }
+
+    #[Override]
+    public function getId(): string
+    {
+        return self::ID;
+    }
+
+    public function guardPanel(?string $panel): static
+    {
+        $this->guardPanel = $panel;
+
+        return $this;
+    }
+
+    #[Override]
+    public function getGuardPanel(): ?string
+    {
+        return $this->guardPanel;
+    }
+
+    public function enforce(bool $enforced = true): static
+    {
+        $this->enforced = $enforced;
+
+        return $this;
+    }
+
+    #[Override]
+    public function isEnforced(): bool
+    {
+        return $this->enforced;
+    }
+
+    /** @param array{resources?: list<string>, pages?: list<string>, widgets?: list<string>} $exclude */
+    public function exclude(array $exclude): static
+    {
+        $this->exclude = [
+            'resources' => $exclude['resources'] ?? [],
+            'pages' => $exclude['pages'] ?? [],
+            'widgets' => $exclude['widgets'] ?? [],
+        ];
+
+        return $this;
+    }
+
+    /** @return array{resources: list<string>, pages: list<string>, widgets: list<string>} */
+    #[Override]
+    public function getExclude(): array
+    {
+        return $this->exclude;
+    }
+
+    /** @param list<string> $abilities */
+    public function abilities(array $abilities): static
+    {
+        $this->abilities = $abilities;
+
+        return $this;
+    }
+
+    /** @return list<string> */
+    #[Override]
+    public function getAbilities(): array
+    {
+        return $this->abilities;
+    }
+
+    #[Override]
+    public function register(Panel $panel): void
+    {
+        $panel->pages([
+            Endpoints::class,
+            Routes::class,
+            RouteProfiles::class,
+            BindingsPage::class,
+            PolicyInspector::class,
+            BudgetsPage::class,
+            HealthPage::class,
+            AttemptsPage::class,
+            AuditPage::class,
+        ]);
+    }
+
+    #[Override]
+    public function boot(Panel $panel): void {}
+}

@@ -1,0 +1,42 @@
+{
+    "name": "proxyma-install/core",
+    "type": "project",
+    "license": "proprietary",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "sources/core",
+            "options": {
+                "symlink": false,
+                "reference": "config",
+                "versions": {
+                    "axiomasoft/proxyma-core": "dev-main"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "sources/packman/*",
+            "options": {
+                "symlink": false,
+                "reference": "config",
+                "versions": {
+                    "axiomasoft/packman": "0.1.1",
+                    "axiomasoft/packman-panels": "0.1.1",
+                    "axiomasoft/packman-plugins": "0.1.2",
+                    "axiomasoft/packman-schema": "0.1.1"
+                }
+            }
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "axiomasoft/proxyma-core": "dev-main",
+        "laravel/framework": "13.40.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

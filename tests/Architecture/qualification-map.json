@@ -1,0 +1,389 @@
+{
+  "schema": "proxyma-qualification-map/v1",
+  "invariants": [
+    {
+      "id": "P1.boundaries",
+      "invariant": "Core независим от consumer/UI/LLM; Domain и Contracts без framework/DB",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Domain",
+        "packages/core/src/Contracts"
+      ],
+      "tests": [
+        "packages/core/tests/Architecture/DependencyBoundaryTest.php",
+        "tests/Smoke/ArchitectureTest.php",
+        "packages/core/tests/Contract/PublicContractsTest.php",
+        "tests/Unit/DomainVocabularyTest.php",
+        "tests/Smoke/PackageDiscoveryTest.php"
+      ]
+    },
+    {
+      "id": "P1.transactions",
+      "invariant": "Один connection, явная owning transaction, запрет I/O под SQL locks",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Admission/TransactionCoordinator.php",
+        "packages/core/src/Infrastructure/Database/ConnectionScope.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/TransactionCompositionTest.php"
+      ]
+    },
+    {
+      "id": "P2.catalog",
+      "invariant": "Catalog revision, audit rollback/replay, retirement, exact membership",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Catalog",
+        "packages/core/src/Infrastructure/Database/CatalogProvisioner.php"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/CatalogCommandTest.php",
+        "packages/core/tests/Integration/AdminAuditTest.php",
+        "packages/core/tests/Integration/CatalogSchemaTest.php"
+      ]
+    },
+    {
+      "id": "P2.tenant",
+      "invariant": "Trusted tenant/actor, default deny, shared grant не расширяет membership",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Authorization"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/TenantAuthorizationTest.php"
+      ]
+    },
+    {
+      "id": "P2.policy",
+      "invariant": "Typed keys/bounds, inheritance/null/empty, cache isolation, explain",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Policy",
+        "packages/core/src/Infrastructure/Cache/PolicyResolutionCache.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/SettingPatchTest.php",
+        "packages/core/tests/Contract/PolicyResolutionTest.php",
+        "packages/core/tests/Integration/PolicyCacheIsolationTest.php"
+      ]
+    },
+    {
+      "id": "P2.routing",
+      "invariant": "Empty profile/direct opt-in/protocol holds; immutable approved snapshot",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Routing",
+        "packages/core/src/Infrastructure/Database/CandidateSnapshotQuery.php"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/RouteSelectionTest.php",
+        "packages/core/tests/Contract/SelectionQueryBudgetTest.php"
+      ]
+    },
+    {
+      "id": "audit.selection",
+      "invariant": "Audit: batch selection <=12 SQL при 1/10/100; без production throughput claim",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Infrastructure/Database/CandidateSnapshotQuery.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/SelectionQueryBudgetTest.php"
+      ]
+    },
+    {
+      "id": "audit.provisioning",
+      "invariant": "Audit: заранее materialized scopes, shared-egress race, no late UPSERT",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Infrastructure/Database/CatalogProvisioner.php",
+        "packages/core/src/Application/Admission/ReservationService.php"
+      ],
+      "tests": [
+        "packages/core/tests/Concurrency/GcraReservationTest.php",
+        "packages/core/tests/Concurrency/AuthorityInterleavingTest.php",
+        "packages/core/tests/Integration/QuotaWindowTest.php"
+      ]
+    },
+    {
+      "id": "audit.cooldown",
+      "invariant": "Audit: pinned authorization origin/egress, без global healthy-route heuristic; late retirement",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Health/CooldownService.php",
+        "packages/core/src/Infrastructure/Database/HealthRepository.php"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/CooldownSnapshotTest.php",
+        "packages/core/tests/Integration/HealthProjectionTest.php",
+        "packages/core/tests/Concurrency/HealthCompletionTest.php"
+      ]
+    },
+    {
+      "id": "audit.metadata",
+      "invariant": "Audit: scope metadata не даёт доступа вместо exact profile membership",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Infrastructure/Database/DatabaseCatalogQueries.php",
+        "packages/core/src/Application/Routing/RouteSelector.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/TenantAuthorizationTest.php",
+        "packages/core/tests/Integration/RouteSelectionTest.php"
+      ]
+    },
+    {
+      "id": "audit.transport",
+      "invariant": "Audit: local wire HTTP, CONNECT, HTTPS proxy, SOCKS5, TLS peer/host, bounded body",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Infrastructure/Http"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/PhysicalTransportTest.php",
+        "packages/core/tests/Contract/BoundedResponseTest.php"
+      ]
+    },
+    {
+      "id": "P3.fifo",
+      "invariant": "Bounded durable FIFO; cancellation, expiry after lock wait, fairness без bypass",
+      "evolution": "inherited",
+      "sources": [
+        "packages/core/src/Application/Admission/DemandQueue.php"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/BoundedDemandTest.php",
+        "packages/core/tests/Concurrency/DemandFifoTest.php"
+      ]
+    },
+    {
+      "id": "P3.gcra",
+      "invariant": "Atomic multi-scope reserve/send debts, no partial spend, no debt rewind",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Admission/ReservationService.php",
+        "packages/core/src/Application/Admission/ClaimSend.php"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/MultiScopeReservationTest.php",
+        "packages/core/tests/Concurrency/GcraReservationTest.php"
+      ]
+    },
+    {
+      "id": "P3.quota",
+      "invariant": "Fixed UTC hour/day, last unit across scopes/classes, reserved+spent, lower limit and midnight",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Admission/QuotaService.php"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/QuotaWindowTest.php",
+        "packages/core/tests/Concurrency/QuotaBoundaryTest.php"
+      ]
+    },
+    {
+      "id": "P4.fencing",
+      "invariant": "Owner cancel, credential/profile change while waiting; fresh SQL deadline CAS, duplicate claim",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Admission/ClaimSend.php",
+        "packages/core/src/Infrastructure/Admission"
+      ],
+      "tests": [
+        "packages/core/tests/Concurrency/ClaimSendFenceTest.php",
+        "packages/core/tests/Contract/SealedWireTest.php"
+      ]
+    },
+    {
+      "id": "P4.locks",
+      "invariant": "Named interference pairs in both orders; joint finance rollback; bounded deadlock retry",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Admission/AuthorityLocker.php",
+        "packages/core/src/Application/Admission/TransactionCoordinator.php"
+      ],
+      "tests": [
+        "packages/core/tests/Concurrency/AuthorityInterleavingTest.php"
+      ]
+    },
+    {
+      "id": "P4.recovery",
+      "invariant": "SIGKILL phases; completion/reconcile; receipt/release idempotency; unknown and artifacts retained",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Recovery"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/RecoveryLifecycleTest.php",
+        "packages/core/tests/Concurrency/CompletionReconcileTest.php"
+      ]
+    },
+    {
+      "id": "P5.destination",
+      "invariant": "DNS pinning, SSRF, explicit private fixtures, redirects cross-origin/headers/downgrade",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Execution/DestinationPolicy.php",
+        "packages/core/src/Infrastructure/Http/DnsResolver.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/DestinationPolicyTest.php",
+        "packages/core/tests/Contract/RedirectPolicyTest.php"
+      ]
+    },
+    {
+      "id": "P5.credentials",
+      "invariant": "Encrypted-at-rest, rotation, trust bundles, redaction, no secret/object I/O in SQL transaction",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Catalog/RotateCredentials.php",
+        "packages/core/src/Infrastructure/Http/TlsTrust.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/SecretRotationTest.php",
+        "packages/core/tests/Contract/TlsPolicyTest.php"
+      ]
+    },
+    {
+      "id": "P5.seal",
+      "invariant": "One-use post-commit capability; headers/body/full wire digest; immutable TLS; monotonic latestStart",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Execution/WireSealer.php",
+        "packages/core/src/Domain/Execution/AuthorizedWireRequest.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/SealedWireTest.php",
+        "packages/core/tests/Contract/DispatchDeadlineTest.php"
+      ]
+    },
+    {
+      "id": "P5.response",
+      "invariant": "Bounded wire/decoded bytes; artifact ownership; no partial response success",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Infrastructure/Http/ResponseReader.php",
+        "packages/core/src/Application/Recovery/OwnedTemporaryArtifacts.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/BoundedResponseTest.php",
+        "packages/core/tests/Contract/ArtifactOwnershipTest.php"
+      ]
+    },
+    {
+      "id": "P5.executor",
+      "invariant": "Explicit public execution; retry/redirect max bounds; technical policy precedence",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Execution/OutboundExecutor.php",
+        "packages/core/src/Application/Execution/OutcomePolicyRegistry.php"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/ExecutorPolicyTest.php",
+        "packages/core/tests/Contract/RedirectPolicyTest.php"
+      ]
+    },
+    {
+      "id": "P6.health",
+      "invariant": "Immutable receipt facts; independent epochs; 407 version holds; stale success/429 continuity",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Infrastructure/Database/HealthRepository.php",
+        "packages/core/src/Domain/Health"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/HealthProjectionTest.php",
+        "packages/core/tests/Concurrency/HealthCompletionTest.php"
+      ]
+    },
+    {
+      "id": "P6.probes",
+      "invariant": "Compound exact scope probe owner/token/epoch/lease, normal send shares origin budget",
+      "evolution": "strengthened",
+      "sources": [
+        "packages/core/src/Application/Health/ProbeCoordinator.php",
+        "packages/core/src/Infrastructure/Health/ProbeClaims.php"
+      ],
+      "tests": [
+        "packages/core/tests/Concurrency/ProbeOwnershipTest.php",
+        "packages/core/tests/Concurrency/AuthorityInterleavingTest.php"
+      ]
+    },
+    {
+      "id": "P6.operations",
+      "invariant": "Bounded diagnostics/prune, dry-run no mutation, telemetry redaction and safe health reset",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Diagnostics",
+        "packages/core/src/Application/Maintenance"
+      ],
+      "tests": [
+        "packages/core/tests/Integration/OperationsCommandTest.php",
+        "packages/core/tests/Contract/TelemetryRedactionTest.php"
+      ]
+    },
+    {
+      "id": "P7.extensions",
+      "invariant": "Finite registry/freeze, serialization, route subset, mandatory budgets, fixed guard tier, after-commit observers",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Extensions"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/ExtensionConformanceTest.php"
+      ]
+    },
+    {
+      "id": "P7.panels",
+      "invariant": "Typed panel/subject binding, optimistic revision and transactional audit",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Panels",
+        "packages/core/src/Application/Bindings"
+      ],
+      "tests": [
+        "packages/core/tests/Contract/PanelBindingTest.php",
+        "packages/filament/tests/BindingEditorTest.php",
+        "packages/filament/tests/EmbeddedSettingsTest.php"
+      ]
+    },
+    {
+      "id": "P7.ui",
+      "invariant": "Filament permissions/tenant isolation, write-only credentials, bounded operations reads",
+      "evolution": "added",
+      "sources": [
+        "packages/filament/src"
+      ],
+      "tests": [
+        "packages/filament/tests/CatalogAuthorizationTest.php",
+        "packages/filament/tests/RouteProfilesTest.php",
+        "packages/filament/tests/OperationsPagesTest.php"
+      ]
+    },
+    {
+      "id": "P8.install",
+      "invariant": "Core-only and optional Filament offline copied installs, actual selected versions, migrations/schema mismatch",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Laravel/ProxymaServiceProvider.php"
+      ],
+      "tests": [
+        "tests/Installation/PackageInstallTest.php",
+        "tests/Installation/StandaloneConsumerTest.php",
+        "tests/Installation/RigIsolationTest.php"
+      ]
+    },
+    {
+      "id": "P8.public",
+      "invariant": "Public OutboundClient: owner/tenant/quota/TLS cannot bypass; safe filter; retained unknown",
+      "evolution": "added",
+      "sources": [
+        "packages/core/src/Application/Execution/OutboundExecutor.php"
+      ],
+      "tests": [
+        "tests/Contract/PackageAcceptanceTest.php"
+      ]
+    }
+  ]
+}

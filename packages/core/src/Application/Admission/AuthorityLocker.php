@@ -1,0 +1,289 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Proxyma\Application\Admission;
+
+use DateTimeImmutable;
+use Illuminate\Database\DatabaseTransactionRecord;
+use Illuminate\Database\Query\Builder;
+use LogicException;
+use Packman\Attributes\Api;
+use Proxyma\Contracts\Admission\LockedAdmissionGuard;
+use Proxyma\Contracts\Admission\OwnerAuthority;
+use Proxyma\Contracts\Admission\SqlConnectionParticipant;
+use Proxyma\Domain\Admission\AdmissionRejected;
+use Proxyma\Domain\Admission\AuthorityLockTier;
+use Proxyma\Domain\Admission\LockPosition;
+use Proxyma\Domain\Execution\AdmissionLockTier;
+use Proxyma\Domain\Execution\ExecutionBlocked;
+use Proxyma\Domain\Execution\LockedOwnerState;
+use Proxyma\Domain\Execution\LockedTransactionContext;
+use Proxyma\Domain\Execution\OwnerRef;
+use Proxyma\Domain\Execution\OwnerSnapshot;
+use Proxyma\Domain\Execution\Uuid;
+use Proxyma\Domain\Execution\WireRequest;
+use Proxyma\Domain\Policy\TenantKey;
+use Proxyma\Infrastructure\Database\ConnectionScope;
+use Proxyma\Infrastructure\Database\PackageSchema;
+use Proxyma\Internal\Database\RowValues;
+use stdClass;
+use WeakMap;
+
+#[Api(since: '1.0')]
+final class AuthorityLocker
+{
+    /** @var WeakMap<DatabaseTransactionRecord, LockPosition> */
+    private WeakMap $positions;
+
+    /** @var WeakMap<LockedOwnerState, array{DatabaseTransactionRecord, OwnerSnapshot}> */
+    private WeakMap $owners;
+
+    public function __construct(private readonly ConnectionScope $scope)
+    {
+        $this->positions = new WeakMap;
+        $this->owners = new WeakMap;
+    }
+
+    public function enter(AuthorityLockTier $tier, string $stableKey, LockedTransactionContext $transaction): void
+    {
+        $this->scope->assertActive($transaction);
+        $root = $this->scope->root();
+        $this->positions[$root] ??= new LockPosition;
+        $this->positions[$root]->enter($tier, $stableKey);
+    }
+
+    public function participant(SqlConnectionParticipant $participant, AuthorityLockTier $tier, string $key, LockedTransactionContext $transaction): void
+    {
+        $this->scope->assertSame($participant->connection());
+        $this->enter($tier, $key, $transaction);
+    }
+
+    public function owner(OwnerAuthority $authority, OwnerRef $owner, OwnerSnapshot $snapshot, LockedTransactionContext $transaction): LockedOwnerState
+    {
+        if (! $authority instanceof SqlConnectionParticipant || $authority->connectionName() !== $transaction->connectionName) {
+            throw new LogicException('OwnerAuthority must declare its local SQL Connection.');
+        }
+        $this->participant($authority, AuthorityLockTier::Owner, $owner->ownerId, $transaction);
+        if (! $owner->matchesIdentityAndToken($snapshot->owner) || ! $authority->validateSnapshot($owner, $snapshot)) {
+            throw new AdmissionRejected('owner_snapshot_stale');
+        }
+        $state = $authority->lockAndValidate($owner, $snapshot, $transaction);
+        if ($state instanceof ExecutionBlocked || ! $state->owner->matchesIdentityAndToken($owner)) {
+            throw new AdmissionRejected('owner_lost');
+        }
+        $clock = RowValues::object($this->scope->connection->selectOne('SELECT clock_timestamp() AS now'));
+        $now = new DateTimeImmutable(RowValues::colStr($clock, 'now'));
+        if (min($snapshot->deadlineAt, $state->deadlineAt) <= $now) {
+            throw new AdmissionRejected('owner_deadline');
+        }
+
+        $validated = new LockedOwnerState($state->owner, $state->purpose, min($snapshot->deadlineAt, $state->deadlineAt),
+            $state->pinnedVersions, $state->probeToken, $state->adapterHealthId, $state->adapterHealthEpoch);
+        $this->owners[$validated] = [$this->scope->root(), $snapshot];
+        $this->scope->current()->addCallbackForRollback(function () use ($validated): void {
+            unset($this->owners[$validated]);
+        });
+
+        return $validated;
+    }
+
+    public function assertOwnerState(LockedOwnerState $state, OwnerSnapshot $snapshot, LockedTransactionContext $tx): void
+    {
+        $this->scope->assertActive($tx);
+        $registered = $this->owners[$state] ?? null;
+        if ($registered === null || $registered[0] !== $this->scope->root() || ! self::ownerSnapshotsEqual($registered[1], $snapshot)) {
+            throw new AdmissionRejected('unverified_owner_state');
+        }
+    }
+
+    /**
+     * Locks only existing materialized rows; callers validate the returned state before mutation.
+     *
+     * @param  list<string>  $keys
+     * @return list<stdClass>
+     */
+    public function rows(AuthorityLockTier $tier, TenantKey $tenant, array $keys, LockedTransactionContext $transaction): array
+    {
+        return $this->lockedRows($tier, $tenant, $keys, $transaction, 'FOR UPDATE');
+    }
+
+    /**
+     * Reads immutable catalogue rows under a writer fence for admission validation.
+     *
+     * @param  list<string>  $keys
+     * @return list<stdClass>
+     */
+    public function catalogueRows(AuthorityLockTier $tier, TenantKey $tenant, array $keys, LockedTransactionContext $transaction): array
+    {
+        if (! in_array($tier, [AuthorityLockTier::Profile, AuthorityLockTier::Endpoint, AuthorityLockTier::Route, AuthorityLockTier::Target], true)) {
+            throw new LogicException('Only catalogue rows support shared admission locks.');
+        }
+
+        return $this->lockedRows($tier, $tenant, $keys, $transaction, 'FOR SHARE');
+    }
+
+    /**
+     * Locks only existing materialized rows; callers validate the returned state before mutation.
+     *
+     * @param  list<string>  $keys
+     * @return list<stdClass>
+     */
+    private function lockedRows(AuthorityLockTier $tier, TenantKey $tenant, array $keys, LockedTransactionContext $transaction, string $lock): array
+    {
+        [$name, $column] = match ($tier) {
+            AuthorityLockTier::Operation => ['operations', 'id'],
+            AuthorityLockTier::Policy => ['policy_heads', 'scope_key'],
+            AuthorityLockTier::Profile => ['route_profiles', 'id'],
+            AuthorityLockTier::Endpoint => ['endpoints', 'id'],
+            AuthorityLockTier::Route => ['routes', 'id'],
+            AuthorityLockTier::RouteHealth => ['route_health', 'id'],
+            AuthorityLockTier::RouteTargetHealth => ['route_target_health', 'id'],
+            AuthorityLockTier::Target => ['targets', 'id'],
+            AuthorityLockTier::TargetHealth => ['target_health', 'id'],
+            AuthorityLockTier::Budget => ['budgets', 'scope_key'],
+            AuthorityLockTier::Demand => ['demands', 'id'],
+            AuthorityLockTier::Permit => ['permits', 'id'],
+            AuthorityLockTier::Attempt => ['attempts', 'id'],
+            AuthorityLockTier::Observation => ['observations', 'id'],
+            AuthorityLockTier::Application => ['observation_applications', 'id'],
+            default => throw new LogicException('External prefix and adapter tiers require their declared SQL participant.'),
+        };
+        $keys = array_values(array_unique($keys));
+        sort($keys, SORT_STRING);
+        $rows = [];
+        foreach ($keys as $key) {
+            $this->enter($tier, $key."\0".$tenant->value, $transaction);
+            $row = PackageSchema::query($this->scope->connection, $name)
+                ->where('tenant_key', $tenant->value)->where($column, $key)->lock($lock)->first();
+            if ($row === null) {
+                throw new AdmissionRejected('required_state_missing');
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Locks policy heads for several tenants in the same canonical order as rows().
+     *
+     * @param  list<array{tenant: TenantKey, scopeKey: string}>  $heads
+     * @return array<string, stdClass> keyed by "{scopeKey}\0{tenantKey}"
+     */
+    public function policyRows(array $heads, LockedTransactionContext $transaction): array
+    {
+        $requested = [];
+        foreach ($heads as ['tenant' => $tenant, 'scopeKey' => $scopeKey]) {
+            $requested[$scopeKey."\0".$tenant->value] = [$tenant, $scopeKey];
+        }
+        ksort($requested, SORT_STRING);
+        foreach ($requested as [$tenant, $scopeKey]) {
+            $this->enter(AuthorityLockTier::Policy, $scopeKey."\0".$tenant->value, $transaction);
+        }
+        if ($requested === []) {
+            return [];
+        }
+        $query = PackageSchema::query($this->scope->connection, 'policy_heads');
+        $query->where(static function (Builder $query) use ($requested): void {
+            foreach ($requested as [$tenant, $scopeKey]) {
+                $query->orWhere(static function (Builder $query) use ($tenant, $scopeKey): void {
+                    $query->where('tenant_key', $tenant->value)->where('scope_key', $scopeKey);
+                });
+            }
+        });
+        $locked = [];
+        foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lock('FOR SHARE')->get() as $row) {
+            $locked[RowValues::colStr($row, 'scope_key')."\0".RowValues::colStr($row, 'tenant_key')] = $row;
+        }
+        if (array_keys($locked) !== array_keys($requested)) {
+            throw new AdmissionRejected('required_state_missing');
+        }
+
+        return $locked;
+    }
+
+    /**
+     * @param  list<stdClass>  $budgets
+     * @return list<stdClass>
+     */
+    public function budgetRows(array $budgets, LockedTransactionContext $transaction): array
+    {
+        $requested = [];
+        foreach ($budgets as $budget) {
+            $requested[RowValues::colStr($budget, 'scope_key')."\0".RowValues::colStr($budget, 'tenant_key')] = $budget;
+        }
+        ksort($requested, SORT_STRING);
+        $locked = [];
+        foreach (array_chunk($requested, 128, preserve_keys: true) as $chunk) {
+            foreach ($chunk as $key => $budget) {
+                $this->enter(AuthorityLockTier::Budget, $key, $transaction);
+            }
+            $query = PackageSchema::query($this->scope->connection, 'budgets');
+            $query->where(static function (Builder $query) use ($chunk): void {
+                foreach ($chunk as $budget) {
+                    $query->orWhere(static function (Builder $query) use ($budget): void {
+                        $query->where('tenant_key', RowValues::colStr($budget, 'tenant_key'))
+                            ->where('scope_key', RowValues::colStr($budget, 'scope_key'));
+                    });
+                }
+            });
+            $found = [];
+            foreach ($query->orderByRaw('"scope_key" COLLATE "C"')->orderByRaw('"tenant_key" COLLATE "C"')->lock('FOR UPDATE')->get() as $row) {
+                $found[RowValues::colStr($row, 'scope_key')."\0".RowValues::colStr($row, 'tenant_key')] = $row;
+            }
+            if (array_keys($found) !== array_keys($chunk)) {
+                throw new AdmissionRejected('required_state_missing');
+            }
+            foreach ($chunk as $key => $budget) {
+                if (RowValues::colStr($found[$key], 'id') !== RowValues::colStr($budget, 'id')) {
+                    throw new AdmissionRejected('budget_identity_changed');
+                }
+                $locked[] = $found[$key];
+            }
+        }
+
+        return $locked;
+    }
+
+    public function guard(string $id, LockedAdmissionGuard $guard, WireRequest $request, LockedOwnerState $owner, LockedTransactionContext $transaction): void
+    {
+        if ($guard->tier() !== AdmissionLockTier::AdapterGuard || ! $guard instanceof SqlConnectionParticipant) {
+            throw new LogicException('Project adapter guard must declare the adapter_guard tier and SQL Connection.');
+        }
+        $this->participant($guard, AuthorityLockTier::AdapterGuard, $id, $transaction);
+        if ($guard->evaluateLocked($request, $owner, $transaction) !== null) {
+            throw new AdmissionRejected('adapter_guard_denied');
+        }
+    }
+
+    public function operation(Uuid $id, OwnerRef $owner, LockedTransactionContext $transaction): stdClass
+    {
+        $row = $this->rows(AuthorityLockTier::Operation, $owner->tenantKey, [$id->value], $transaction)[0];
+        $clock = RowValues::object($this->scope->connection->selectOne('SELECT clock_timestamp() AS now'));
+        $now = new DateTimeImmutable(RowValues::colStr($clock, 'now'));
+        if (RowValues::colStr($row, 'owner_type') !== $owner->ownerType || RowValues::colStr($row, 'owner_id') !== $owner->ownerId
+            || ! hash_equals(RowValues::colStr($row, 'owner_token'), $owner->token()) || RowValues::colInt($row, 'owner_generation') !== $owner->generation
+            || RowValues::colStr($row, 'status') !== 'active' || RowValues::colNullableStr($row, 'revoked_at') !== null
+            || new DateTimeImmutable(RowValues::colStr($row, 'deadline')) <= $now) {
+            throw new AdmissionRejected('operation_owner_lost');
+        }
+
+        return $row;
+    }
+
+    private static function ownerSnapshotsEqual(OwnerSnapshot $left, OwnerSnapshot $right): bool
+    {
+        return $left->owner->matchesIdentityAndToken($right->owner)
+            && ($left->deadlineAt <=> $right->deadlineAt) === 0
+            && $left->inputRevision === $right->inputRevision
+            && $left->inputHash?->hex === $right->inputHash?->hex
+            && $left->controlVersions === $right->controlVersions
+            && $left->subjectGenerations === $right->subjectGenerations
+            && $left->parentAttemptId?->value === $right->parentAttemptId?->value
+            && $left->adapterHealthId?->value === $right->adapterHealthId?->value
+            && $left->adapterHealthEpoch === $right->adapterHealthEpoch
+            && $left->purpose === $right->purpose
+            && $left->probeToken?->value === $right->probeToken?->value;
+    }
+}
