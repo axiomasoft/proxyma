@@ -192,6 +192,7 @@ final readonly class OutboundFailureMapper
         ?ResponseDescriptor $lastDeliveredResponse,
     ): ExecutionResult {
         $deferredReason = match ($rejected->reason) {
+            'send_budget_unavailable' => DeferralReason::RateLimit,
             'operation_deadline_out_of_bounds', 'reservation_deadline', 'claim_deadline', 'slice_exhausted', 'work_budget_exhausted' => DeferralReason::SliceExhausted,
             'quota_exhausted', 'quota_window_exhausted' => DeferralReason::QuotaWindowExhausted,
             'health_unavailable', 'route_health_unavailable', 'target_health_unavailable' => DeferralReason::NoHealthyRoute,

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Временная занятость send budget откладывает запрос с `rate_limit` после отмены неотправленного permit, не переводя его в постоянный configuration hold.
+
 ### Added
 
 - Публичная установка двух пакетов из клонов GitHub описана в `docs/installation.md`.
