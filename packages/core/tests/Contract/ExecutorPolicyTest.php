@@ -454,6 +454,32 @@ it('configuration hold сохраняет scalar details без отправки
         ->and($this->table('permits')->count())->toBe(0);
 });
 
+it('при занятом send budget откладывает запрос и освобождает permit до отправки', function (): void {
+    $injected = false;
+    $this->db->listen(function ($event) use (&$injected): void {
+        if ($injected || ! str_contains(strtolower($event->sql), 'insert into "pxm_permits"')) {
+            return;
+        }
+        $injected = true;
+        $this->db->afterCommit(function (): void {
+            $this->table('budgets')->where('scope_key', $this->scopeKey)
+                ->update(['send_tat' => $this->db->raw("clock_timestamp() + interval '5 seconds'")]);
+        });
+    });
+
+    [$request, $context] = makeExecutionPair($this);
+    $result = makeExecutorForTest($this, [deliveredHttp(200)])->execute($request, $context);
+
+    expect($injected)->toBeTrue()
+        ->and($result)->toBeInstanceOf(ExecutionDeferred::class)
+        ->and($result->reason)->toBe(DeferralReason::RateLimit)
+        ->and($result->attemptIds)->toBe([])
+        ->and($this->dispatched)->toBe([])
+        ->and($this->table('attempts')->count())->toBe(0)
+        ->and($this->table('permits')->where('state', 'cancelled_before_send')->count())->toBe(1)
+        ->and((int) $this->table('budgets')->sum('inflight'))->toBe(0);
+});
+
 it('при 407 ставит credential_hold на прокси-маршрут, переключается на другой прокси и никогда не падает в direct', function (): void {
     config(['proxyma.policy.project_defaults' => array_replace(config('proxyma.policy.project_defaults'), ['route.allow_direct' => false])]);
     $endpoint1 = Uuid::random();
